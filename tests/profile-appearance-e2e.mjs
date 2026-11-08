@@ -29,6 +29,16 @@ try {
   const url = String(await mf.ready).replace(/\/$/, '');
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
   const errors = [];
+  async function matchingBanner(page, sameImage = true) {
+    await page.waitForFunction(() => {
+      const a = document.querySelector('.pf-banner')?.getBoundingClientRect(), b = document.querySelector('.pa-preview-banner')?.getBoundingClientRect();
+      return a && b && Math.abs(a.width / a.height - b.width / b.height) < .015;
+    });
+    if (sameImage) assert.equal(await page.evaluate(() => {
+      const a = document.querySelector('.pf-cover'), b = document.querySelector('.pa-preview-cover');
+      return ['backgroundImage', 'backgroundSize', 'backgroundPosition'].every(k => getComputedStyle(a)[k] === getComputedStyle(b)[k]) && getComputedStyle(a, '::after').backgroundImage === getComputedStyle(b, '::after').backgroundImage;
+    }), true, 'saved and preview banners use identical image, crop position and shading');
+  }
   async function device(name, mobile = false) {
     const context = await browser.newContext({ viewport: mobile ? { width: 844, height: 390 } : { width: 1440, height: 960 }, isMobile: mobile, hasTouch: mobile });
     await context.addInitScript(() => localStorage.setItem('am.noInstallPrompt', '1'));
@@ -77,6 +87,7 @@ try {
   await alice.locator('#pa-position').fill('25'); await alice.locator('#pa-position').dispatchEvent('input');
   const draft = await alice.evaluate(() => ({ style: document.querySelector('.pa-preview').dataset.profileStyle, image: document.querySelector('.pa-preview-cover').style.backgroundImage, saved: AshtonkMania.ProfileManager.profile.appearance }));
   assert.equal(draft.style, 'aurora'); assert.ok(draft.image.includes('data:image/')); assert.equal(draft.saved, undefined);
+  await matchingBanner(alice, false);
   if (process.env.SHOT_DIR) await alice.screenshot({ path: join(process.env.SHOT_DIR, 'profile-editor-desktop.png') });
   await alice.getByRole('button', { name: 'Save changes', exact: true }).click();
   await alice.waitForSelector('.pa-editor', { state: 'detached' });
@@ -88,6 +99,7 @@ try {
   const saved = await alice.evaluate(() => AshtonkMania.ProfileManager.profile.appearance);
   assert.equal(saved.position, 25); assert.ok(saved.banner.length <= 180000);
   await alice.getByRole('button', { name: 'Customize profile', exact: true }).click();
+  await matchingBanner(alice);
   assert.equal(await alice.locator('#pa-bio').inputValue(), saved.bio);
   await alice.getByRole('button', { name: 'Ember profile style' }).click();
   await alice.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -141,11 +153,16 @@ try {
   await mobile.evaluate(async p => { await AshtonkMania.ProfileManager.applyKept(p); AshtonkMania.Screens.go('profile', { force: true }); }, { appearance: saved });
   await mobile.waitForFunction(() => document.querySelectorAll('.pf-bio').length === 1 && document.querySelector('.pf-customize'));
   await mobile.getByRole('button', { name: 'Customize profile', exact: true }).click();
+  await matchingBanner(mobile);
   assert.ok(await mobile.locator('.pa-editor').evaluate(el => el.getBoundingClientRect().width >= innerWidth * .8));
   await mobile.getByRole('button', { name: 'Cancel', exact: true }).click();
   await mobile.waitForSelector('.pa-editor', { state: 'detached' });
   await mobile.setViewportSize({ width: 390, height: 844 });
   await mobile.getByRole('button', { name: 'Customize profile', exact: true }).click();
+  await matchingBanner(mobile);
+  // Rotation while the editor is open must update the crop with the actual profile.
+  await mobile.setViewportSize({ width: 844, height: 390 }); await matchingBanner(mobile);
+  await mobile.setViewportSize({ width: 390, height: 844 }); await matchingBanner(mobile);
   await mobile.getByRole('button', { name: 'Midnight profile style' }).click();
   assert.equal(await mobile.locator('.pa-preview-cover').evaluate(el => getComputedStyle(el, '::before').backgroundImage), 'none');
   await mobile.getByRole('button', { name: 'Midnight profile style' }).click();

@@ -5459,7 +5459,7 @@ html.lp-open #toasts { right: 380px; }
 .ov[data-profile-style] .pf-sec > h2 { font-size: 1.2rem; margin-bottom: 18px; }
 .ov[data-profile-style] .pf-subsec > h3 { font-size: .85rem; }
 /* The preview uses the same banner/identity separation as the saved profile. */
-.pa-preview-banner { height: 190px; position: relative; overflow: hidden; }
+.pa-preview-banner { aspect-ratio: var(--pa-banner-aspect, 6 / 1); position: relative; overflow: hidden; }
 .pa-preview-cover { inset: 0; }
 .pa-preview-inner { padding: 0 20px 20px; min-height: 118px; align-items: flex-start; background: var(--od5); }
 .pa-preview .avatar { position: relative; z-index: 1; margin-top: -24px; border: 4px solid var(--od5); border-radius: 10px; }
@@ -5492,7 +5492,6 @@ html.lp-open #toasts { right: 380px; }
   .pf-header[data-profile-style] .pf-dl { padding: 0 10px; }
   .pf-header[data-profile-style] .pf-dl:first-child { padding-left: 0; border-left: 0; }
   .pf-header[data-profile-style] .pf-dl span { font-size: .62rem; white-space: normal; }
-  .pa-preview-banner { height: 165px; }
   .pa-preview-inner { padding: 0 16px 16px; min-height: 110px; }
   .pa-preview .avatar { margin-top: -20px; }
 }

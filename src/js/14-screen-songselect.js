@@ -197,10 +197,10 @@ const SongSelect = {
         // (a key mod changes converted maps' key counts: their filters and groups follow, as in lazer)
         const km = ModSystem.keyMod(Settings.get('songselect.mods') || []);
         if (km !== (this._keyMod || 0)) { this._keyMod = km; this.rebuild(false, true); }
-        this.renderMods(); this.updateInfo(); this.renderVisible(true);
+        this.renderMods(); this.updateInfo(); this.renderVisible(true); this.syncPreviewAudio();
       }), // (BPM, length and stars follow the mods)
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
-      Bus.on('settings:changed', k => { if (k === 'songselect.converts') this.rebuild(false, true); }),
+      Bus.on('settings:changed', k => { if (k === 'songselect.converts') this.rebuild(false, true); if (k === 'audio.preservePitch') this.syncPreviewAudio(); }),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
       // the connection coming or going while an online leaderboard is on show (Connecting… → the scores, or the offline card)
@@ -283,6 +283,8 @@ const SongSelect = {
     clearTimeout(this._previewT); clearTimeout(this._infoT); this._infoT = 0; clearTimeout(this._typeT); this._typeT = 0;
     if (this._timing) this._timing();
     this._previewTok = {}; // (a preview still loading stops where it is)
+    clearInterval(this._audioTick); this._audioTok = {}; this._audioSignature = null;
+    Music.setRate(1, true, null, { live: true }); AudioManager.modVolume(1, 0);
   },
   /** lazer's DifficultyRangeSlider: the star spectrum as a track, darkened outside the range, a Highlight1 frame round
    *  the range and a nub at each end in the colour of its star rating (grey from 8 stars; the top end is "∞" until
@@ -1018,6 +1020,7 @@ const SongSelect = {
    *  it was already playing as you came in (the menu's "next song" used to take over then, and picked another beatmap
    *  for you). Left for another screen, the music goes on to the next song as in the menus. */
   loopTrack(m) {
+    this.syncPreviewAudio(m);
     Music.onEnded = () => {
       if (Screens.currentName === 'songselect' && Music.meta && Music.meta.setId === m.setId) Music.play(previewStart(m), { fadeIn: 600 });
       else if (Screens.currentName !== 'songselect' && Screens.currentName !== 'gameplay') MenuMusic.next();
@@ -1039,6 +1042,47 @@ const SongSelect = {
   },
   /** The same key the player gives a track (set / audio file), to tell whether this difficulty's song is playing. */
   trackKey(m) { return `${m.setId}/${m.audioFile || ''}`.toLowerCase(); },
+  /** Preview the same speed/pitch as a play. Combo-dependent mods start at zero combo; ramps follow song position. */
+  syncPreviewAudio(m = BeatmapManager.maps.get(this.selectedId)) {
+    if (!m || this.trackKey(m) !== (Music.key || '').toLowerCase()) m = BeatmapManager.maps.get(Music.meta?.mapId);
+    if (Screens.currentName !== 'songselect' || !m || !Music.loaded || this.trackKey(m) !== (Music.key || '').toLowerCase()) return Promise.resolve(false);
+    const mods = Settings.get('songselect.mods') || [], cfg = ModSystem.config(), rate = ModSystem.rate(mods, cfg);
+    const preserve = !ModSystem.pitchShift(mods) && Settings.get('audio.preservePitch'), ramp = ModSystem.ramp(mods), muted = mods.includes('MU');
+    const signature = JSON.stringify([Music._seq, m.id, rate, preserve, ramp, muted, cfg.muCount, cfg.muInverse, cfg.muMetronome]);
+    if (signature === this._audioSignature) return this._audioReady;
+    this._audioSignature = signature;
+    const tok = this._audioTok = {};
+    clearInterval(this._audioTick);
+    const valid = () => tok === this._audioTok && Screens.currentName === 'songselect' && this.trackKey(m) === (Music.key || '').toLowerCase();
+    const fraction = cfg.muCount <= 0 ? 1 : 0;
+    AudioManager.modVolume(muted ? cfg.muInverse ? fraction : 1 - fraction : 1, 100);
+    this._audioReady = (async () => {
+      if (!await Music.setRate(rate, preserve, null, { live: true }) || !valid()) return false;
+      let lastBeat = null;
+      const tick = () => {
+        if (!valid() || !Music.playing) return;
+        const now = Music.time;
+        if (ramp) {
+          const progress = clamp((now - (m.firstNote || 0)) / Math.max(1, (m.lastNote || m.length || Music.duration) - (m.firstNote || 0)), 0, 1);
+          Music.rampTo(lerp(ramp[0], ramp[1], progress));
+        }
+        if (!muted || cfg.muMetronome === 0) return;
+        const red = Music.meta?.timing || [], tp = red[Math.max(0, bsearchLE(red, now, 'time'))];
+        if (!tp || !(tp.beatLength > 0)) return;
+        const meter = tp.meter > 0 ? tp.meter : 4;
+        if (now < (m.firstNote || 0) - tp.beatLength * meter) return;
+        const beat = Math.floor((now - tp.time) / tp.beatLength + 1e-6), key = tp.time + ':' + beat;
+        if (key === lastBeat) return;
+        const first = lastBeat == null; lastBeat = key;
+        if (first && now - (tp.time + beat * tp.beatLength) > 60) return;
+        const buf = AudioManager.synth(((beat % meter) + meter) % meter === 0 ? 'metronome-hi' : 'metronome-lo');
+        if (buf) AudioManager.play(buf, { volume: 0.6 });
+      };
+      if (ramp || muted && cfg.muMetronome !== 0) { this._audioTick = setInterval(tick, 25); tick(); }
+      return true;
+    })().catch(e => { if (valid()) { this._audioSignature = null; console.warn('preview audio mods', e); } return false; });
+    return this._audioReady;
+  },
   async preview(m) {
     this.showBackground(m);
     if (!Settings.get('audio.previewAudio') || m.problems.length) return;
@@ -1052,6 +1096,8 @@ const SongSelect = {
       if (tok !== this._previewTok || BeatmapManager.maps.get(this.selectedId)?.setId !== m.setId) return;
       if (!blob) return;
       if (!await Music.open(blob, `${m.setId}/${m.audioFile}`, { setId: m.setId, mapId: m.id, timing: null }) || tok !== this._previewTok) return;
+      await this.syncPreviewAudio(m);
+      if (tok !== this._previewTok || Screens.currentName !== 'songselect') return;
       Music.play(previewStart(m), { fadeIn: 400 });
       this.loopTrack(m);
       MenuMusic.setCurrent(m);

@@ -110,6 +110,14 @@ const ProfileAppearance = {
         h('div.pa-preview-tags', ...this.tags(ProfileScreen.ownTags), h('span.pf-tag', 'osu!mania')), previewBio)),
       h('div.pa-preview-stats', h('div', h('span', 'Performance'), h('b', `${Math.round(stats.pp || 0).toLocaleString()}pp`)),
         h('div', h('span', 'Accuracy'), h('b', `${((stats.avgAcc || 0) * 100).toFixed(2)}%`)), h('div', h('span', 'Level'), h('b', String(stats.level || 1)))));
+    // Use the real banner's aspect ratio: cover/position then produce the exact same crop at preview size.
+    const banner = document.querySelector('.pf-header .pf-banner');
+    const matchBanner = () => {
+      const rect = banner?.getBoundingClientRect();
+      if (rect?.width > 0 && rect.height > 0) preview.style.setProperty('--pa-banner-aspect', `${rect.width} / ${rect.height}`);
+    };
+    const bannerObserver = banner ? new ResizeObserver(matchBanner) : null;
+    bannerObserver?.observe(banner); matchBanner();
     const status = h('p.pa-status', { role: 'status', 'aria-live': 'polite' });
     const counter = h('span.pa-counter'), bio = h('textarea.input.pa-bio', { id: 'pa-bio', maxlength: 160, rows: 3, placeholder: 'A little about you…' }); bio.value = draft.bio;
     const position = h('input.slider', { id: 'pa-position', type: 'range', min: 0, max: 100, step: 1, value: draft.position, 'aria-label': 'Banner vertical position' });
@@ -215,7 +223,7 @@ const ProfileAppearance = {
       if (e.shiftKey && document.activeElement === first) { last.focus(); return true; }
       if (!e.shiftKey && document.activeElement === last) { first.focus(); return true; }
       return false;
-    }, onClose: () => { closed = true; uploadSeq++; this.o = null; } });
+    }, onClose: () => { closed = true; uploadSeq++; bannerObserver?.disconnect(); this.o = null; } });
     paint(); drawSongs(); requestAnimationFrame(() => tiles.find(t => t.dataset.style === draft.style)?.focus());
   },
 };

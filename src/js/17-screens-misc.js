@@ -935,6 +935,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8', title: 'Hear your mods before you play', sections: [
+    { icon: 'music', title: 'Song select', items: ['Song previews follow your selected audio mods, including speed, pitch and Wind Up / Wind Down'] },
+    { icon: 'brush', title: 'Profiles', items: ['The banner editor previews the same image crop and position as your saved profile, including on phones'] },
+  ] },
   { id: '2026.11.7f', title: 'Your profile, your colours', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Four coordinated themes and a Custom option to pick your own accent and background colours; character presets are removed', 'Sharper uploaded banners, with a dedicated artwork area above your name and bio', 'A cleaner identity row and compact stats layout, with the same arrangement in the profile preview'] },
   ] },

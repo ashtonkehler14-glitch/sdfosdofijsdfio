@@ -273,7 +273,7 @@ const Music = {
     if (this.key !== key || this.el) this.stop(0);
     this._dropStream();
     this.buffer = buffer; this.key = key; this.meta = meta || null;
-    this.stretched = null;
+    this.stretched = null; this.rate = 1; this.preservePitch = false;
   },
   /** Open a track for menus / song select: streamed through an <audio> element on computers; on phones decoded and
    *  played through Web Audio instead — an <audio> element there puts a "Media output" player in the notifications. */
@@ -311,7 +311,8 @@ const Music = {
     if (oldUrl) URL.revokeObjectURL(oldUrl);
     el.onended = () => { if (this.el === el && this.playing) { this.playing = false; this.pausedPos = this.duration; this.onEnded && this.onEnded(); } };
     this.el = el; this.buffer = null; this.stretched = null; this.key = key; this.meta = meta || null;
-    this.rate = 1; this.pausedPos = 0;
+    this.rate = 1; this.preservePitch = false; this.pausedPos = 0;
+    el.playbackRate = el.defaultPlaybackRate = 1; this._streamPitch(true);
   },
   /** Nothing loaded any more (its beatmap set was deleted). */
   unload() { this.stop(0); this._dropStream(); this.buffer = null; this.stretched = null; this.key = null; this.meta = null; this.pausedPos = 0; },
@@ -327,16 +328,34 @@ const Music = {
     return this.buffer ? this.buffer.duration * 1000 : 0;
   },
 
-  /** Prepare playback rate. preservePitch -> WSOLA-stretched buffer, otherwise resampling (pitch shifts). */
-  async setRate(rate, preservePitch, onProgress) {
-    this.rate = rate; this.preservePitch = preservePitch && Math.abs(rate - 1) > 1e-3;
-    this.stretched = this.preservePitch ? await TimeStretch.stretch(this.buffer, rate, this.key, onProgress) : null;
+  _streamPitch(preserve) {
+    for (const prop of ['preservesPitch', 'webkitPreservesPitch', 'mozPreservesPitch']) if (prop in this.el || prop === 'preservesPitch') this.el[prop] = !!preserve;
+  },
+  /** Native pitch control for streams; WSOLA for decoded tracks. Live changes keep the current song position. */
+  async setRate(rate, preservePitch, onProgress, { live = false } = {}) {
+    const job = this._rateJob = {}, seq = this._seq, buffer = this.buffer;
+    if (this.el) {
+      this.rate = rate; this.preservePitch = !!preservePitch && Math.abs(rate - 1) > 1e-3; this.stretched = null;
+      this._streamPitch(preservePitch); this.el.playbackRate = this.el.defaultPlaybackRate = rate;
+      return true;
+    }
+    const preserve = !!preservePitch && Math.abs(rate - 1) > 1e-3;
+    const stretched = preserve && buffer ? await TimeStretch.stretch(buffer, rate, this.key, onProgress) : null;
+    if (job !== this._rateJob || seq !== this._seq || buffer !== this.buffer) return false;
+    const pos = this.time, playing = this.playing;
+    this.rate = rate; this.preservePitch = preserve; this.stretched = stretched;
+    if (live) {
+      this.pausedPos = pos;
+      if (playing) this.play(pos, { fadeIn: 30, loop: this.loop });
+    }
+    return true;
   },
 
   /** Change the playback rate while playing (Wind Up / Wind Down): the song position carries on from where it is,
    *  at the new rate from now on (pitch follows — a buffer played as it is, not a time-stretched one). */
   rampTo(rate) {
     if (Math.abs(rate - this.rate) < 1e-4) return;
+    if (this.el) { this._streamPitch(false); this.el.playbackRate = rate; this.rate = rate; return; }
     if (!this.playing || !this.source || this.stretched) { if (!this.playing) this.rate = rate; return; }
     const ctx = AudioManager.ctx, t = ctx.currentTime, pos = this.timeAtCtx(t);
     this.source.playbackRate.setValueAtTime(rate, t);

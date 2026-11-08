@@ -5472,7 +5472,7 @@ html.lp-open #toasts { right: 380px; }
 .ov[data-profile-style] .pf-sec > h2 { font-size: 1.2rem; margin-bottom: 18px; }
 .ov[data-profile-style] .pf-subsec > h3 { font-size: .85rem; }
 /* The preview uses the same banner/identity separation as the saved profile. */
-.pa-preview-banner { height: 190px; position: relative; overflow: hidden; }
+.pa-preview-banner { aspect-ratio: var(--pa-banner-aspect, 6 / 1); position: relative; overflow: hidden; }
 .pa-preview-cover { inset: 0; }
 .pa-preview-inner { padding: 0 20px 20px; min-height: 118px; align-items: flex-start; background: var(--od5); }
 .pa-preview .avatar { position: relative; z-index: 1; margin-top: -24px; border: 4px solid var(--od5); border-radius: 10px; }
@@ -5505,7 +5505,6 @@ html.lp-open #toasts { right: 380px; }
   .pf-header[data-profile-style] .pf-dl { padding: 0 10px; }
   .pf-header[data-profile-style] .pf-dl:first-child { padding-left: 0; border-left: 0; }
   .pf-header[data-profile-style] .pf-dl span { font-size: .62rem; white-space: normal; }
-  .pa-preview-banner { height: 165px; }
   .pa-preview-inner { padding: 0 16px 16px; min-height: 110px; }
   .pa-preview .avatar { margin-top: -20px; }
 }
@@ -8741,7 +8740,7 @@ const Music = {
     if (this.key !== key || this.el) this.stop(0);
     this._dropStream();
     this.buffer = buffer; this.key = key; this.meta = meta || null;
-    this.stretched = null;
+    this.stretched = null; this.rate = 1; this.preservePitch = false;
   },
   /** Open a track for menus / song select: streamed through an <audio> element on computers; on phones decoded and
    *  played through Web Audio instead — an <audio> element there puts a "Media output" player in the notifications. */
@@ -8779,7 +8778,8 @@ const Music = {
     if (oldUrl) URL.revokeObjectURL(oldUrl);
     el.onended = () => { if (this.el === el && this.playing) { this.playing = false; this.pausedPos = this.duration; this.onEnded && this.onEnded(); } };
     this.el = el; this.buffer = null; this.stretched = null; this.key = key; this.meta = meta || null;
-    this.rate = 1; this.pausedPos = 0;
+    this.rate = 1; this.preservePitch = false; this.pausedPos = 0;
+    el.playbackRate = el.defaultPlaybackRate = 1; this._streamPitch(true);
   },
   /** Nothing loaded any more (its beatmap set was deleted). */
   unload() { this.stop(0); this._dropStream(); this.buffer = null; this.stretched = null; this.key = null; this.meta = null; this.pausedPos = 0; },
@@ -8795,16 +8795,34 @@ const Music = {
     return this.buffer ? this.buffer.duration * 1000 : 0;
   },
 
-  /** Prepare playback rate. preservePitch -> WSOLA-stretched buffer, otherwise resampling (pitch shifts). */
-  async setRate(rate, preservePitch, onProgress) {
-    this.rate = rate; this.preservePitch = preservePitch && Math.abs(rate - 1) > 1e-3;
-    this.stretched = this.preservePitch ? await TimeStretch.stretch(this.buffer, rate, this.key, onProgress) : null;
+  _streamPitch(preserve) {
+    for (const prop of ['preservesPitch', 'webkitPreservesPitch', 'mozPreservesPitch']) if (prop in this.el || prop === 'preservesPitch') this.el[prop] = !!preserve;
+  },
+  /** Native pitch control for streams; WSOLA for decoded tracks. Live changes keep the current song position. */
+  async setRate(rate, preservePitch, onProgress, { live = false } = {}) {
+    const job = this._rateJob = {}, seq = this._seq, buffer = this.buffer;
+    if (this.el) {
+      this.rate = rate; this.preservePitch = !!preservePitch && Math.abs(rate - 1) > 1e-3; this.stretched = null;
+      this._streamPitch(preservePitch); this.el.playbackRate = this.el.defaultPlaybackRate = rate;
+      return true;
+    }
+    const preserve = !!preservePitch && Math.abs(rate - 1) > 1e-3;
+    const stretched = preserve && buffer ? await TimeStretch.stretch(buffer, rate, this.key, onProgress) : null;
+    if (job !== this._rateJob || seq !== this._seq || buffer !== this.buffer) return false;
+    const pos = this.time, playing = this.playing;
+    this.rate = rate; this.preservePitch = preserve; this.stretched = stretched;
+    if (live) {
+      this.pausedPos = pos;
+      if (playing) this.play(pos, { fadeIn: 30, loop: this.loop });
+    }
+    return true;
   },
 
   /** Change the playback rate while playing (Wind Up / Wind Down): the song position carries on from where it is,
    *  at the new rate from now on (pitch follows — a buffer played as it is, not a time-stretched one). */
   rampTo(rate) {
     if (Math.abs(rate - this.rate) < 1e-4) return;
+    if (this.el) { this._streamPitch(false); this.el.playbackRate = rate; this.rate = rate; return; }
     if (!this.playing || !this.source || this.stretched) { if (!this.playing) this.rate = rate; return; }
     const ctx = AudioManager.ctx, t = ctx.currentTime, pos = this.timeAtCtx(t);
     this.source.playbackRate.setValueAtTime(rate, t);
@@ -15435,6 +15453,14 @@ const ProfileAppearance = {
         h('div.pa-preview-tags', ...this.tags(ProfileScreen.ownTags), h('span.pf-tag', 'osu!mania')), previewBio)),
       h('div.pa-preview-stats', h('div', h('span', 'Performance'), h('b', `${Math.round(stats.pp || 0).toLocaleString()}pp`)),
         h('div', h('span', 'Accuracy'), h('b', `${((stats.avgAcc || 0) * 100).toFixed(2)}%`)), h('div', h('span', 'Level'), h('b', String(stats.level || 1)))));
+    // Use the real banner's aspect ratio: cover/position then produce the exact same crop at preview size.
+    const banner = document.querySelector('.pf-header .pf-banner');
+    const matchBanner = () => {
+      const rect = banner?.getBoundingClientRect();
+      if (rect?.width > 0 && rect.height > 0) preview.style.setProperty('--pa-banner-aspect', `${rect.width} / ${rect.height}`);
+    };
+    const bannerObserver = banner ? new ResizeObserver(matchBanner) : null;
+    bannerObserver?.observe(banner); matchBanner();
     const status = h('p.pa-status', { role: 'status', 'aria-live': 'polite' });
     const counter = h('span.pa-counter'), bio = h('textarea.input.pa-bio', { id: 'pa-bio', maxlength: 160, rows: 3, placeholder: 'A little about you…' }); bio.value = draft.bio;
     const position = h('input.slider', { id: 'pa-position', type: 'range', min: 0, max: 100, step: 1, value: draft.position, 'aria-label': 'Banner vertical position' });
@@ -15540,7 +15566,7 @@ const ProfileAppearance = {
       if (e.shiftKey && document.activeElement === first) { last.focus(); return true; }
       if (!e.shiftKey && document.activeElement === last) { first.focus(); return true; }
       return false;
-    }, onClose: () => { closed = true; uploadSeq++; this.o = null; } });
+    }, onClose: () => { closed = true; uploadSeq++; bannerObserver?.disconnect(); this.o = null; } });
     paint(); drawSongs(); requestAnimationFrame(() => tiles.find(t => t.dataset.style === draft.style)?.focus());
   },
 };
@@ -18863,10 +18889,10 @@ const SongSelect = {
         // (a key mod changes converted maps' key counts: their filters and groups follow, as in lazer)
         const km = ModSystem.keyMod(Settings.get('songselect.mods') || []);
         if (km !== (this._keyMod || 0)) { this._keyMod = km; this.rebuild(false, true); }
-        this.renderMods(); this.updateInfo(); this.renderVisible(true);
+        this.renderMods(); this.updateInfo(); this.renderVisible(true); this.syncPreviewAudio();
       }), // (BPM, length and stars follow the mods)
       Bus.on('favorites:changed', () => this.rebuild(false, true)),
-      Bus.on('settings:changed', k => { if (k === 'songselect.converts') this.rebuild(false, true); }),
+      Bus.on('settings:changed', k => { if (k === 'songselect.converts') this.rebuild(false, true); if (k === 'audio.preservePitch') this.syncPreviewAudio(); }),
       Bus.on('collections:changed', () => { this.fillCollections(); this.rebuild(false, true); }),
       Bus.on('scores:changed', () => { this.rebuild(false, true); this.updateInfo(); }),
       // the connection coming or going while an online leaderboard is on show (Connecting… → the scores, or the offline card)
@@ -18949,6 +18975,8 @@ const SongSelect = {
     clearTimeout(this._previewT); clearTimeout(this._infoT); this._infoT = 0; clearTimeout(this._typeT); this._typeT = 0;
     if (this._timing) this._timing();
     this._previewTok = {}; // (a preview still loading stops where it is)
+    clearInterval(this._audioTick); this._audioTok = {}; this._audioSignature = null;
+    Music.setRate(1, true, null, { live: true }); AudioManager.modVolume(1, 0);
   },
   /** lazer's DifficultyRangeSlider: the star spectrum as a track, darkened outside the range, a Highlight1 frame round
    *  the range and a nub at each end in the colour of its star rating (grey from 8 stars; the top end is "∞" until
@@ -19684,6 +19712,7 @@ const SongSelect = {
    *  it was already playing as you came in (the menu's "next song" used to take over then, and picked another beatmap
    *  for you). Left for another screen, the music goes on to the next song as in the menus. */
   loopTrack(m) {
+    this.syncPreviewAudio(m);
     Music.onEnded = () => {
       if (Screens.currentName === 'songselect' && Music.meta && Music.meta.setId === m.setId) Music.play(previewStart(m), { fadeIn: 600 });
       else if (Screens.currentName !== 'songselect' && Screens.currentName !== 'gameplay') MenuMusic.next();
@@ -19705,6 +19734,47 @@ const SongSelect = {
   },
   /** The same key the player gives a track (set / audio file), to tell whether this difficulty's song is playing. */
   trackKey(m) { return `${m.setId}/${m.audioFile || ''}`.toLowerCase(); },
+  /** Preview the same speed/pitch as a play. Combo-dependent mods start at zero combo; ramps follow song position. */
+  syncPreviewAudio(m = BeatmapManager.maps.get(this.selectedId)) {
+    if (!m || this.trackKey(m) !== (Music.key || '').toLowerCase()) m = BeatmapManager.maps.get(Music.meta?.mapId);
+    if (Screens.currentName !== 'songselect' || !m || !Music.loaded || this.trackKey(m) !== (Music.key || '').toLowerCase()) return Promise.resolve(false);
+    const mods = Settings.get('songselect.mods') || [], cfg = ModSystem.config(), rate = ModSystem.rate(mods, cfg);
+    const preserve = !ModSystem.pitchShift(mods) && Settings.get('audio.preservePitch'), ramp = ModSystem.ramp(mods), muted = mods.includes('MU');
+    const signature = JSON.stringify([Music._seq, m.id, rate, preserve, ramp, muted, cfg.muCount, cfg.muInverse, cfg.muMetronome]);
+    if (signature === this._audioSignature) return this._audioReady;
+    this._audioSignature = signature;
+    const tok = this._audioTok = {};
+    clearInterval(this._audioTick);
+    const valid = () => tok === this._audioTok && Screens.currentName === 'songselect' && this.trackKey(m) === (Music.key || '').toLowerCase();
+    const fraction = cfg.muCount <= 0 ? 1 : 0;
+    AudioManager.modVolume(muted ? cfg.muInverse ? fraction : 1 - fraction : 1, 100);
+    this._audioReady = (async () => {
+      if (!await Music.setRate(rate, preserve, null, { live: true }) || !valid()) return false;
+      let lastBeat = null;
+      const tick = () => {
+        if (!valid() || !Music.playing) return;
+        const now = Music.time;
+        if (ramp) {
+          const progress = clamp((now - (m.firstNote || 0)) / Math.max(1, (m.lastNote || m.length || Music.duration) - (m.firstNote || 0)), 0, 1);
+          Music.rampTo(lerp(ramp[0], ramp[1], progress));
+        }
+        if (!muted || cfg.muMetronome === 0) return;
+        const red = Music.meta?.timing || [], tp = red[Math.max(0, bsearchLE(red, now, 'time'))];
+        if (!tp || !(tp.beatLength > 0)) return;
+        const meter = tp.meter > 0 ? tp.meter : 4;
+        if (now < (m.firstNote || 0) - tp.beatLength * meter) return;
+        const beat = Math.floor((now - tp.time) / tp.beatLength + 1e-6), key = tp.time + ':' + beat;
+        if (key === lastBeat) return;
+        const first = lastBeat == null; lastBeat = key;
+        if (first && now - (tp.time + beat * tp.beatLength) > 60) return;
+        const buf = AudioManager.synth(((beat % meter) + meter) % meter === 0 ? 'metronome-hi' : 'metronome-lo');
+        if (buf) AudioManager.play(buf, { volume: 0.6 });
+      };
+      if (ramp || muted && cfg.muMetronome !== 0) { this._audioTick = setInterval(tick, 25); tick(); }
+      return true;
+    })().catch(e => { if (valid()) { this._audioSignature = null; console.warn('preview audio mods', e); } return false; });
+    return this._audioReady;
+  },
   async preview(m) {
     this.showBackground(m);
     if (!Settings.get('audio.previewAudio') || m.problems.length) return;
@@ -19718,6 +19788,8 @@ const SongSelect = {
       if (tok !== this._previewTok || BeatmapManager.maps.get(this.selectedId)?.setId !== m.setId) return;
       if (!blob) return;
       if (!await Music.open(blob, `${m.setId}/${m.audioFile}`, { setId: m.setId, mapId: m.id, timing: null }) || tok !== this._previewTok) return;
+      await this.syncPreviewAudio(m);
+      if (tok !== this._previewTok || Screens.currentName !== 'songselect') return;
       Music.play(previewStart(m), { fadeIn: 400 });
       this.loopTrack(m);
       MenuMusic.setCurrent(m);
@@ -24769,6 +24841,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8', title: 'Hear your mods before you play', sections: [
+    { icon: 'music', title: 'Song select', items: ['Song previews follow your selected audio mods, including speed, pitch and Wind Up / Wind Down'] },
+    { icon: 'brush', title: 'Profiles', items: ['The banner editor previews the same image crop and position as your saved profile, including on phones'] },
+  ] },
   { id: '2026.11.7f', title: 'Your profile, your colours', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Four coordinated themes and a Custom option to pick your own accent and background colours; character presets are removed', 'Sharper uploaded banners, with a dedicated artwork area above your name and bio', 'A cleaner identity row and compact stats layout, with the same arrangement in the profile preview'] },
   ] },
@@ -33991,7 +34067,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'ae82fc5f506d';
+const APP_BUILD = '64cae8d6b0fa';
 
 const App = {
   lastReport: null,
