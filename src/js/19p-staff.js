@@ -153,6 +153,7 @@ const Staff = {
     if (role && !(Presence.role && Presence.role.owner)) return [];
     const name = u.name || 'them';
     return [{ sep: true }, { header: 'Admin' }, ...[
+      ...(u.online && u.id ? [{ label: 'Request live game view…', icon: 'film', onClick: () => AdminGameView.request(u) }] : []),
       { label: 'Send a message…', icon: 'envelope', onClick: () => this.warn(u) },
       { label: 'Mute for 10 minutes', icon: 'mute', onClick: () => this.run('mute', { pid: u.pid, minutes: 10, reason: '' }, `${name} muted for 10 minutes`) },
       { label: 'Mute for a day', icon: 'mute', onClick: () => this.run('mute', { pid: u.pid, minutes: 1440, reason: '' }, `${name} muted for a day`) },

@@ -5506,6 +5506,31 @@ html.lp-open #toasts { right: 380px; }
 
 .ov[data-profile-style] .ov-tab.on { color: var(--oc1); }
 .ov[data-profile-style] .ov-icon { background: var(--ob4); color: var(--ohl); }
+
+/* Player-approved admin game-tab viewing. */
+.admin-view-wrap { display: flex; align-items: center; justify-content: center; }
+.admin-view-panel { width: min(1160px, 94%); height: min(850px, 92%); display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: var(--od5); }
+.admin-view-panel > .ov-head { flex: none; }
+.admin-view-heading, .admin-view-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; flex: none; }
+.admin-view-heading span, .admin-view-footer > span { font-size: .8rem; color: var(--oc2); }
+.admin-view-stage { flex: 1; min-height: 0; margin: 0 24px; background: #08090d; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; display: flex; }
+.admin-view-video { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.spectator-chat.mp-side { position: fixed; z-index: 2100; right: 20px; bottom: 20px; width: min(400px, calc(100vw - 24px)); height: min(360px, calc(100dvh - 80px)); min-height: 0; background: var(--ob5); border: 1px solid var(--line); box-shadow: 0 8px 32px #0008; color: var(--oc1); }
+.spectator-chat-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; background: var(--ob4); }
+.spectator-chat-head h3 { margin: 0 0 4px; font-size: 15px; }
+.spectator-chat-head span { color: var(--oc2); font-size: 12px; }
+.spectator-chat .mp-chat-list { min-height: 0; font-size: 13px; overflow-wrap: anywhere; }
+.spectator-chat-send { display: flex; gap: 8px; }
+.spectator-chat-send .input { flex: 1; min-width: 0; font-size: 14px; }
+.gp-loader.spec-retry > :not(.spec-retry-status) { display: none; }
+.spec-retry-status { justify-self: center; display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.spec-host-chat { position: fixed; z-index: 2050; right: 20px; bottom: 20px; font-size: 13px; }
+.spec-host-chat[hidden] { display: none; }
+.admin-view-sharing { position: fixed; z-index: 9500; left: 50%; top: max(8px, env(safe-area-inset-top)); transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 8px 12px; max-width: calc(100% - 16px); border: 1px solid #ffcc2270; border-radius: 6px; background: #1b1b20; color: #fff; box-shadow: 0 4px 18px #0006; font-size: 13px; }
+.admin-view-sharing > .i { color: #ffcc22; flex: none; }
+.admin-view-sharing > span { min-width: 0; }
+.admin-view-sharing .btn { flex: none; font-size: 12px; padding: 6px 10px; color: #fff; background: #37343e; }
+@media (max-width: 700px) { .admin-view-footer, .admin-view-heading { padding: 10px 14px; flex-wrap: wrap; } .admin-view-stage { margin: 0 14px; } .admin-view-sharing { flex-wrap: wrap; justify-content: center; width: max-content; } }
 </style>
 <style id="css-no-anim" media="not all">
 *, *::before, *::after { transition: none !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
@@ -20241,7 +20266,7 @@ const Game = {
     // (a search box still focused would keep the phone's keyboard up over the song)
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     if (opts.mode !== 'replay') this.rememberDiff(opts.mapId);
-    Screens.go('gameplay', { ...opts, force: true }, { transition: 'zoom' });
+    Screens.go('gameplay', { ...opts, force: true }, { transition: opts.quick ? 'fade' : 'zoom', replace: !!opts.quick });
   },
   /** Song select opens each song on the difficulty last played from it. */
   rememberDiff(mapId) {
@@ -20773,6 +20798,7 @@ const GameplayScreen = {
       // (one of her own songs: she dances — NeruEggs.herSong; the same song again and again: worn out — NeruEggs.tries)
       p.replay || p.skinEditor ? null : NeruCameo.make(hers ? 'herSong' : theirs ? 'theirSong' : again ? 'again' : 'loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
     if (theirs) NeruEggs.propOn(el.querySelector('.nc-loader'), theirs, 900); // (the song's one, whoever you're a fan of)
+    if (p.spectate && p.quick) { el.classList.add('spec-retry'); el.append(h('div.spec-retry-status', h('span.spinner'), h('span', 'Restarting live play…'))); }
     this.loaderT0 = performance.now(); this.loaderExtra = 0;
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
@@ -21660,6 +21686,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   onKeyDown(e) {
     if (Screens.current !== this || SkinEditor.on) return;
+    if (document.activeElement?.closest('.spectator-chat')) return;
     const s = this.s;
     if (Overlays.top()) return;
     // typing in the room's chat: the keys are the message's (Esc leaves the box)
@@ -22023,6 +22050,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     clearTimeout(this._cdT);
     clearTimeout(this._retryHold);
     const p = this.params;
+    if (this.s) this.s.spectatorRetry = true;
     this.retryCount = (this.retryCount || 0) + 1;
     Screens.go('gameplay', { ...p, force: true, quick: true }, { replace: true });
   },
@@ -24826,6 +24854,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8e', title: 'Spectator chat and live game views', sections: [
+    { icon: 'film', title: 'Spectating', items: ['Admins can request a live view of your game tab to follow menus and gameplay', 'Sharing starts only after you accept; pause or stop at any time from the sharing bar', 'Retrying a song keeps spectators in gameplay instead of returning them to the song card', 'A lounge-style spectator chat is shared by the player and everyone watching, with a chat button on both sides'] },
+  ] },
   { id: '2026.11.8d', title: 'Your profile across devices', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Profiles and profile customization now follow the game’s landscape menus on mobile', 'Saved profile changes start syncing to your account immediately for your other devices'] },
   ] },
@@ -28466,6 +28497,7 @@ const Presence = {
         }
         Bus.emit('presence:changed');
       }
+      else if (m.t === 'specChat' || m.t === 'specChatHist') SpectatorChat.on(m);
       else if (/^spec|^spectators$/.test(m.t)) Spectate.on(m);
       else if (m.t === 'friends') Friends.sync(m);
       else if (m.t === 'friendReq') Friends.onRequest(m);
@@ -28477,6 +28509,7 @@ const Presence = {
       else if (m.t === 'myBests') Bus.emit('myBests', m);
       // (another of your devices changed something of yours: fetched now)
       else if (m.t === 'synced') { if (typeof Sync !== 'undefined') Sync.onSynced(m.part); }
+      else if (typeof m.t === 'string' && m.t.startsWith('adminView')) AdminGameView.on(m);
       else if (m.t === 'daily') Daily.on(m);
       else if (m.t === 'tags') UserTags.on(m);
       else if (m.t === 'lb') Bus.emit('lb', m);
@@ -28607,7 +28640,7 @@ const Presence = {
   },
   /** Something that keeps you online while nobody's at the keyboard: a room, spectating or being watched, a song. */
   busy() {
-    return Multiplayer.inRoom() || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers)) ||
+    return Multiplayer.inRoom() || (typeof AdminGameView !== 'undefined' && !!AdminGameView.current) || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers)) ||
       (Screens.currentName === 'gameplay' && typeof GameplayScreen !== 'undefined' && GameplayScreen.s && GameplayScreen.s.running);
   },
   goAway() {
@@ -30722,7 +30755,8 @@ const Spectate = {
     const room = Multiplayer.inRoom();
     this.target = { id: p.id, name: p.name, pid: p.pid || '', avatar: p.avatar || '', room };
     this.cur = null; this.set = null;
-    Presence.send({ t: 'watch', to: p.id });
+    Presence.send({ t: 'watch', to: p.id, chat: true });
+    if (typeof SpectatorChat !== 'undefined') SpectatorChat.refresh();
     if (!room) Screens.go('spectator');
     Presence.pushStatus();
   },
@@ -30732,6 +30766,7 @@ const Spectate = {
     Presence.send({ t: 'unwatch', to: t.id });
     this.target = null; this.cur = null; this.set = null;
     RankedWatch.close(true);
+    if (typeof SpectatorChat !== 'undefined') SpectatorChat.refresh();
     if (t.room && Multiplayer.inRoom() && this.watchingNow()) Screens.go('multiplayer', {}, { replace: true }); // (watching from a room: back to it)
     if (!quiet) Toast.show('Stopped spectating', t.name);
     Presence.pushStatus();
@@ -30771,6 +30806,11 @@ const Spectate = {
     }
     if (m.t !== 'specEnd') return;
     const c = this.cur;
+    if (m.retry && c) {
+      c.retrying = true; c.acts.length = 0;
+      if (this.watchingNow()) { GameplayScreen.closePause(); this.buffer(GameplayScreen, GameplayScreen.s, true); }
+      return;
+    }
     if (m.gone) {
       // (gone from the online list — often only their page reloading, or a moment without signal: they come back under a
       // new id and watching carries on)
@@ -30804,8 +30844,14 @@ const Spectate = {
   start(m) {
     const t = this.target;
     if (Screens.currentName === 'gameplay' && !this.watchingNow()) return; // (never takes over your own play)
+    const previous = this.cur, direct = !!(this.findMap(m.head) && (this.watchingNow() || this.onResults()) && (previous?.retrying || previous?.head.mapHash === m.head.mapHash));
     t.lost = false;
     this.cur = { id: m.id, name: m.name, head: m.head, feed: (m.ev || []).slice(), at: m.at || 0, ready: !!m.hist, ended: false, quit: false, started: false, acts: [] };
+    if (direct) {
+      clearTimeout(this._holdT);
+      const cur = this.cur, resume = () => { if (this.cur !== cur || this.target !== t) return; if (Screens.busy) { setTimeout(resume, 50); return; } this.tryStart(false, true); };
+      resume(); return;
+    }
     if (t.room) {
       if (!this.findMap(m.head)) { this.stop({ quiet: true }); Toast.err(`Can't spectate ${m.name}`, 'You haven\'t got this beatmap yet.'); return; }
       this.tryStart();
@@ -30837,16 +30883,16 @@ const Spectate = {
   canStart() { const c = this.cur; return !!(c && !c.ended && this.findMap(c.head)); },
   /** lazer's scheduleStart: their play starts from the Spectator Mode screen (or straight from the room) as soon as the
    *  beatmap's in your library; Start Watching starts it again after you've left it. */
-  tryStart(again = false) {
+  tryStart(again = false, direct = false) {
     const c = this.cur, t = this.target;
     if (!t || !this.canStart() || (c.started && !again)) return;
     // (from a room: from the room, or straight from the play of someone else there you switched from)
-    if ((Screens.currentName !== (t.room ? 'multiplayer' : 'spectator') && !(t.room && this.watchingNow())) || Screens.busy) return;
+    if ((Screens.currentName !== (t.room ? 'multiplayer' : 'spectator') && !(t.room && this.watchingNow()) && !(direct && (this.watchingNow() || this.onResults()))) || Screens.busy) return;
     const map = this.findMap(c.head);
     c.started = true;
     Object.assign(c, { synced: false, buffering: false, lag: 0, msg: null, paused: false }); // (a fresh run of the same play)
     this._launching = true;
-    Game.launch({ mapId: map.id, mode: 'replay', replay: { ...c.head, events: c.feed, player: c.name, mapId: map.id, summary: null }, spectate: c, back: t.room ? null : { name: 'spectator' } });
+    Game.launch({ mapId: map.id, mode: 'replay', quick: direct, replay: { ...c.head, events: c.feed, player: c.name, mapId: map.id, summary: null }, spectate: c, back: t.room ? null : { name: 'spectator' } });
   },
   /** Back to the Spectator Mode screen (from their play or its results). */
   toScreen() {
@@ -30883,6 +30929,7 @@ const Spectate = {
   tick(screen, s, now) {
     const c = s.spectate;
     if (!c) return;
+    if (c.retrying) { this.buffer(screen, s, true); return; }
     if (c.synced && c.acts && c.acts.length) this.acts(screen, s, c, now);
     if (s.finished || c.quit || c.paused) return;
     if (!c.synced) {
@@ -30945,25 +30992,21 @@ const Spectate = {
   /** lazer's SpectatorPlayer message, top centre: "Watching (them) play (song) live". */
   liveEl(s) {
     const c = s.spectate, title = Settings.get('ui.unicodeMetadata') && s.rec.titleUnicode ? s.rec.titleUnicode : s.rec.title;
-    // (and the chat, a click — or F8 — away: a message to them if they're your friend, else #lobby; the play goes on
-    // behind it)
-    const friend = this.target && this.target.pid && Friends.has(this.target.pid);
+    // The player and their spectators share the lounge-style chat; playback continues behind the panel.
     this.msgDot = h('i.spec-msg-n');
-    const btn = h('button.spec-msg', { title: `${friend ? `Message ${c.name}` : 'Chat in #lobby'} (F8)`, 'aria-label': friend ? `Message ${c.name}` : 'Open the chat',
-      onclick: e => { e.stopPropagation(); this.message(); } }, icon('chat'), h('span', friend ? 'Message' : 'Chat'), this.msgDot);
+    const btn = h('button.spec-msg', { title: 'Spectator chat (F8)', 'aria-label': 'Open spectator chat',
+      onclick: e => { e.stopPropagation(); this.message(); } }, icon('chat'), h('span', 'Message'), this.msgDot);
     this.paintMsgDot();
     return h('div.spec-live', h('span.spec-live-t', 'Watching ', h('b', c.name), ' play ', h('b', title), h('b.spec-live-l', ' live')), btn);
   },
-  /** The chat while watching: your conversation with them if they're a friend (only friends can be messaged), else
-   *  #lobby. */
+  /** The shared spectator chat: the player and everyone currently watching them. */
   message() {
-    const t = this.target;
-    if (t && t.pid && Friends.has(t.pid)) Chat.message(t); else Chat.open('#lobby');
+    SpectatorChat.toggle();
   },
   /** The chat button's dot: messages you haven't read yet. */
   paintMsgDot() {
     if (!this.msgDot) return;
-    const n = Chat.unread;
+    const n = typeof SpectatorChat !== 'undefined' ? SpectatorChat.unread : 0;
     this.msgDot.textContent = n ? String(Math.min(99, n)) : '';
     this.msgDot.hidden = !n;
   },
@@ -31013,6 +31056,7 @@ const Spectate = {
   onSpectators(m) {
     const H = this.host;
     H.watchers = m.n || 0;
+    if (typeof SpectatorChat !== 'undefined') SpectatorChat.refresh();
     this.paintWatchers(m.names || []);
     if (m.full && H.s && GameplayScreen.s === H.s && !H.s.finished) this.upload(H.s);
   },
@@ -31064,7 +31108,7 @@ const Spectate = {
     if (H.s !== s) return;
     if (H.watchers && !quit) { const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100); H.sent = s.events.length; Presence.send({ t: 'frames', ev, at: s.endTime + 5000 }); }
     H.s = null;
-    Presence.send({ t: 'playEnd', quit: !!quit });
+    Presence.send({ t: 'playEnd', quit: !!quit, ...(s.spectatorRetry ? { retry: true } : {}) });
   },
 
   /** lazer's spectator list on the HUD: who's watching you play. */
@@ -31119,9 +31163,9 @@ const SpectatorScreen = {
     this.userEl = h('div.spm-user');
     this.mapEl = h('div.spm-map');
     this.btn = h('button.spm-watch', { onclick: () => { UISounds.click(); Spectate.tryStart(true); } }, 'Start Watching');
-    // (the chat from here too, as from their play: your conversation with them if they're a friend, else #lobby)
-    const t = Spectate.target, friend = t && t.pid && Friends.has(t.pid);
-    const msg = h('button.spm-msg', { title: friend ? `Message ${t.name}` : 'Chat in #lobby', onclick: () => Spectate.message() }, icon('chat'), friend ? 'Message' : 'Chat');
+    // The same shared spectator chat as during their play.
+    const t = Spectate.target;
+    const msg = h('button.spm-msg', { title: 'Spectator chat', onclick: () => Spectate.message() }, icon('chat'), 'Message');
     clearEl(box).append(
       h('div.spm-t', 'Spectator Mode'),
       h('div.spm-row', this.userEl, h('span.spm-arrow', icon('back')), this.mapEl),
@@ -32082,7 +32126,7 @@ const Chat = {
     this.paintList(); this.badge();
   },
 
-  toggle() { this.o ? this.close() : this.open(); },
+  toggle() { if (typeof SpectatorChat !== 'undefined' && SpectatorChat.context()) { SpectatorChat.toggle(); return; } this.o ? this.close() : this.open(); },
   open(key) {
     if (key && this.channels.has(key)) this.cur = key;
     if (this.o) { this.paint(); return; }
@@ -33988,6 +34032,7 @@ const Staff = {
     if (role && !(Presence.role && Presence.role.owner)) return [];
     const name = u.name || 'them';
     return [{ sep: true }, { header: 'Admin' }, ...[
+      ...(u.online && u.id ? [{ label: 'Request live game view…', icon: 'film', onClick: () => AdminGameView.request(u) }] : []),
       { label: 'Send a message…', icon: 'envelope', onClick: () => this.warn(u) },
       { label: 'Mute for 10 minutes', icon: 'mute', onClick: () => this.run('mute', { pid: u.pid, minutes: 10, reason: '' }, `${name} muted for 10 minutes`) },
       { label: 'Mute for a day', icon: 'mute', onClick: () => this.run('mute', { pid: u.pid, minutes: 1440, reason: '' }, `${name} muted for a day`) },
@@ -34058,6 +34103,263 @@ const Staff = {
   },
 };
 
+/* ===== 19q-admin-game-view.js ===== */
+/* Admin game view: a player-approved game-tab video, separate from replay-based gameplay spectating.
+ * Only video is shared. No keyboard events, DOM, account codes or remote-control channel are transmitted. */
+const AdminGameView = {
+  current: null,
+  init() {
+    this.handle = 'ashtonkmania-' + clientId();
+    try { navigator.mediaDevices?.setCaptureHandleConfig?.({ exposeOrigin: true, handle: this.handle, permittedOrigins: [location.origin] }); } catch { /* not supported */ }
+    Bus.on('presence:changed', () => { if (this.current && !Presence.ws) this.stop('The online connection closed.'); });
+    Bus.on('presence:admin', () => { if (this.current && !this.current.host && !Presence.isAdmin) this.stop('Admin access ended.'); });
+    window.addEventListener('pagehide', () => this.stop());
+  },
+  send(t, extra = {}) { const s = this.current; if (s?.session) Presence.send({ t, session: s.session, ...extra }); },
+  request(u) {
+    if (!Staff.on() || !Presence.ws || !u?.id || u.id === Presence.me) return;
+    if (this.current) { Toast.err('Game view already open', 'Finish the current request or share first.'); return; }
+    if (typeof RTCPeerConnection === 'undefined') { Toast.err('Game view unavailable', 'This browser does not support live game views.'); return; }
+    const s = this.current = { host: false, name: u.name || 'Player', session: null };
+    this.viewer(s);
+    s.timer = setTimeout(() => { if (this.current === s) this.stop('The request timed out.'); }, 95000);
+    Presence.send({ t: 'adminViewRequest', to: u.id });
+  },
+  viewer(s) {
+    s.video = h('video.admin-view-video', { autoplay: true, muted: true, playsinline: true, 'aria-label': 'Live player game view' });
+    s.status = h('span', { role: 'status', 'aria-live': 'polite' }, 'Waiting for the player to share their game tab…');
+    const panel = h('div.admin-view-panel.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Admin game view' },
+      overlayHeader('admin game view', { icon: 'film', actions: [h('button.icon-btn', { 'aria-label': 'Close admin game view', onclick: () => this.stop() }, icon('x'))] }),
+      h('div.admin-view-heading', h('b', s.name), h('span', 'Live game tab · View only')),
+      h('div.admin-view-stage', s.video), h('div.admin-view-footer', s.status, h('button.btn', { onclick: () => this.stop() }, 'Stop watching')));
+    s.overlay = makeOverlay(panel, { cls: 'admin-view-wrap', onClose: () => { if (this.current === s) this.stop(); } });
+  },
+  on(m) {
+    if (m.t === 'adminViewRequest') { this.invited(m); return; }
+    const s = this.current;
+    if (!s && m.t === 'adminViewPending') { Presence.send({ t: 'adminViewStop', session: m.session }); return; }
+    if (!s) return;
+    if (m.t === 'adminViewError') { this.stop(m.msg); return; }
+    if (m.t === 'adminViewPending' && !s.host && !s.session) { s.session = m.session; return; }
+    if (m.session !== s.session) return;
+    if (m.t === 'adminViewEnd') { this.stop(m.reason, false); return; }
+    if (m.t === 'adminViewReady') {
+      clearTimeout(s.timer); s.timer = setTimeout(() => { if (this.current === s) this.stop('The 30-minute game view ended.'); }, 30 * 60000);
+      this.ready(s, m.iceServers).catch(() => { if (this.current === s) this.stop('The game view could not connect.'); }); return;
+    }
+    if (m.t === 'adminViewState' && !s.host) { s.remotePaused = m.paused; this.status(s); return; }
+    if (m.t === 'adminViewSignal') {
+      s.signals = (s.signals || Promise.resolve()).then(() => this.signal(s, m.signal)).catch(() => { if (this.current === s) this.stop('The game view could not connect.'); });
+    }
+  },
+  invited(m) {
+    if (this.current || !navigator.mediaDevices?.getDisplayMedia || typeof RTCPeerConnection === 'undefined') {
+      Presence.send({ t: 'adminViewStop', session: m.session });
+      if (!this.current) Toast.show('Game-view request', 'An admin requested a game-tab share. This browser does not support it.');
+      return;
+    }
+    const s = this.current = { host: true, name: m.name, session: m.session };
+    s.timer = setTimeout(() => { if (this.current === s) this.stop('The request timed out.'); }, 90000);
+    const { o } = Dialog.popup('Admin game-view request',
+      h('div', h('p', `${m.name} (${m.role}) would like to see your game tab, including menus and gameplay.`),
+        h('p', 'Choose this game tab in the browser’s sharing picker. You can pause or stop sharing at any time.')),
+      [{ label: 'Share game tab', cls: 'ok', onClick: () => this.share(s) }, { label: 'Decline', cls: 'cancel', cancel: true }],
+      { icon: 'film', onClose: () => { if (this.current === s && !s.accepting) this.stop(); } });
+    s.dialog = o;
+  },
+  async share(s) {
+    if (this.current !== s || s.accepting) return;
+    s.accepting = true;
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'browser', cursor: 'always', frameRate: { ideal: 15, max: 20 }, width: { max: 1280 }, height: { max: 720 } },
+        audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude', monitorTypeSurfaces: 'exclude',
+      });
+      if (this.current !== s) { stream.getTracks().forEach(t => t.stop()); return; }
+      const track = stream.getVideoTracks()[0], capture = track?.getCaptureHandle?.();
+      // Never accept an entire display, another tab, or a window. The game identifies its own captured tab.
+      if (!track || track.getSettings().displaySurface !== 'browser' || capture?.handle !== this.handle || capture.origin !== location.origin) {
+        stream.getTracks().forEach(t => t.stop()); this.stop('Select this game tab to share it. Other tabs and windows are not shared.'); return;
+      }
+      s.stream = stream; s.track = track;
+      track.addEventListener('ended', () => { if (this.current === s) this.stop('Screen sharing stopped.'); });
+      track.addEventListener('capturehandlechange', () => {
+        if (track.getCaptureHandle?.()?.handle !== this.handle && this.current === s) this.stop('The shared tab changed.');
+      });
+      this.sharingBar(s);
+      s.observer = new MutationObserver(() => this.protect(s));
+      s.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+      this.protect(s);
+      this.send('adminViewAccept');
+    } catch (e) {
+      stream?.getTracks().forEach(t => t.stop());
+      if (this.current === s) this.stop(e?.name === 'NotAllowedError' ? 'Game-tab sharing was cancelled.' : 'Game-tab sharing is unavailable in this browser.');
+    }
+  },
+  sharingBar(s) {
+    s.label = h('span', `Sharing your game with ${s.name}`);
+    s.pause = h('button.btn.sm', { onclick: () => { s.paused = !s.paused; this.protect(s); } }, 'Pause sharing');
+    s.bar = h('div.admin-view-sharing', { role: 'status' }, icon('film'), s.label, s.pause,
+      h('button.btn.sm', { onclick: () => this.stop() }, 'Stop sharing'));
+    document.body.append(s.bar);
+  },
+  protect(s) {
+    if (this.current !== s || !s.track) return;
+    const privatePanel = [...document.querySelectorAll('.login-panel, .setup-step-account, input[type=password], [data-private]')].some(el => el.getClientRects().length);
+    const paused = !!s.paused || privatePanel;
+    s.track.enabled = !paused;
+    const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : `Sharing your game with ${s.name}`;
+    const button = s.paused ? 'Resume sharing' : 'Pause sharing';
+    if (s.label.textContent !== label) s.label.textContent = label;
+    if (s.pause.textContent !== button) s.pause.textContent = button;
+    if (paused === s.sentPaused) return;
+    s.sentPaused = paused;
+    this.send('adminViewState', { paused });
+  },
+  async ready(s, iceServers = []) {
+    if (this.current !== s || s.pc) return;
+    if (s.host && !s.stream) { this.stop('The game tab was not shared.'); return; }
+    const pc = s.pc = new RTCPeerConnection({ iceServers: iceServers.length ? iceServers : [{ urls: 'stun:stun.cloudflare.com:3478' }] });
+    s.ice = [];
+    pc.onicecandidate = e => { if (this.current === s && e.candidate) this.send('adminViewSignal', { signal: { candidate: e.candidate.toJSON() } }); };
+    pc.onconnectionstatechange = () => {
+      if (this.current !== s) return;
+      clearTimeout(s.disconnected);
+      if (pc.connectionState === 'connected') { if (!s.host) this.status(s); }
+      else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') this.stop('The game-view connection ended.');
+      else if (pc.connectionState === 'disconnected') s.disconnected = setTimeout(() => { if (this.current === s) this.stop('The game-view connection was lost.'); }, 10000);
+    };
+    s.connecting = setTimeout(() => { if (this.current === s && pc.connectionState !== 'connected') this.stop('Could not connect. A network may be blocking direct game views.'); }, 25000);
+    if (s.host) {
+      for (const track of s.stream.getVideoTracks()) pc.addTrack(track, s.stream);
+      const offer = await pc.createOffer();
+      if (this.current !== s) return;
+      await pc.setLocalDescription(offer);
+      if (this.current !== s) return;
+      this.send('adminViewSignal', { signal: { description: { type: pc.localDescription.type, sdp: pc.localDescription.sdp } } });
+      s.sentPaused = null; this.protect(s);
+    } else {
+      s.status.textContent = 'Connecting to the shared game tab…';
+      pc.ontrack = e => { if (this.current === s) { s.video.srcObject = e.streams[0] || new MediaStream([e.track]); s.video.play().catch(() => {}); this.status(s); } };
+    }
+  },
+  status(s) { s.status.textContent = s.remotePaused ? 'The player paused sharing.' : 'Live · View only'; },
+  async signal(s, signal) {
+    if (this.current !== s || !s.pc || !signal) return;
+    const pc = s.pc;
+    if (signal.description) {
+      await pc.setRemoteDescription(signal.description);
+      if (this.current !== s) return;
+      for (const c of s.ice.splice(0)) await pc.addIceCandidate(c);
+      if (s.host) return;
+      const answer = await pc.createAnswer();
+      if (this.current !== s) return;
+      await pc.setLocalDescription(answer);
+      if (this.current === s) this.send('adminViewSignal', { signal: { description: { type: pc.localDescription.type, sdp: pc.localDescription.sdp } } });
+    } else if (signal.candidate) {
+      if (pc.remoteDescription) await pc.addIceCandidate(signal.candidate); else s.ice.push(signal.candidate);
+    }
+  },
+  stop(reason = '', notify = true) {
+    const s = this.current;
+    if (!s) return;
+    if (notify) this.send('adminViewStop');
+    this.current = null;
+    for (const t of [s.timer, s.connecting, s.disconnected]) clearTimeout(t);
+    s.observer?.disconnect(); s.pc?.close(); s.stream?.getTracks().forEach(t => t.stop());
+    if (s.video) { s.video.pause(); s.video.srcObject = null; }
+    s.bar?.remove(); s.dialog?.close(); s.overlay?.close();
+    if (reason) Toast.show('Game view ended', reason);
+  },
+};
+
+/* ===== 19r-spectator-chat.js ===== */
+/* The room/lounge chat controls, shared by the watched player and their current spectators. */
+const SpectatorChat = {
+  id: null, lines: [], unread: 0, panel: null,
+  context() {
+    if (!Presence.ws) return null;
+    if (Spectate.target) return { id: Spectate.target.id, name: Spectate.target.name, host: false };
+    return Spectate.host.watchers > 0 ? { id: Presence.me, name: ProfileManager.profile.name, host: true } : null;
+  },
+  init() {
+    Bus.on('screen:changed', () => this.refresh());
+    Bus.on('presence:changed', () => this.refresh());
+  },
+  refresh() {
+    const c = this.context();
+    if (c?.id !== this.id) {
+      this.close(); this.id = c?.id || null; this.lines = []; this.unread = 0;
+      if (c) Presence.send({ t: 'specChatHistory', to: c.id });
+    }
+    if (c?.host && !this.hostButton) {
+      this.hostButton = h('button.btn.spec-host-chat', { 'aria-label': 'Open spectator chat', onclick: () => this.toggle() }, icon('chat'), h('span'));
+      document.body.append(this.hostButton);
+    }
+    if (this.hostButton) {
+      this.hostButton.hidden = !c?.host || !!this.panel;
+      this.hostButton.lastChild.textContent = `Spectator chat${this.unread ? ` (${this.unread})` : ''}`;
+    }
+    Spectate.paintMsgDot();
+  },
+  on(m) {
+    this.refresh();
+    if (!this.id || m.id !== this.id) return;
+    if (m.t === 'specChatHist') {
+      const all = new Map();
+      for (const l of [...(m.lines || []), ...this.lines]) if (l?.from && typeof l.text === 'string') all.set(`${l.at}|${l.from.pid}|${l.text}`, l);
+      this.lines = [...all.values()].sort((a, b) => a.at - b.at).slice(-100);
+      if (this.panel) this.paint();
+    } else if (m.line?.from && typeof m.line.text === 'string') {
+      this.lines.push(m.line); this.lines = this.lines.slice(-100);
+      if (this.panel) this.append(m.line);
+      else if (m.line.from.pid !== Presence.pid()) this.unread++;
+    }
+    this.refresh();
+  },
+  toggle() { if (this.panel) this.close(); else this.open(); },
+  open() {
+    this.refresh();
+    const c = this.context();
+    if (!c) return;
+    if (this.panel) return;
+    if (Chat.o) Chat.close();
+    this.unread = 0;
+    this.list = h('div.mp-chat-list', { role: 'log', 'aria-live': 'polite', 'aria-label': 'Spectator messages' });
+    this.input = h('input.input', { type: 'text', maxlength: 300, placeholder: 'Type a message…', 'aria-label': 'Spectator chat message', autocomplete: 'off' });
+    const send = () => { const text = this.input.value.trim(); if (!text || !Presence.ws || !this.context()) return; Presence.send({ t: 'specChat', to: this.id, text }); this.input.value = ''; };
+    this.input.addEventListener('keydown', e => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); send(); } if (e.key === 'Escape') this.close(); });
+    this.input.addEventListener('keyup', e => e.stopPropagation());
+    const panel = this.panel = h('section.spectator-chat.mp-side.ov', { role: 'region', 'aria-label': 'Spectator chat' },
+      h('div.spectator-chat-head', h('div', h('h3', 'Spectator chat'), h('span', c.host ? 'You and your spectators' : `${c.name} and their spectators`)),
+        h('button.icon-btn', { 'aria-label': 'Close spectator chat', onclick: () => this.close() }, icon('x'))),
+      h('div.mp-tabpane', this.list, h('div.spectator-chat-send', this.input, h('button.btn.sm', { onclick: send }, 'Send'))));
+    // A panel, rather than a screen overlay: stays open across the player's retry without pausing their play.
+    panel.addEventListener('keydown', e => e.stopPropagation());
+    document.body.append(panel); this.paint(); this.refresh();
+    if (!Mobile.touch) this.input.focus({ preventScroll: true });
+  },
+  paint() {
+    if (!this.list) return;
+    clearEl(this.list);
+    if (!this.lines.length) this.list.append(h('div.mp-msg.sys', 'Messages here are shared with the player and their current spectators.'));
+    else for (const l of this.lines) this.append(l, false);
+    this.list.scrollTop = this.list.scrollHeight;
+  },
+  append(l, scroll = true) {
+    if (!this.list) return;
+    const atEnd = this.list.scrollHeight - this.list.scrollTop - this.list.clientHeight < 48;
+    this.list.querySelector('.mp-msg.sys')?.remove();
+    const line = h(`div.mp-msg${l.from.pid === Presence.pid() ? '.mine' : ''}`, h('b', l.from.name), h('span', l.text));
+    line.title = new Date(l.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    this.list.append(line);
+    while (this.list.children.length > 100) this.list.firstChild.remove();
+    if (scroll && (atEnd || l.from.pid === Presence.pid())) this.list.scrollTop = this.list.scrollHeight;
+  },
+  close() { this.panel?.remove(); this.panel = null; this.list = null; this.input = null; if (this.hostButton) this.hostButton.hidden = !this.context()?.host; },
+};
+
 /* ===== 20-app.js ===== */
 /* Application — boot sequence, global input routing, drag & drop importing. */
 
@@ -34065,7 +34367,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '496692c1bb12';
+const APP_BUILD = '898748b99d73';
 
 const App = {
   lastReport: null,
@@ -34098,6 +34400,8 @@ const App = {
     AudioManager.init();
     Zoom.init();
     Toolbar.build();
+    AdminGameView.init();
+    SpectatorChat.init();
     Tooltip.init();
     UISounds.initHover();
     FallingText.init();
@@ -34132,6 +34436,8 @@ const App = {
     if (DB.memory) Toast.show('Storage is blocked', 'This browser isn\'t letting the game save anything here (private window or blocked site data?). You can play, but beatmaps, scores and settings are lost when the tab closes.', { type: 'err', timeout: 20000 });
     else if (failed.length) Toast.err('Some saved data couldn\'t be loaded', `Problem with: ${failed.join(', ')}. Everything else works; Settings → Maintenance can export or reset your data.`);
     this.globalLoop();
+    window.AshtonkMania.AdminGameView = AdminGameView;
+    window.AshtonkMania.SpectatorChat = SpectatorChat;
     this.initPWA();
     HtmlFile.watch();
     Mobile.early(); // (on a phone: recommend the app before anything else)

@@ -21,7 +21,7 @@ const Game = {
     // (a search box still focused would keep the phone's keyboard up over the song)
     if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     if (opts.mode !== 'replay') this.rememberDiff(opts.mapId);
-    Screens.go('gameplay', { ...opts, force: true }, { transition: 'zoom' });
+    Screens.go('gameplay', { ...opts, force: true }, { transition: opts.quick ? 'fade' : 'zoom', replace: !!opts.quick });
   },
   /** Song select opens each song on the difficulty last played from it. */
   rememberDiff(mapId) {
@@ -553,6 +553,7 @@ const GameplayScreen = {
       // (one of her own songs: she dances — NeruEggs.herSong; the same song again and again: worn out — NeruEggs.tries)
       p.replay || p.skinEditor ? null : NeruCameo.make(hers ? 'herSong' : theirs ? 'theirSong' : again ? 'again' : 'loading', 'nc-loader', { poke: NeruEggs.loaderPoke(mods, rec) }));
     if (theirs) NeruEggs.propOn(el.querySelector('.nc-loader'), theirs, 900); // (the song's one, whoever you're a fan of)
+    if (p.spectate && p.quick) { el.classList.add('spec-retry'); el.append(h('div.spec-retry-status', h('span.spinner'), h('span', 'Restarting live play…'))); }
     this.loaderT0 = performance.now(); this.loaderExtra = 0;
     if (!p.replay && !p.mp) setTimeout(() => this.batteryCheck(), 400);
     // lazer's PlayerLoader: a game too quiet to hear gets a notification that puts the volume back when clicked
@@ -1440,6 +1441,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   onKeyDown(e) {
     if (Screens.current !== this || SkinEditor.on) return;
+    if (document.activeElement?.closest('.spectator-chat')) return;
     const s = this.s;
     if (Overlays.top()) return;
     // typing in the room's chat: the keys are the message's (Esc leaves the box)
@@ -1803,6 +1805,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
     clearTimeout(this._cdT);
     clearTimeout(this._retryHold);
     const p = this.params;
+    if (this.s) this.s.spectatorRetry = true;
     this.retryCount = (this.retryCount || 0) + 1;
     Screens.go('gameplay', { ...p, force: true, quick: true }, { replace: true });
   },

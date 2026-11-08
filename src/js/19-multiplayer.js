@@ -845,6 +845,7 @@ const Presence = {
         }
         Bus.emit('presence:changed');
       }
+      else if (m.t === 'specChat' || m.t === 'specChatHist') SpectatorChat.on(m);
       else if (/^spec|^spectators$/.test(m.t)) Spectate.on(m);
       else if (m.t === 'friends') Friends.sync(m);
       else if (m.t === 'friendReq') Friends.onRequest(m);
@@ -856,6 +857,7 @@ const Presence = {
       else if (m.t === 'myBests') Bus.emit('myBests', m);
       // (another of your devices changed something of yours: fetched now)
       else if (m.t === 'synced') { if (typeof Sync !== 'undefined') Sync.onSynced(m.part); }
+      else if (typeof m.t === 'string' && m.t.startsWith('adminView')) AdminGameView.on(m);
       else if (m.t === 'daily') Daily.on(m);
       else if (m.t === 'tags') UserTags.on(m);
       else if (m.t === 'lb') Bus.emit('lb', m);
@@ -986,7 +988,7 @@ const Presence = {
   },
   /** Something that keeps you online while nobody's at the keyboard: a room, spectating or being watched, a song. */
   busy() {
-    return Multiplayer.inRoom() || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers)) ||
+    return Multiplayer.inRoom() || (typeof AdminGameView !== 'undefined' && !!AdminGameView.current) || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers)) ||
       (Screens.currentName === 'gameplay' && typeof GameplayScreen !== 'undefined' && GameplayScreen.s && GameplayScreen.s.running);
   },
   goAway() {

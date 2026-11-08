@@ -100,7 +100,7 @@ const Chat = {
     this.paintList(); this.badge();
   },
 
-  toggle() { this.o ? this.close() : this.open(); },
+  toggle() { if (typeof SpectatorChat !== 'undefined' && SpectatorChat.context()) { SpectatorChat.toggle(); return; } this.o ? this.close() : this.open(); },
   open(key) {
     if (key && this.channels.has(key)) this.cur = key;
     if (this.o) { this.paint(); return; }

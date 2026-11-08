@@ -31,6 +31,7 @@
 
 import { RankedPlay, RankedQueue, RP } from './ranked-play.js';
 import { SETTINGS_MAX, SKIN_MAX, SCORE_MAX, SCORES_SEND } from './vault.js';
+import { AdminGameView } from './admin-game-view.js';
 export { RP, RankedPlay, RankedQueue, rateMatch, deckTargets, deckTargetsForStars, beatmapRating, starsForRating, initialRating, RATING, QUEUE, uniqueSongs } from './ranked-play.js';
 
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1115,6 +1116,7 @@ export class MatchRoom {
 export class PresenceLogic {
   constructor(now = () => Date.now()) {
     this.now = now; this.users = new Map(); this.lastInvite = new Map();
+    this.adminView = new AdminGameView(this);
     // friends, by public id: pid → Map(pid → name), and friend requests waiting for an answer: pid → Map(from pid → name).
     // `persist(key, value)` keeps them (the Durable Object's storage); `load` fills them back in on start.
     this.friends = new Map(); this.requests = new Map(); this.persist = null;
@@ -1201,7 +1203,7 @@ export class PresenceLogic {
   adminUnrole(pid) {
     if (!this.roles.delete(pid)) return [];
     if (this.persistMod) this.persistMod('rl', pid, null);
-    return [...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id]) => ({ to: id, msg: { t: 'admin', off: true } }));
+    return [...this.adminView.prune(), ...[...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id]) => ({ to: id, msg: { t: 'admin', off: true } }))];
   }
   /** Called exclusively by the authenticated admin API; assigning a badge never touches roles or permissions. */
   adminProfileTags(pid, tags) {
@@ -2233,14 +2235,15 @@ export class PresenceLogic {
   /** Forget everyone who hasn't been heard from in a while; returns their ids (to close) and the update. */
   prune() {
     const t = this.now(), gone = [], out = [];
+    out.push(...this.adminView.prune());
     for (const [id, u] of this.users) if (t - u.seen > PresenceLogic.STALE) { out.push(...this.forget(id)); gone.push(id); }
-    return { gone, out: gone.length ? [...out, this.broadcast()] : [] };
+    return { gone, out: gone.length ? [...out, this.broadcast()] : out };
   }
   /** Take a player off the list: their watchers are told the stream ended, and they stop watching anyone. */
   forget(id) {
     const u = this.users.get(id);
     if (!u) return [];
-    const out = [];
+    const out = this.adminView.leave(id);
     for (const w of u.watchers) { const wu = this.users.get(w); if (wu && wu.watching === id) wu.watching = null; out.push({ to: w, msg: { t: 'specEnd', id, gone: true } }); }
     if (u.watching) out.push(...this.unwatch(id, u.watching));
     if (u.pid && u.vis !== 'offline') this.markSeen(u.pid);
@@ -2263,6 +2266,7 @@ export class PresenceLogic {
     const u = this.users.get(id);
     if (!u || !msg || typeof msg !== 'object') return [];
     u.seen = this.now();
+    if (typeof msg.t === 'string' && msg.t.startsWith('adminView')) return this.adminView.message(id, msg);
     if (msg.t === 'list') return [{ to: id, msg: { t: 'online', players: this.list() } }];
     if (msg.t === 'report') return this.report(id, msg);
     if (msg.t === 'stats') {
@@ -2372,7 +2376,14 @@ export class PresenceLogic {
       return [...told, this.broadcast()];
     }
     // ── chat: a line in #lobby, or a private message to a friend (every tab of both of you)
-    if (msg.t === 'say' || msg.t === 'pm') {
+    if (msg.t === 'specChatHistory') {
+      const host = this.users.get(String(msg.to || ''));
+      if (!host || !(String(msg.to) === id || u.watching === String(msg.to) && host.watchers.has(id))) return [];
+      return [{ to: id, msg: { t: 'specChatHist', id: String(msg.to), lines: host.specLines || [] } }];
+    }
+    if (msg.t === 'say' || msg.t === 'pm' || msg.t === 'specChat') {
+      const specHostId = msg.t === 'specChat' ? String(msg.to || '') : '', specHost = specHostId && this.users.get(specHostId);
+      if (msg.t === 'specChat' && (!specHost || !(specHostId === id && specHost.watchers.size || u.watching === specHostId && specHost.watchers.has(id)))) return [];
       let text = str(msg.text, 300).replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
       if (!text) return [];
       const muted = this.modOf('mu', u.pid);
@@ -2403,6 +2414,12 @@ export class PresenceLogic {
         }
       }
       text = starred;
+      if (msg.t === 'specChat') {
+        const line = { from, text, at: t };
+        (specHost.specLines || (specHost.specLines = [])).push(line);
+        if (specHost.specLines.length > 100) specHost.specLines.shift();
+        return [specHostId, ...specHost.watchers].map(to => ({ to, msg: { t: 'specChat', id: specHostId, line } })).concat(auto);
+      }
       if (msg.t === 'say') {
         const line = { ch: '#lobby', from, text, at: t };
         this.chat.push(line); if (this.chat.length > PresenceLogic.CHAT_KEEP) this.chat.shift();
@@ -2424,7 +2441,7 @@ export class PresenceLogic {
       u.vis = v;
       const out = [];
       // (gone offline to everyone else: nobody can keep watching)
-      if (v === 'offline') for (const w of [...u.watchers]) out.push(...this.unwatch(w, id), { to: w, msg: { t: 'specEnd', id, gone: true } });
+      if (v === 'offline') { out.push(...this.adminView.leave(id)); for (const w of [...u.watchers]) out.push(...this.unwatch(w, id), { to: w, msg: { t: 'specEnd', id, gone: true } }); }
       return [...out, this.broadcast()];
     }
     if (msg.t === 'invite') {
@@ -2476,6 +2493,7 @@ export class PresenceLogic {
       const out = u.watching && u.watching !== to ? this.unwatch(id, u.watching) : [];
       const first = !tu.watchers.size;
       tu.watchers.add(id); u.watching = to;
+      if (msg.chat === true) out.push({ to: id, msg: { t: 'specChatHist', id: to, lines: tu.specLines || [] } });
       if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name, pid: tu.pid, room: tu.rp || '' } }, { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
       // mid-play: what's kept so far, or (nobody was watching, so nothing was streamed) ask the player for all of it
       out.push({ to: id, msg: { t: 'specStart', id: to, name: tu.name, head: tu.play, ev: tu.hist ? tu.ev : [], at: tu.t, hist: tu.hist, pid: tu.pid, room: tu.rp || '' } });
@@ -2505,7 +2523,7 @@ export class PresenceLogic {
     if (msg.t === 'playEnd') {
       if (!u.play) return [];
       u.play = null; u.ev = []; u.hist = false;
-      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specEnd', id, quit: !!msg.quit } }));
+      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specEnd', id, quit: !!msg.quit, ...(msg.retry === true ? { retry: true } : {}) } }));
     }
     if (msg.t === 'ping') return [{ to: id, msg: { t: 'pong' } }];
     return [];
@@ -3309,6 +3327,7 @@ export class Matchmaker {
       this.presence.persist = (kind, pid, list) => { (list.length ? st.put(`${kind}:${pid}`, list) : st.delete(`${kind}:${pid}`)).catch(() => {}); };
       this.presence.persistMod = (kind, pid, v) => { (v == null ? st.delete(`${kind}:${pid}`) : st.put(`${kind}:${pid}`, v)).catch(() => {}); };
       this.presence.adminHash = adminCodeHash(this.env);
+      this.presence.adminView.configure(this.env.ADMIN_VIEW_ICE_SERVERS);
     })());
   }
   /** osu! API answers kept in this object's storage (like WOM's KV cache), so they outlive a restart: the newest 300. */

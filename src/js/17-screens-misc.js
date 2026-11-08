@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8e', title: 'Spectator chat and live game views', sections: [
+    { icon: 'film', title: 'Spectating', items: ['Admins can request a live view of your game tab to follow menus and gameplay', 'Sharing starts only after you accept; pause or stop at any time from the sharing bar', 'Retrying a song keeps spectators in gameplay instead of returning them to the song card', 'A lounge-style spectator chat is shared by the player and everyone watching, with a chat button on both sides'] },
+  ] },
   { id: '2026.11.8d', title: 'Your profile across devices', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Profiles and profile customization now follow the game’s landscape menus on mobile', 'Saved profile changes start syncing to your account immediately for your other devices'] },
   ] },

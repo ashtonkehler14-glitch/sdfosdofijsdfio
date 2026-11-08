@@ -37,6 +37,8 @@ const App = {
     AudioManager.init();
     Zoom.init();
     Toolbar.build();
+    AdminGameView.init();
+    SpectatorChat.init();
     Tooltip.init();
     UISounds.initHover();
     FallingText.init();
@@ -71,6 +73,8 @@ const App = {
     if (DB.memory) Toast.show('Storage is blocked', 'This browser isn\'t letting the game save anything here (private window or blocked site data?). You can play, but beatmaps, scores and settings are lost when the tab closes.', { type: 'err', timeout: 20000 });
     else if (failed.length) Toast.err('Some saved data couldn\'t be loaded', `Problem with: ${failed.join(', ')}. Everything else works; Settings → Maintenance can export or reset your data.`);
     this.globalLoop();
+    window.AshtonkMania.AdminGameView = AdminGameView;
+    window.AshtonkMania.SpectatorChat = SpectatorChat;
     this.initPWA();
     HtmlFile.watch();
     Mobile.early(); // (on a phone: recommend the app before anything else)

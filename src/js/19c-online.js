@@ -81,7 +81,8 @@ const Spectate = {
     const room = Multiplayer.inRoom();
     this.target = { id: p.id, name: p.name, pid: p.pid || '', avatar: p.avatar || '', room };
     this.cur = null; this.set = null;
-    Presence.send({ t: 'watch', to: p.id });
+    Presence.send({ t: 'watch', to: p.id, chat: true });
+    if (typeof SpectatorChat !== 'undefined') SpectatorChat.refresh();
     if (!room) Screens.go('spectator');
     Presence.pushStatus();
   },
@@ -91,6 +92,7 @@ const Spectate = {
     Presence.send({ t: 'unwatch', to: t.id });
     this.target = null; this.cur = null; this.set = null;
     RankedWatch.close(true);
+    if (typeof SpectatorChat !== 'undefined') SpectatorChat.refresh();
     if (t.room && Multiplayer.inRoom() && this.watchingNow()) Screens.go('multiplayer', {}, { replace: true }); // (watching from a room: back to it)
     if (!quiet) Toast.show('Stopped spectating', t.name);
     Presence.pushStatus();
@@ -130,6 +132,11 @@ const Spectate = {
     }
     if (m.t !== 'specEnd') return;
     const c = this.cur;
+    if (m.retry && c) {
+      c.retrying = true; c.acts.length = 0;
+      if (this.watchingNow()) { GameplayScreen.closePause(); this.buffer(GameplayScreen, GameplayScreen.s, true); }
+      return;
+    }
     if (m.gone) {
       // (gone from the online list — often only their page reloading, or a moment without signal: they come back under a
       // new id and watching carries on)
@@ -163,8 +170,14 @@ const Spectate = {
   start(m) {
     const t = this.target;
     if (Screens.currentName === 'gameplay' && !this.watchingNow()) return; // (never takes over your own play)
+    const previous = this.cur, direct = !!(this.findMap(m.head) && (this.watchingNow() || this.onResults()) && (previous?.retrying || previous?.head.mapHash === m.head.mapHash));
     t.lost = false;
     this.cur = { id: m.id, name: m.name, head: m.head, feed: (m.ev || []).slice(), at: m.at || 0, ready: !!m.hist, ended: false, quit: false, started: false, acts: [] };
+    if (direct) {
+      clearTimeout(this._holdT);
+      const cur = this.cur, resume = () => { if (this.cur !== cur || this.target !== t) return; if (Screens.busy) { setTimeout(resume, 50); return; } this.tryStart(false, true); };
+      resume(); return;
+    }
     if (t.room) {
       if (!this.findMap(m.head)) { this.stop({ quiet: true }); Toast.err(`Can't spectate ${m.name}`, 'You haven\'t got this beatmap yet.'); return; }
       this.tryStart();
@@ -196,16 +209,16 @@ const Spectate = {
   canStart() { const c = this.cur; return !!(c && !c.ended && this.findMap(c.head)); },
   /** lazer's scheduleStart: their play starts from the Spectator Mode screen (or straight from the room) as soon as the
    *  beatmap's in your library; Start Watching starts it again after you've left it. */
-  tryStart(again = false) {
+  tryStart(again = false, direct = false) {
     const c = this.cur, t = this.target;
     if (!t || !this.canStart() || (c.started && !again)) return;
     // (from a room: from the room, or straight from the play of someone else there you switched from)
-    if ((Screens.currentName !== (t.room ? 'multiplayer' : 'spectator') && !(t.room && this.watchingNow())) || Screens.busy) return;
+    if ((Screens.currentName !== (t.room ? 'multiplayer' : 'spectator') && !(t.room && this.watchingNow()) && !(direct && (this.watchingNow() || this.onResults()))) || Screens.busy) return;
     const map = this.findMap(c.head);
     c.started = true;
     Object.assign(c, { synced: false, buffering: false, lag: 0, msg: null, paused: false }); // (a fresh run of the same play)
     this._launching = true;
-    Game.launch({ mapId: map.id, mode: 'replay', replay: { ...c.head, events: c.feed, player: c.name, mapId: map.id, summary: null }, spectate: c, back: t.room ? null : { name: 'spectator' } });
+    Game.launch({ mapId: map.id, mode: 'replay', quick: direct, replay: { ...c.head, events: c.feed, player: c.name, mapId: map.id, summary: null }, spectate: c, back: t.room ? null : { name: 'spectator' } });
   },
   /** Back to the Spectator Mode screen (from their play or its results). */
   toScreen() {
@@ -242,6 +255,7 @@ const Spectate = {
   tick(screen, s, now) {
     const c = s.spectate;
     if (!c) return;
+    if (c.retrying) { this.buffer(screen, s, true); return; }
     if (c.synced && c.acts && c.acts.length) this.acts(screen, s, c, now);
     if (s.finished || c.quit || c.paused) return;
     if (!c.synced) {
@@ -304,25 +318,21 @@ const Spectate = {
   /** lazer's SpectatorPlayer message, top centre: "Watching (them) play (song) live". */
   liveEl(s) {
     const c = s.spectate, title = Settings.get('ui.unicodeMetadata') && s.rec.titleUnicode ? s.rec.titleUnicode : s.rec.title;
-    // (and the chat, a click — or F8 — away: a message to them if they're your friend, else #lobby; the play goes on
-    // behind it)
-    const friend = this.target && this.target.pid && Friends.has(this.target.pid);
+    // The player and their spectators share the lounge-style chat; playback continues behind the panel.
     this.msgDot = h('i.spec-msg-n');
-    const btn = h('button.spec-msg', { title: `${friend ? `Message ${c.name}` : 'Chat in #lobby'} (F8)`, 'aria-label': friend ? `Message ${c.name}` : 'Open the chat',
-      onclick: e => { e.stopPropagation(); this.message(); } }, icon('chat'), h('span', friend ? 'Message' : 'Chat'), this.msgDot);
+    const btn = h('button.spec-msg', { title: 'Spectator chat (F8)', 'aria-label': 'Open spectator chat',
+      onclick: e => { e.stopPropagation(); this.message(); } }, icon('chat'), h('span', 'Message'), this.msgDot);
     this.paintMsgDot();
     return h('div.spec-live', h('span.spec-live-t', 'Watching ', h('b', c.name), ' play ', h('b', title), h('b.spec-live-l', ' live')), btn);
   },
-  /** The chat while watching: your conversation with them if they're a friend (only friends can be messaged), else
-   *  #lobby. */
+  /** The shared spectator chat: the player and everyone currently watching them. */
   message() {
-    const t = this.target;
-    if (t && t.pid && Friends.has(t.pid)) Chat.message(t); else Chat.open('#lobby');
+    SpectatorChat.toggle();
   },
   /** The chat button's dot: messages you haven't read yet. */
   paintMsgDot() {
     if (!this.msgDot) return;
-    const n = Chat.unread;
+    const n = typeof SpectatorChat !== 'undefined' ? SpectatorChat.unread : 0;
     this.msgDot.textContent = n ? String(Math.min(99, n)) : '';
     this.msgDot.hidden = !n;
   },
@@ -372,6 +382,7 @@ const Spectate = {
   onSpectators(m) {
     const H = this.host;
     H.watchers = m.n || 0;
+    if (typeof SpectatorChat !== 'undefined') SpectatorChat.refresh();
     this.paintWatchers(m.names || []);
     if (m.full && H.s && GameplayScreen.s === H.s && !H.s.finished) this.upload(H.s);
   },
@@ -423,7 +434,7 @@ const Spectate = {
     if (H.s !== s) return;
     if (H.watchers && !quit) { const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100); H.sent = s.events.length; Presence.send({ t: 'frames', ev, at: s.endTime + 5000 }); }
     H.s = null;
-    Presence.send({ t: 'playEnd', quit: !!quit });
+    Presence.send({ t: 'playEnd', quit: !!quit, ...(s.spectatorRetry ? { retry: true } : {}) });
   },
 
   /** lazer's spectator list on the HUD: who's watching you play. */
@@ -478,9 +489,9 @@ const SpectatorScreen = {
     this.userEl = h('div.spm-user');
     this.mapEl = h('div.spm-map');
     this.btn = h('button.spm-watch', { onclick: () => { UISounds.click(); Spectate.tryStart(true); } }, 'Start Watching');
-    // (the chat from here too, as from their play: your conversation with them if they're a friend, else #lobby)
-    const t = Spectate.target, friend = t && t.pid && Friends.has(t.pid);
-    const msg = h('button.spm-msg', { title: friend ? `Message ${t.name}` : 'Chat in #lobby', onclick: () => Spectate.message() }, icon('chat'), friend ? 'Message' : 'Chat');
+    // The same shared spectator chat as during their play.
+    const t = Spectate.target;
+    const msg = h('button.spm-msg', { title: 'Spectator chat', onclick: () => Spectate.message() }, icon('chat'), 'Message');
     clearEl(box).append(
       h('div.spm-t', 'Spectator Mode'),
       h('div.spm-row', this.userEl, h('span.spm-arrow', icon('back')), this.mapEl),
