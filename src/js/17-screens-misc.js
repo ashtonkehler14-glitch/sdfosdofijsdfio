@@ -939,6 +939,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.7', title: 'Note appearance and audio fixes', sections: [
+    { icon: 'brush', title: 'Note appearance', items: ['Adjust note height independently of column width, and choose note border colour and thickness in Settings → Gameplay → Playfield', 'Negative Percy values extend visible hold tails to help with skins that cut them short; release timing stays the same'] },
+    { icon: 'sparkle', title: 'Audio', items: ['Changing song speed with pitch preservation keeps music in both ears'] },
+  ] },
   { id: '2026.10.31', title: 'Rooms and scores', sections: [
     { icon: 'multi', title: 'Rooms', items: ['A song queue: line songs up to play one after another (the host\'s, or everyone\'s)', 'Speed mods can be each player\'s own (a room setting)', 'Spectating in a room, switch to another player without going back', 'Click a score in a room\'s results to see its card', 'Invite a friend who\'s in the middle of a song: they get the invite as soon as it ends', 'Watching someone play, Message (or F8) opens the chat over their play'] },
     { icon: 'trophy', title: 'Scores', items: ['Other players\' scores show their star rating and every judgement, not zeros', 'Ranked mods: Hidden, Fade In, Cover and Flashlight count whatever their settings, and Percy counts; Hard Rock and every conversion but Mirror and Percy (Random, key mods, Hold Off, Invert…) give no pp or leaderboard scores (rooms still have them)'] },
