@@ -12,6 +12,12 @@ To play without the website, press **Ctrl+S** in the game (or Settings → Maint
 
 Coming from Web-Osu-Mania? Export a backup there (Settings → Backup & Restore) and import it here. Your songs, scores, collections, keybinds and skin come with it.
 
+## Your profile
+
+Open your profile and choose **Customize profile** to upload a banner (PNG, JPEG or WebP, up to 10 MB), adjust its vertical position, pick one of six styles, and write a short bio. Preview your changes before saving. Your appearance is shared with other players and kept across devices signed in with your code.
+
+Admins can open a player in **/admin → Players → Community tags** to assign up to three named, coloured tags, or remove them. These badges are cosmetic: they never grant staff access. Admin roles remain separate.
+
 ## Note appearance
 
 In **Settings → Gameplay → Playfield**, adjust **Column width (lane width)** and **Note height** independently. Note height applies to tap notes and hold caps in custom and imported skins. **Note border thickness** (Off–4px) and **Note border colour** add an outline following those notes' visible shapes; hold bodies keep their skin artwork. Defaults preserve the skin's original appearance.

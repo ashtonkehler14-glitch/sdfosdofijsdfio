@@ -5300,6 +5300,94 @@ html.lp-open #toasts { right: 380px; }
 .ban-appeal { min-width: 0; text-align: left; }
 .ban-send { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rep-check { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: var(--text-2); }
+
+/* Player-owned profile palettes and the appearance studio. */
+[data-profile-style] { --pf-accent: #ff83b9; --pf-gradient: linear-gradient(125deg, #75416d, #271d37); }
+.pf-header[data-profile-style] .pf-cover { background-image: var(--pf-gradient); }
+.pf-header[data-profile-style]:not([data-profile-style="signature"]) .pf-top { height: 280px; background: #171724; }
+.pf-header[data-profile-style] .pf-cover::after { background: linear-gradient(180deg, #11111b05, #11111b55 35%, #15151feb 100%); }
+.pf-header[data-profile-style] .pf-avatar { border: 2px solid var(--pf-accent); box-shadow: 0 0 0 5px #18182165, 0 12px 40px #0006; }
+.pf-header[data-profile-style]:not([data-profile-style="signature"]) .pf-detail { background: color-mix(in srgb, var(--pf-accent) 7%, #1b1b29); }
+.pf-header[data-profile-style]:not([data-profile-style="signature"]) .pf-centre { background: #171722; }
+.pf-header[data-profile-style] .pf-centre { border-top: 1px solid color-mix(in srgb, var(--pf-accent) 25%, transparent); }
+.pf-header[data-profile-style] .pf-lvl-bar i { background: var(--pf-accent); }
+.pf-header[data-profile-style] .pf-big b { color: var(--pf-accent); }
+.pf-header[data-profile-style] .pf-top-in { align-items: center; }
+.pf-header[data-profile-style] .pf-tags { flex-wrap: wrap; gap: 7px; }
+.pf-header[data-profile-style] .pf-bio { color: #eeeaf4; font-size: .87rem; line-height: 1.5; margin: 10px 0 0; max-width: 540px; overflow-wrap: anywhere; white-space: pre-wrap; text-shadow: 0 1px 5px #000a; }
+.pf-customize { position: absolute; top: 20px; right: var(--pf-pad); z-index: 2; background: #171520b8; border: 1px solid #ffffff38; backdrop-filter: blur(12px); }
+.pf-community-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid color-mix(in srgb, var(--tag-colour) 50%, transparent); background: color-mix(in srgb, var(--tag-colour) 14%, #12121c); color: var(--tag-colour); border-radius: 6px; font-size: .72rem; font-weight: 700; max-width: 100%; overflow-wrap: anywhere; line-height: 1.3; }
+.pf-tag-dot { width: 5px; height: 5px; border-radius: 50%; flex: none; background: currentColor; }
+.pa-wrap { transform: scale(var(--zoom, 1)); transform-origin: 0 0; width: 100vw; height: 100dvh; display: flex; align-items: center; justify-content: center; background: #070810b8; backdrop-filter: blur(14px); padding: 18px; }
+.pa-editor { position: relative; width: min(1020px, 100%); max-height: calc(100dvh - 36px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #ffffff1c; border-radius: 22px; background: #1b1b28; color: #eeeaf5; box-shadow: 0 28px 100px #0008; }
+.pa-head { padding: 25px 28px 22px; display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid #ffffff10; }
+.pa-eyebrow { color: #b8a1ff; font-size: .65rem; letter-spacing: .18em; font-weight: 800; }
+.pa-head h2 { margin: 6px 0; font-size: 1.65rem; letter-spacing: -.035em; }
+.pa-head p, .pa-section > p { margin: 0; color: #aaa7bd; font-size: .82rem; line-height: 1.5; }
+.pa-body { display: grid; grid-template-columns: 320px minmax(0, 1fr); overflow: auto; min-height: 0; }
+.pa-preview-side { padding: 28px 22px; background: #151520; }
+.pa-preview { position: relative; border-radius: 16px; overflow: hidden; min-height: 330px; background: #20202f; border: 1px solid #ffffff14; }
+.pa-preview-cover { position: absolute; inset: 0; background: var(--pf-gradient) center / cover; }
+.pa-preview-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, #11111b00, #15151f99 40%, #15151ff5 100%); }
+.pa-preview-inner { position: relative; display: flex; flex-direction: column; align-items: flex-start; padding: 22px; min-height: 330px; }
+.pa-preview-label { font-size: .6rem; font-weight: 800; letter-spacing: .15em; color: #fffd; background: #1118; border: 1px solid #fff2; padding: 5px 8px; border-radius: 5px; margin-bottom: 60px; }
+.pa-preview .avatar { border: 2px solid var(--pf-accent); box-shadow: 0 4px 20px #0005; border-radius: 18px; flex: none; }
+.pa-preview h3 { margin: 16px 0 8px; font-size: 1.3rem; overflow-wrap: anywhere; max-width: 100%; }
+.pa-preview-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+.pa-preview-bio { line-height: 1.6; font-size: .8rem; color: #ece8f3; margin: 10px 0 0; overflow-wrap: anywhere; }
+.pa-preview-bio.placeholder { color: #9c97b0; }
+.pa-preview-caption { display: flex; align-items: center; gap: 8px; margin: 16px 5px; font-size: .75rem; color: #c4b2f8; flex-wrap: wrap; }
+.pa-preview-caption .i { width: 14px; height: 14px; }
+.pa-preview-caption > span:last-child { width: 100%; color: #9892aa; font-size: .72rem; margin-top: 3px; }
+.pa-controls { padding: 28px; min-width: 0; }
+.pa-section + .pa-section { margin-top: 25px; padding-top: 23px; border-top: 1px solid #ffffff10; }
+.pa-section h3, .pa-section label { font-size: .88rem; font-weight: 700; margin: 0 0 7px; }
+.pa-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+.pa-preset { background: #232331; text-align: left; border: 1px solid #ffffff16; border-radius: 10px; padding: 6px 6px 11px; cursor: pointer; color: #e8e4f3; transition: border-color .15s, transform .15s; min-width: 0; }
+.pa-preset:hover { border-color: var(--tile-accent); transform: translateY(-2px); }
+.pa-preset.selected { border-color: var(--tile-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tile-accent) 15%, transparent); }
+.pa-preset-art { position: relative; display: block; background: var(--tile-bg); height: 56px; border-radius: 6px; margin-bottom: 9px; overflow: hidden; }
+.pa-preset-art::before { content: ""; position: absolute; width: 23px; height: 23px; left: 9px; bottom: 9px; border-radius: 7px; background: #ffffff28; border: 1px solid var(--tile-accent); }
+.pa-preset-art::after { content: ""; position: absolute; width: 30%; height: 4px; left: 40px; bottom: 19px; border-radius: 3px; background: var(--tile-accent); opacity: .6; }
+.pa-preset b { display: block; font-size: .75rem; padding: 0 5px; }
+.pa-preset small { display: block; font-size: .6rem; color: #a7a2b9; margin: 5px 5px 0; line-height: 1.4; }
+.pa-preset-check { position: absolute; top: 5px; right: 5px; color: #15151f; background: var(--tile-accent); width: 18px; height: 18px; border-radius: 50%; display: none; place-items: center; }
+.pa-preset-check .i { width: 12px; height: 12px; }
+.pa-preset.selected .pa-preset-check { display: grid; }
+.pa-section-title { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.pa-optional, .pa-counter { font-size: .68rem; color: #9b95ad; }
+.pa-upload { display: flex; gap: 9px; margin: 13px 0 18px; }
+.pa-label { display: block; font-size: .72rem !important; color: #b7b1c9; }
+.pa-section .slider { width: 100%; }
+.pa-bio { width: 100%; min-height: 85px; resize: vertical; font-size: .82rem; line-height: 1.6; }
+.pa-status { font-size: .75rem; color: #c5b4f5; min-height: 1.5em; margin: 14px 0 0; }
+.pa-foot { border-top: 1px solid #ffffff14; padding: 18px 28px; display: flex; align-items: center; gap: 10px; background: #1d1d2b; }
+.pa-foot > span { margin-right: auto; font-size: .72rem; color: #a7a1b9; }
+.pa-editor button:focus-visible, .pa-editor input:focus-visible, .pa-editor textarea:focus-visible { outline: 2px solid #c9b4ff; outline-offset: 3px; }
+.pa-editor button:disabled { opacity: .4; cursor: default; }
+@media (max-width: 700px) {
+  .pa-wrap { padding: 8px; }
+  .pa-editor { max-height: calc(100dvh - 16px); border-radius: 16px; }
+  .pa-head { padding: 18px; }
+  .pa-body { grid-template-columns: minmax(0, 1fr); }
+  .pa-preview-side { padding: 18px; }
+  .pa-preview, .pa-preview-inner { min-height: 240px; }
+  .pa-preview-label { margin-bottom: 25px; }
+  .pa-preview-caption { display: none; }
+  .pa-controls { padding: 18px; }
+  .pa-foot { padding: 14px 18px; flex-wrap: wrap; }
+  .pa-foot > span { width: 100%; }
+  .pa-foot .primary { margin-left: auto; }
+  .pf-header[data-profile-style] .pf-top { height: auto !important; min-height: 330px; padding-top: 95px; }
+  .pf-customize { right: 15px; top: 15px; }
+  .pf-header[data-profile-style] .pf-top-in { position: relative; display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 14px; }
+  .pf-header[data-profile-style] .pf-top-in > .pf-centre { grid-column: 1 / -1; padding: 10px 0 0; margin: 0; justify-content: flex-end; }
+  .pf-header[data-profile-style] .pf-top-in > .pf-acts { grid-column: 1 / -1; display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .pf-header[data-profile-style] .pf-nm { overflow-wrap: anywhere; }
+  .pf-header[data-profile-style] .pf-name { flex-wrap: wrap; font-size: 1.45rem; }
+  .pf-header[data-profile-style] .pf-avatar { width: 80px !important; height: 80px !important; border-radius: 16px; }
+}
+@media (prefers-reduced-motion: reduce) { .pa-preset { transition: none; } }
 </style>
 <style id="css-no-anim" media="not all">
 *, *::before, *::after { transition: none !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
@@ -12847,6 +12935,7 @@ const ProfileManager = {
     } else if ((a === 'default' || /^(preset|file):[\w .()-]{1,64}$/.test(a)) && a !== this.profile.avatar) {
       this.profile.avatar = a; await this.loadAvatar(); changed = true;
     }
+    if (p.appearance && typeof p.appearance === 'object') { const a = ProfileAppearance.clean(p.appearance); if (JSON.stringify(a) !== JSON.stringify(this.profile.appearance)) { this.profile.appearance = a; changed = true; } }
     if (!changed) return;
     await this.save();
     await this.syncPlays();
@@ -15093,6 +15182,119 @@ const Screens = {
     UISounds.back();
     const to = prev || 'home', r = this.registry[to];
     this.go(to, r && r.keepParams && r._lastParams ? { ...r._lastParams, force: true } : {}, { replace: true });
+  },
+};
+
+/* ===== 12b-profile-appearance.js ===== */
+/* Profile cosmetics are player-owned. Community tags come only from the server's admin tools. */
+const ProfileAppearance = {
+  presets: [
+    { id: 'signature', name: 'Signature', desc: 'The original mania look', accent: '#ff83b9', bg: 'linear-gradient(125deg, #75416d, #271d37 80%)' },
+    { id: 'midnight', name: 'Midnight', desc: 'Deep violet · quiet glow', accent: '#b8a1ff', bg: 'radial-gradient(ellipse at 75% 0%, #6652ac, transparent 65%), linear-gradient(135deg, #17162e, #30234d)' },
+    { id: 'aurora', name: 'Aurora', desc: 'Emerald · northern light', accent: '#72e4c1', bg: 'radial-gradient(ellipse at 80% 0%, #318d82, transparent 65%), linear-gradient(125deg, #132f38, #172638)' },
+    { id: 'ember', name: 'Ember', desc: 'Copper · warm afterglow', accent: '#ffb07c', bg: 'radial-gradient(ellipse at 90% 0%, #a25242, transparent 70%), linear-gradient(125deg, #3c242b, #261c2b)' },
+    { id: 'sakura', name: 'Sakura', desc: 'Rose · soft bloom', accent: '#ffb1d2', bg: 'radial-gradient(ellipse at 80% 0%, #a96389, transparent 70%), linear-gradient(125deg, #482b46, #282137)' },
+    { id: 'glacier', name: 'Glacier', desc: 'Ice blue · crisp contrast', accent: '#91d8ff', bg: 'radial-gradient(ellipse at 80% 0%, #3b7595, transparent 70%), linear-gradient(125deg, #1d3047, #192132)' },
+  ],
+  clean(a) {
+    a = a && typeof a === 'object' ? a : {};
+    return { style: this.presets.some(p => p.id === a.style) ? a.style : 'signature',
+      banner: typeof a.banner === 'string' && a.banner.length <= 48000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '',
+      position: Number.isFinite(a.position) ? clamp(a.position, 0, 100) : 50,
+      bio: typeof a.bio === 'string' ? a.bio.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 160) : '' };
+  },
+  paint(el, appearance) {
+    const a = this.clean(appearance), p = this.presets.find(p => p.id === a.style);
+    el.dataset.profileStyle = a.style;
+    el.style.setProperty('--pf-accent', p.accent);
+    el.style.setProperty('--pf-gradient', p.bg);
+    return a;
+  },
+  tags(list) {
+    return (Array.isArray(list) ? list : []).slice(0, 3).filter(t => t && typeof t.name === 'string' && t.name.trim()).map(t => {
+      const colour = /^#[0-9a-f]{6}$/i.test(t.colour) ? t.colour : '#b8a1ff';
+      return h('span.pf-community-tag', { title: 'Community tag · assigned by an admin', style: { '--tag-colour': colour } }, h('span.pf-tag-dot'), t.name.slice(0, 24));
+    });
+  },
+  async packBanner(file) {
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error('Choose a PNG, JPEG or WebP image.');
+    if (file.size > 10 * 1024 * 1024) throw new Error('Choose an image smaller than 10 MB.');
+    const url = URL.createObjectURL(file);
+    try {
+      const img = new Image(); img.src = url; await img.decode();
+      if (!img.naturalWidth || !img.naturalHeight) throw new Error('This image could not be opened.');
+      // Preserve a little height for the focal-position control. Flatten uploads to a safe, compact raster image.
+      for (const width of [1440, 1200, 960, 720]) {
+        const ratio = Math.min(1, width / img.naturalWidth, 900 / img.naturalHeight);
+        const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.naturalWidth * ratio)); c.height = Math.max(1, Math.round(img.naturalHeight * ratio));
+        const ctx = c.getContext('2d'); ctx.fillStyle = '#1b1729'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+        for (const q of [0.86, 0.7, 0.5, 0.35]) { const data = c.toDataURL('image/webp', q); if (data.length <= 48000 && /^data:image\/(webp|png|jpeg);/.test(data)) return data; }
+      }
+      throw new Error('This image is too detailed to fit. Try a smaller or simpler image.');
+    } catch (e) { throw new Error(e && e.message || 'This image could not be opened.'); }
+    finally { URL.revokeObjectURL(url); }
+  },
+  open() {
+    if (this.o) return;
+    const draft = this.clean(ProfileManager.profile.appearance);
+    let busy = false, closed = false, uploadSeq = 0;
+    const previewCover = h('div.pa-preview-cover'), previewBio = h('p.pa-preview-bio'), styleName = h('span.pa-style-name');
+    const preview = h('div.pa-preview', previewCover, h('div.pa-preview-inner', h('span.pa-preview-label', 'LIVE PREVIEW'),
+      ProfileManager.avatarEl(76), h('h3', ProfileManager.profile.name), h('div.pa-preview-tags', ...this.tags(ProfileScreen.ownTags)), previewBio));
+    const status = h('p.pa-status', { role: 'status', 'aria-live': 'polite' });
+    const counter = h('span.pa-counter');
+    const bio = h('textarea.input.pa-bio', { id: 'pa-bio', maxlength: 160, rows: 3, placeholder: 'A little about you…', value: draft.bio });
+    bio.value = draft.bio;
+    const position = h('input.slider', { id: 'pa-position', type: 'range', min: 0, max: 100, step: 1, value: draft.position, 'aria-label': 'Banner vertical position' });
+    const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', hidden: true, 'aria-label': 'Upload profile banner' });
+    const remove = h('button.btn.sm', { type: 'button', onclick: () => { uploadSeq++; draft.banner = ''; draft.position = 50; position.value = 50; busy = false; save.disabled = false; status.textContent = 'Banner removed from preview. Save to apply.'; paint(); } }, icon('x'), 'Remove');
+    const upload = h('button.btn.sm', { type: 'button', onclick: () => file.click() }, icon('upload'), 'Upload banner');
+    const tiles = this.presets.map(p => h('button.pa-preset', { type: 'button', dataset: { style: p.id }, style: { '--tile-bg': p.bg, '--tile-accent': p.accent }, 'aria-label': p.name + ' profile style', onclick: () => { draft.style = p.id; paint(); } },
+      h('span.pa-preset-art', h('span.pa-preset-check', icon('check'))), h('b', p.name), h('small', p.desc)));
+    const paint = () => {
+      this.paint(preview, draft); previewCover.style.backgroundImage = draft.banner ? `url("${draft.banner}")` : '';
+      previewCover.style.backgroundPosition = `center ${draft.position}%`;
+      previewBio.textContent = draft.bio || 'Your next chapter starts here.'; previewBio.classList.toggle('placeholder', !draft.bio);
+      styleName.textContent = this.presets.find(p => p.id === draft.style).name;
+      counter.textContent = `${bio.value.length} / 160`; position.disabled = !draft.banner; remove.disabled = !draft.banner;
+      for (const t of tiles) { const selected = t.dataset.style === draft.style; t.classList.toggle('selected', selected); t.setAttribute('aria-pressed', String(selected)); }
+    };
+    bio.addEventListener('input', () => { draft.bio = bio.value; paint(); });
+    position.addEventListener('input', () => { draft.position = +position.value; paint(); });
+    file.addEventListener('change', async () => {
+      const f = file.files[0]; file.value = ''; if (!f) return;
+      const seq = ++uploadSeq; busy = true; save.disabled = true; status.textContent = 'Preparing your banner…';
+      try { const banner = await this.packBanner(f); if (closed || seq !== uploadSeq) return; draft.banner = banner; status.textContent = 'Banner ready. Adjust its position below.'; paint(); }
+      catch (e) { if (!closed && seq === uploadSeq) status.textContent = e.message; }
+      finally { if (!closed && seq === uploadSeq) { busy = false; save.disabled = false; } }
+    });
+    const save = h('button.btn.primary', { type: 'button', onclick: async () => {
+      if (busy) return; busy = true; save.disabled = true;
+      const before = ProfileManager.profile.appearance;
+      try {
+        ProfileManager.profile.appearance = this.clean(draft); await ProfileManager.save();
+        // Send immediately as well as through the normal profile-change debounce.
+        if (typeof Rankings !== 'undefined') Rankings.report();
+        if (!closed) this.o?.close(); Toast.ok('Profile updated');
+      } catch { ProfileManager.profile.appearance = before; status.textContent = 'Could not save your profile. Please try again.'; busy = false; save.disabled = false; }
+    } }, icon('check'), 'Save changes');
+    const panel = h('div.pa-editor', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Customize profile' },
+      h('div.pa-head', h('div', h('span.pa-eyebrow', 'MAKE IT YOURS'), h('h2', 'Customize profile'), h('p', 'Your style, wherever you play.')), h('button.icon-btn', { 'aria-label': 'Close profile editor', onclick: () => this.o.close() }, icon('x'))),
+      h('div.pa-body', h('aside.pa-preview-side', preview, h('div.pa-preview-caption', icon('brush'), styleName, h('span', 'Only you can edit your profile.'))),
+        h('div.pa-controls', h('section.pa-section', h('h3', 'Choose your style'), h('p', 'A coordinated colour palette for your profile.'), h('div.pa-presets', ...tiles)),
+          h('section.pa-section', h('div.pa-section-title', h('h3', 'Profile banner'), h('span.pa-optional', 'Optional')), h('p', 'PNG, JPEG or WebP · up to 10 MB. Wide images work best.'), h('div.pa-upload', upload, remove, file),
+            h('label.pa-label', { for: 'pa-position' }, 'Banner position'), position),
+          h('section.pa-section', h('div.pa-section-title', h('label', { for: 'pa-bio' }, 'About you'), counter), bio), status)),
+      h('div.pa-foot', h('span', 'Preview changes before saving.'), h('button.btn.ghost', { onclick: () => this.o.close() }, 'Cancel'), save));
+    this.o = makeOverlay(panel, { cls: 'pa-wrap', onKey: e => {
+      if (e.key !== 'Tab') return false;
+      const controls = [...panel.querySelectorAll('button:not(:disabled), input:not(:disabled):not([type=file]), textarea:not(:disabled)')];
+      const first = controls[0], last = controls[controls.length - 1];
+      if (e.shiftKey && document.activeElement === first) { last.focus(); return true; }
+      if (!e.shiftKey && document.activeElement === last) { first.focus(); return true; }
+      return false;
+    }, onClose: () => { closed = true; uploadSeq++; this.o = null; } });
+    paint(); requestAnimationFrame(() => tiles.find(t => t.dataset.style === draft.style)?.focus());
   },
 };
 
@@ -23828,20 +24030,20 @@ const ProfileScreen = {
     // (coming back from one of their scores: what was already loaded shows straight away, then is brought up to date)
     this.remote = other ? (params.cache && params.cache.pid === params.pid ? params.cache : { pid: params.pid, name: params.name, avatar: params.avatar, data: null }) : null;
     const { el, page } = pageShell('player info', null, [], { icon: 'user', hue: 'pink', wide: true }); // (lazer's UserProfileHeader title, yours or anyone's)
-    this.page = page;
+    this.page = page; this.ownTags = [];
     this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
       Bus.on('verified:verdicts', () => { if (!this.remote) this.render(); }), // (the catch-up's answers: why a play wasn't counted)
       Bus.on('profile:remote', m => {
         // (your own profile: the server's list of your first places)
         if (!this.remote && m.pid === Presence.pid()) {
           this.ownFirsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; /* (one without its song's name isn't listed) */
-          this.ownRole = m.role || null;
+          this.ownRole = m.role || null; this.ownTags = m.profileTags || [];
           // (and your pp and best plays as the server has them — what everyone else sees on your profile)
           const v = m.verified;
           this.ownServer = { pid: m.pid, pp: v ? v.pp || 0 : 0, top: (v && v.src === 'profile' && m.data && m.data.top && m.data.top.length ? m.data.top : m.top) || [] };
           this.render(); return;
         }
-        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; this.remote.role = m.role || null;
+        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; this.remote.role = m.role || null; this.remote.profileTags = m.profileTags || [];
         if (m.data) m.data = { ...m.data, pp: m.verified ? m.verified.pp : m.data.pp || 0, top: m.data.top && m.data.top.length ? m.data.top : m.top || [] }; /* (pp: the server's standing for them) */
         // a player whose game hasn't sent its profile yet: what the server knows of them (rank, pp, accuracy, play
         // count, ranks) — a profile is never "not shared"
@@ -23883,7 +24085,7 @@ const ProfileScreen = {
       ...(() => { const m = BeatmapManager.mapByHash(s.mapHash), st = m && BeatmapManager.setById.get(m.setId); return { onlineId: m && m.onlineId > 0 ? m.onlineId : s.onlineId > 0 ? s.onlineId : undefined, onlineSetId: st && st.onlineId > 0 ? st.onlineId : s.onlineSetId > 0 ? s.onlineSetId : undefined }; })() });
     const g = st.grades || {}, best = ScoreManager.bestPpPerMap();
     return {
-      name: p.name, created: p.created, plays: st.plays, playtime: st.playtime, passed: st.passed, avgAcc: st.avgAcc, notes: st.notes, highestCombo: st.highestCombo,
+      appearance: ProfileAppearance.clean(p.appearance), name: p.name, created: p.created, plays: st.plays, playtime: st.playtime, passed: st.passed, avgAcc: st.avgAcc, notes: st.notes, highestCombo: st.highestCombo,
       rankedScore: [...bestPerMap.values()].filter(s => ScoreManager.isRanked(s)).reduce((a, s) => a + (s.score || 0), 0), pp: ScoreManager.totalPp().total,
       grades: { XH: g.XH || 0, SS: g.SS || 0, SH: g.SH || 0, S: g.S || 0, A: g.A || 0 },
       level: xp.level, xpInto: xp.into, xpNeed: xp.need, xpProgress: xp.progress,
@@ -23944,7 +24146,8 @@ const ProfileScreen = {
     // osu!lazer's UserProfileOverlay: the cover (here the background of the top pp play) with the avatar and name,
     // a strip with play count / time and the level badge, then the detail area: performance and accuracy, rank
     // counts as rank pills, the stat list; then a section tab bar and the sections themselves.
-    const cover = h('div.pf-cover');
+    const appearance = ProfileAppearance.clean(d.appearance), cover = h('div.pf-cover');
+    cover.style.backgroundPosition = `center ${appearance.position}%`;
     // (behind it all: the background of the best play — the one at the top of Best performance — from its beatmap if
     // it's on this device, else that beatmap set's cover from osu!, so it's the same on every device and for everyone
     // looking; with no best play, your latest play's)
@@ -23953,7 +24156,9 @@ const ProfileScreen = {
     const setOf = x => { if (!x) return 0; const sc = x._s || (own && ScoreManager.scores.find(y => y.mapHash === hashOf(x))); return (sc && sc.onlineSetId > 0 && sc.onlineSetId) || (x.onlineSetId > 0 && x.onlineSetId) || 0; };
     const best = topPlays[0], bestMap = best && BeatmapManager.mapByHash(hashOf(best)), bestSet = setOf(best);
     const online = () => { if (bestSet) setCover(OnlineBeatmaps.coverURL(bestSet, 'cover@2x')); };
-    if (bestMap) BeatmapManager.bgURL(bestMap).then(u => u ? setCover(u) : online()).catch(online);
+    if (appearance.banner) setCover(appearance.banner);
+    else if (appearance.style !== 'signature') { /* the selected preset supplies the cover */ }
+    else if (bestMap) BeatmapManager.bgURL(bestMap).then(u => u ? setCover(u) : online()).catch(online);
     else if (bestSet) online();
     else if (own) { const last = ScoreManager.recent(1)[0], m = last && BeatmapManager.mapByHash(last.mapHash); if (m) BeatmapManager.bgURL(m).then(setCover).catch(() => {}); }
     const u = this.remote ? { pid: this.remote.pid, name: p.name, avatar: this.remote.avatar, online: !!this.remote.online, id: this.remote.id, status: this.remote.status } : null;
@@ -23965,12 +24170,13 @@ const ProfileScreen = {
         h('div.pf-name', fxName(h('span.pf-nm', p.name), role), own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) { await ProfileManager.setName(n); Toolbar.updateProfile(); } } }, icon('edit')) : null,
           // (your code: play as yourself on another device)
           own && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => CodePanel.open(Account.signedOut() ? { use: true } : {}) }, icon('lock'), Account.signedOut() ? 'Signed out · Use your code' : 'Your code') : null),
-        h('div.pf-tags', roleBadge(this.remote ? this.remote.role : this.ownRole), h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
-          u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null)),
+        h('div.pf-tags', roleBadge(this.remote ? this.remote.role : this.ownRole), ...ProfileAppearance.tags(own ? this.ownTags : this.remote.profileTags), h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
+          u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null), appearance.bio ? h('p.pf-bio', appearance.bio) : null),
       // (their actions as buttons; reporting them and an admin's tools under ⋯)
       u ? (() => { const all = UserPanels.menuItems(u), more = all.filter(it => it.more || it.staff);
         return h('div.pf-acts', ...all.filter(it => !it.sep && !it.header && !it.more && !it.staff && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label)),
           more.length ? h('button.btn.sm.pf-acts-more', { title: 'More', 'aria-label': 'More', onclick: e => { UISounds.click(); const r = e.currentTarget.getBoundingClientRect(); showMenu(r.left, r.bottom + 4, all.filter(it => it.more || it.staff || (it.header && more.some(m => m.staff)))); } }, icon('bars')) : null); })() : null));
+    if (own) top.append(h('button.btn.sm.pf-customize', { onclick: () => ProfileAppearance.open() }, icon('brush'), 'Customize profile'));
     // (play count and time aren't repeated here: they're in the stat list below)
     const centre = h('div.pf-centre',
       this.dailyEl = h('div.pf-daily', { hidden: true }),
@@ -24036,7 +24242,8 @@ const ProfileScreen = {
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); const sc = el.closest('.screen-body'); if (sc) settleOn(sc, () => el.scrollIntoView({ block: 'start' })); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
     // (the level and daily challenge sit at the cover's bottom right, beside the name: one block, not a strip of its own)
     top.querySelector('.pf-top-in').append(centre);
-    page.append(h('div.pf-header', top, detail), tabs, ...sections);
+    const header = h('div.pf-header', top, detail); ProfileAppearance.paint(header, appearance);
+    page.append(header, tabs, ...sections);
     this.paintDaily();
     // lazer lights the tab of the section you're reading
     requestAnimationFrame(() => {
@@ -24324,6 +24531,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.7b', title: 'Make your profile yours', sections: [
+    { icon: 'brush', title: 'Profiles', items: ['Upload a profile banner and adjust its position, or choose from six coordinated styles', 'Add a short bio and preview your profile before saving — your look follows you across devices', 'Admins can award custom community tags that appear on profiles without giving admin access'] },
+  ] },
   { id: '2026.11.7', title: 'Note appearance and audio fixes', sections: [
     { icon: 'brush', title: 'Note appearance', items: ['Adjust note height independently of column width, and choose note border colour and thickness in Settings → Gameplay → Playfield', 'Negative Percy values extend visible hold tails to help with skins that cut them short; release timing stays the same'] },
     { icon: 'sparkle', title: 'Audio', items: ['Changing song speed with pitch preservation keeps music in both ears'] },
@@ -31175,11 +31385,11 @@ if (Mobile.touch) Keyboard.init();
  *  turned (a song waits for it, and one under way stops for a tap). */
 const Orientation = {
   el: null,
-  /** The menus are used sideways; a song as Settings → Mobile layout says; the results either way up. */
+  /** The menus are used sideways; a song as Settings → Mobile layout says; profiles and results either way up. */
   wanted() {
     const n = typeof Screens !== 'undefined' ? Screens.currentName : '';
     if (n === 'gameplay') { const m = typeof Settings !== 'undefined' ? Settings.get('gameplay.mobileLayout') : 'auto'; return m === 'portrait' ? 'portrait' : m === 'landscape' || m === 'expanded' ? 'landscape' : 'any'; }
-    return n === 'results' ? 'any' : 'landscape';
+    return n === 'results' || n === 'profile' ? 'any' : 'landscape';
   },
   /** Whether the prompt to turn the phone is up. */
   wrong() { return !!this.el && !this.el.hidden; },
@@ -32888,7 +33098,7 @@ const Sync = {
     for (const [ev, part] of [['skin:changed', 'skin'], ['collections:changed', 'cols'], ['favorites:changed', 'favs'], ['mapoffset:changed', 'offsets'], ['library:changed', 'sets']])
       Bus.on(ev, () => { this.touch(part); this.later(); });
     // (your name and picture: only when one of them changed — the profile is saved for other things too)
-    const prof = () => { const p = ProfileManager.profile || {}; return `${p.name}|${p.avatar}|${p.avatarSig || ''}`; };
+    const prof = () => { const p = ProfileManager.profile || {}; return `${p.name}|${p.avatar}|${p.avatarSig || ''}|${JSON.stringify(p.appearance || {})}`; };
     this._prof = prof();
     Bus.on('profile:changed', () => { const s = prof(); if (s === this._prof) return; this._prof = s; this.touch('profile'); this.later(2000); });
     Bus.on('account:changed', () => { this.tidy(); this.later(); });
@@ -32953,7 +33163,7 @@ const Sync = {
     return out;
   },
   /** Your name and picture: a preset's id, or a copy of the one you uploaded (made just before it's sent). */
-  profileOut() { const p = ProfileManager.profile; return { name: p.name, avatar: p.avatar === 'custom' ? this._avatarData || ProfileManager.sharedAvatar || '' : p.avatar || 'default' }; },
+  profileOut() { const p = ProfileManager.profile; return { appearance: ProfileAppearance.clean(p.appearance), name: p.name, avatar: p.avatar === 'custom' ? this._avatarData || ProfileManager.sharedAvatar || '' : p.avatar || 'default' }; },
   /** The beatmap sets installed here that can be downloaded again (by their osu! id): your other devices list them. */
   setsOut() {
     const out = [];
@@ -33531,7 +33741,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '9a1be67ca7b8';
+const APP_BUILD = '046ba23aadbe';
 
 const App = {
   lastReport: null,
@@ -33589,7 +33799,7 @@ const App = {
     LazerCursor.init();
     MediaKeys.init();
     KeyNames.load(); // (the keyboard's own key names, for the key bindings and the keys under the stage)
-    window.AshtonkMania = { MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, CodePanel, Sync, NeruCameo, MenuScroll, LowEnd, PicWait, NeruEggs, Staff, Announcements, Report };
+    window.AshtonkMania = { ProfileAppearance, MapOffsets, Onboarding, Presence, NeruMascot, App, DB, Settings, ProfileManager, OsuMath, ExplorerScreen, OnlineBeatmaps, BeatmapManager, SkinManager, ScoreManager, ReplayManager, Music, AudioManager, Screens, GameplayScreen, Game, SongSelect, BeatmapParser, Collections, Favorites, SettingsPanel, ModSelect, MenuMusic, NowPlaying, Multiplayer, MultiplayerScreen, Zoom, healthModeFor, SkinHealthBar, friendlyError, AvatarPresets, Toast, Background, Spectate, Friends, OnlinePanel, DashboardScreen, UserPanels, Osr, Mobile, Dialog, Chat, Rankings, RankingsScreen, Daily, DailyScreen, Medals, ProfileScreen, Bus, ManageCollections, MpResults, SkinEditor, HudLayout, Screenshot, UserTags, Host, HtmlFile, Account, CodePanel, Sync, NeruCameo, MenuScroll, LowEnd, PicWait, NeruEggs, Staff, Announcements, Report };
     try { await Screens.go('home'); }
     catch (e) { console.error(e); Toast.err('The main menu failed to load', e.message); }
     await sleep(250);

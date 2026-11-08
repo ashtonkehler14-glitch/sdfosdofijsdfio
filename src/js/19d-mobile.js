@@ -285,11 +285,11 @@ if (Mobile.touch) Keyboard.init();
  *  turned (a song waits for it, and one under way stops for a tap). */
 const Orientation = {
   el: null,
-  /** The menus are used sideways; a song as Settings → Mobile layout says; the results either way up. */
+  /** The menus are used sideways; a song as Settings → Mobile layout says; profiles and results either way up. */
   wanted() {
     const n = typeof Screens !== 'undefined' ? Screens.currentName : '';
     if (n === 'gameplay') { const m = typeof Settings !== 'undefined' ? Settings.get('gameplay.mobileLayout') : 'auto'; return m === 'portrait' ? 'portrait' : m === 'landscape' || m === 'expanded' ? 'landscape' : 'any'; }
-    return n === 'results' ? 'any' : 'landscape';
+    return n === 'results' || n === 'profile' ? 'any' : 'landscape';
   },
   /** Whether the prompt to turn the phone is up. */
   wrong() { return !!this.el && !this.el.hidden; },

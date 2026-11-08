@@ -58,6 +58,22 @@ export const NO_ROOM_MODS = ['AT', 'CN', 'WU', 'WD', 'AS', 'MU'];
 const personalMods = list => cleanMods(list).filter(x => !RATE_MODS.includes(x) && !NO_ROOM_MODS.includes(x));
 const speedMods = list => cleanMods(list).filter(x => RATE_MODS.includes(x)).slice(0, 1);
 const cleanConfig = c => c && typeof c === 'object' ? Object.fromEntries(Object.entries(c).slice(0, 12).map(([k, v]) => [str(k, 16), num(v, -1e4, 1e4)])) : null;
+/** Public profile cosmetics. Never accept URLs/CSS or authority fields from a player. */
+export function cleanProfileAppearance(a) {
+  a = a && typeof a === 'object' ? a : {};
+  return { style: ['signature', 'midnight', 'aurora', 'ember', 'sakura', 'glacier'].includes(a.style) ? a.style : 'signature',
+    banner: typeof a.banner === 'string' && a.banner.length <= 48000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '',
+    position: Number.isFinite(a.position) ? Math.min(100, Math.max(0, a.position)) : 50,
+    bio: typeof a.bio === 'string' ? a.bio.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 160) : '' };
+}
+export function cleanProfileTags(tags) {
+  const seen = new Set();
+  return (Array.isArray(tags) ? tags : []).slice(0, 3).filter(t => t && typeof t.name === 'string').map(t => ({
+    name: t.name.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 24),
+    colour: /^#[0-9a-f]{6}$/i.test(t.colour) ? t.colour.toLowerCase() : '#b8a1ff',
+  })).filter(t => { const key = t.name.toLowerCase(); if (!key || seen.has(key)) return false; seen.add(key); return true; });
+}
+
 /** A shared profile picture: a preset / public picture id, or a small inline JPEG / PNG / WebP. */
 export const cleanAvatar = a => typeof a === 'string' && a.length <= 24000 && /^(preset:[\w-]{1,32}|file:[\w .()-]{1,64}|data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+)$/.test(a) ? a : '';
 export const validCode = c => typeof c === 'string' && /^[A-Z0-9]{4,8}$/.test(c);
@@ -1152,6 +1168,7 @@ export class PresenceLogic {
     this.adminHash = '';
     // the admins the owner has made, each with a role of the owner's naming and colour (pid → { name, colour, at }; rl:)
     this.roles = new Map();
+    this.profileTags = new Map(); // display-only admin-assigned badges, pt:; never consulted by isStaff
     // players the owner deleted (dl:): their id is never used again — a device still on it is told, and starts over as
     // a new player; and players whose picture an admin took down (na:): none of theirs is shown until it's allowed again
     this.deleted = new Set(); this.noAvatar = new Set();
@@ -1179,7 +1196,15 @@ export class PresenceLogic {
     if (this.persistMod) this.persistMod('rl', pid, null);
     return [...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id]) => ({ to: id, msg: { t: 'admin', off: true } }));
   }
-  loadMod({ bans = {}, mutes = {}, names = {}, roles = {}, deleted = [], noAvatar = [], notes = {}, chatRules = null } = {}) {
+  /** Called exclusively by the authenticated admin API; assigning a badge never touches roles or permissions. */
+  adminProfileTags(pid, tags) {
+    const clean = cleanProfileTags(tags);
+    if (clean.length) this.profileTags.set(pid, clean); else this.profileTags.delete(pid);
+    if (this.persistMod) this.persistMod('pt', pid, clean.length ? clean : null);
+    return [...this.users.keys()].map(id => ({ to: id, msg: this.profileMsg(pid) }));
+  }
+  loadMod({ bans = {}, mutes = {}, names = {}, roles = {}, profileTags = {}, deleted = [], noAvatar = [], notes = {}, chatRules = null } = {}) {
+    for (const [pid, v] of Object.entries(profileTags)) { const tags = cleanProfileTags(v); if (tags.length) this.profileTags.set(pid, tags); }
     for (const [pid, v] of Object.entries(notes)) if (Array.isArray(v) && v.length) this.notes.set(pid, v.slice(-PresenceLogic.NOTES_KEEP));
     if (chatRules && typeof chatRules === 'object') this.chatRules = PresenceLogic.cleanRules(chatRules);
     for (const pid of deleted) this.deleted.add(pid);
@@ -1217,7 +1242,7 @@ export class PresenceLogic {
     const r = this.ranks.get(pid), p = this.profiles.get(pid), u = [...this.users.values()].find(x => x.pid === pid), given = this.givenName(pid);
     const banned = this.modOf('bn', pid), muted = this.modOf('mu', pid);
     return { pid, name: given || (u && u.name) || name || (r && r.name) || (p && p.name) || (banned && banned.name) || (muted && muted.name) || '', pp: r ? Math.round(r.pp || 0) : 0, plays: r ? r.plays || 0 : 0,
-      online: !!u, seen: this.seen.get(pid) || 0, code: this.codeOf.has(pid), banned, muted, named: given, owner: this.isAdmin(pid), role: this.roles.get(pid) || null,
+      online: !!u, seen: this.seen.get(pid) || 0, code: this.codeOf.has(pid), banned, muted, named: given, owner: this.isAdmin(pid), role: this.roles.get(pid) || null, profileTags: this.profileTags.get(pid) || [],
       noAvatar: this.noAvatar.has(pid), deleted: this.deleted.has(pid), avatar: (u && u.avatar) || (r && r.avatar) || '' };
   }
   /** The name the server's owner gave this player ('' when there's none). */
@@ -1466,7 +1491,7 @@ export class PresenceLogic {
     if (fc) { this.codes.delete(fc); this.codeOf.delete(pid); if (this.persistCode) this.persistCode(null, pid, fc); }
     this.auth.delete(pid); this.seen.delete(pid);
     if (this.dropPlayer) for (const w of ['auth', 'seen']) this.dropPlayer(pid, w);
-    for (const [kind, map] of [['bn', this.bans], ['mu', this.mutes], ['nm', this.names]]) if (map.delete(pid) && this.persistMod) this.persistMod(kind, pid, null);
+    for (const [kind, map] of [['bn', this.bans], ['mu', this.mutes], ['nm', this.names], ['pt', this.profileTags]]) if (map.delete(pid) && this.persistMod) this.persistMod(kind, pid, null);
     if (this.noAvatar.delete(pid) && this.persistMod) this.persistMod('na', pid, null);
     if (this.tombs.delete(pid) && this.dropPlayer) this.dropPlayer(pid, 'tomb');
     this.deleted.add(pid); if (this.persistMod) this.persistMod('dl', pid, { at: this.now() });
@@ -1593,7 +1618,7 @@ export class PresenceLogic {
     return { t: 'tags', key, tags: list, all: PresenceLogic.USER_TAGS, can: !!pid && this.played(pid, key) };
   }
   savePlaylist(p) { if (this.persistPlaylist) this.persistPlaylist(p); }
-  static PROFILE_MAX = 90000; // characters of JSON (50 best plays with their osu! ids, for checking)
+  static PROFILE_MAX = 150000; // profile JSON, including a compact raster banner and 50 best plays
   /** Does this key own this public id? The first key used with an id claims it. */
   claim(pid, key) {
     const k = String(key || '');
@@ -1935,7 +1960,7 @@ export class PresenceLogic {
     }
     const n = r ? r.n || 0 : 0, bonus = n > 0 ? Math.round(416.6667 * (1 - 0.995 ** Math.min(1000, n)) * 100) / 100 : 0;
     return { t: 'profile', pid, data: shown, top, firsts, firstCount: f1.length, name: online ? online[1].name : r ? r.name : data ? data.name : null, avatar: online ? online[1].avatar : r ? r.avatar : null,
-      role: this.roleOf(pid), rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a, n, bonus, src: r.src || 'judged' } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
+      profileTags: this.profileTags.get(pid) || [], role: this.roleOf(pid), rank: at < 0 ? null : at + 1, daily: this.dailyStatsOf(pid), verified: r ? { pp: r.pp, acc: r.acc, plays: r.plays, ss: r.ss, s: r.s, a: r.a, n, bonus, src: r.src || 'judged' } : null, online: !!online, id: online ? online[0] : null, status: online ? online[1].status : 'offline' };
   }
   setFirst(pid, key, v) {
     const m = this.firsts.get(pid) || {};
@@ -2240,7 +2265,10 @@ export class PresenceLogic {
         const json = JSON.stringify(msg.profile);
         if (json.length <= PresenceLogic.PROFILE_MAX && json !== this.profileJson.get(u.pid)) {
           // (an account's: what this device sent, put together with what its other devices did)
-          const sent = JSON.parse(json), data = { ...(this.codeOf.has(u.pid) ? PresenceLogic.mergeProfile(this.profiles.get(u.pid), sent) : sent), name: u.name };
+          const sent = JSON.parse(json);
+          if ('appearance' in sent) sent.appearance = cleanProfileAppearance(sent.appearance);
+          for (const k of ['profileTags', 'tags', 'role', 'admin']) delete sent[k];
+          const data = { ...(this.codeOf.has(u.pid) ? PresenceLogic.mergeProfile(this.profiles.get(u.pid), sent) : sent), name: u.name };
           this.profiles.set(u.pid, data); this.profileJson.set(u.pid, json);
           if (this.persistProfile) this.persistProfile(u.pid, data);
         }
@@ -2521,7 +2549,7 @@ export class Matchmaker {
     let joined = false;
     // (one message that goes wrong is dropped — an error escaping here could reset the object, and with it everyone online)
     const onMessage = ev => {
-      if (typeof ev.data !== 'string' || ev.data.length > 65536) return; // (a play's inputs go up in chunks of up to ~60 KB)
+      if (typeof ev.data !== 'string' || ev.data.length > PresenceLogic.PROFILE_MAX + 1024) return; // profiles include a compact banner; input batches stay ~60 KB
       let msg; try { msg = JSON.parse(ev.data); } catch { return; }
       if (!joined) {
         if (msg.t !== 'hello') return;
@@ -2786,6 +2814,13 @@ export class Matchmaker {
         if (!pl) return json({ error: 'No such playlist.' }, 400);
         P.playlists.delete(id); this.state.storage.delete(`pl:${id}`).catch(() => {});
         log('Removed a playlist', { name: str(pl.name, 60), to: pl.host && pl.host.name });
+        return json({ ok: true });
+      }
+      case 'profileTags': {
+        if (!pid || P.deleted.has(pid)) return noPlayer();
+        if (!Array.isArray(b.tags) || b.tags.length > 3 || b.tags.some(t => !t || typeof t.name !== 'string' || !t.name.trim() || t.name.length > 24 || !/^#[0-9a-f]{6}$/i.test(t.colour))) return json({ error: 'Use up to three tags, each with a name (24 characters) and a colour.' }, 400);
+        this.send(P.adminProfileTags(pid, b.tags));
+        log('Changed profile tags', { ...who(pid), tags: cleanProfileTags(b.tags).map(t => t.name).join(', ') });
         return json({ ok: true });
       }
       case 'role': {
@@ -3166,6 +3201,7 @@ export class Matchmaker {
         for (const [k, v] of await st.list({ prefix: 'bn:' })) mod.bans[k.slice(3)] = v;
         for (const [k, v] of await st.list({ prefix: 'mu:' })) mod.mutes[k.slice(3)] = v;
         for (const [k, v] of await st.list({ prefix: 'nm:' })) mod.names[k.slice(3)] = v;
+        mod.profileTags = {}; for (const [k, v] of await st.list({ prefix: 'pt:' })) mod.profileTags[k.slice(3)] = v;
         mod.roles = {}; for (const [k, v] of await st.list({ prefix: 'rl:' })) mod.roles[k.slice(3)] = v;
         mod.deleted = [...(await st.list({ prefix: 'dl:' })).keys()].map(k => k.slice(3));
         mod.noAvatar = [...(await st.list({ prefix: 'na:' })).keys()].map(k => k.slice(3));

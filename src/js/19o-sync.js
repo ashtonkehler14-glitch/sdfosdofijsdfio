@@ -53,7 +53,7 @@ const Sync = {
     for (const [ev, part] of [['skin:changed', 'skin'], ['collections:changed', 'cols'], ['favorites:changed', 'favs'], ['mapoffset:changed', 'offsets'], ['library:changed', 'sets']])
       Bus.on(ev, () => { this.touch(part); this.later(); });
     // (your name and picture: only when one of them changed — the profile is saved for other things too)
-    const prof = () => { const p = ProfileManager.profile || {}; return `${p.name}|${p.avatar}|${p.avatarSig || ''}`; };
+    const prof = () => { const p = ProfileManager.profile || {}; return `${p.name}|${p.avatar}|${p.avatarSig || ''}|${JSON.stringify(p.appearance || {})}`; };
     this._prof = prof();
     Bus.on('profile:changed', () => { const s = prof(); if (s === this._prof) return; this._prof = s; this.touch('profile'); this.later(2000); });
     Bus.on('account:changed', () => { this.tidy(); this.later(); });
@@ -118,7 +118,7 @@ const Sync = {
     return out;
   },
   /** Your name and picture: a preset's id, or a copy of the one you uploaded (made just before it's sent). */
-  profileOut() { const p = ProfileManager.profile; return { name: p.name, avatar: p.avatar === 'custom' ? this._avatarData || ProfileManager.sharedAvatar || '' : p.avatar || 'default' }; },
+  profileOut() { const p = ProfileManager.profile; return { appearance: ProfileAppearance.clean(p.appearance), name: p.name, avatar: p.avatar === 'custom' ? this._avatarData || ProfileManager.sharedAvatar || '' : p.avatar || 'default' }; },
   /** The beatmap sets installed here that can be downloaded again (by their osu! id): your other devices list them. */
   setsOut() {
     const out = [];

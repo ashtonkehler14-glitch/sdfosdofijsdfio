@@ -1494,7 +1494,7 @@ test('profiles: shared by a player\'s game for others to open, with the server\'
   p.recordVerified('alicepid1', K2, judged({ pp: 300, title: 'Big Song', artist: 'Band', version: 'Insane' }));
   const tp = p.message('b', { t: 'profile', pid: 'alicepid1' })[0].msg.top;
   assert.deepEqual(tp.map(x => [x.title, x.version, x.pp]), [['Big Song', 'Insane', 300]]);
-  p.message('b', { t: 'stats', profile: { junk: 'x'.repeat(100000) } });
+  p.message('b', { t: 'stats', profile: { junk: 'x'.repeat(PresenceLogic.PROFILE_MAX + 1) } });
   assert.equal(p.profiles.has('bobpid22'), false);
 });
 

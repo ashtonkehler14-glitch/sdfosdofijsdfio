@@ -378,6 +378,7 @@ const ProfileManager = {
     } else if ((a === 'default' || /^(preset|file):[\w .()-]{1,64}$/.test(a)) && a !== this.profile.avatar) {
       this.profile.avatar = a; await this.loadAvatar(); changed = true;
     }
+    if (p.appearance && typeof p.appearance === 'object') { const a = ProfileAppearance.clean(p.appearance); if (JSON.stringify(a) !== JSON.stringify(this.profile.appearance)) { this.profile.appearance = a; changed = true; } }
     if (!changed) return;
     await this.save();
     await this.syncPlays();

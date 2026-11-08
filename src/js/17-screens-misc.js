@@ -443,20 +443,20 @@ const ProfileScreen = {
     // (coming back from one of their scores: what was already loaded shows straight away, then is brought up to date)
     this.remote = other ? (params.cache && params.cache.pid === params.pid ? params.cache : { pid: params.pid, name: params.name, avatar: params.avatar, data: null }) : null;
     const { el, page } = pageShell('player info', null, [], { icon: 'user', hue: 'pink', wide: true }); // (lazer's UserProfileHeader title, yours or anyone's)
-    this.page = page;
+    this.page = page; this.ownTags = [];
     this._unsub = [Bus.on('profile:changed', () => { if (!this.remote) this.render(); }), Bus.on('scores:changed', () => { if (!this.remote) this.render(); }),
       Bus.on('verified:verdicts', () => { if (!this.remote) this.render(); }), // (the catch-up's answers: why a play wasn't counted)
       Bus.on('profile:remote', m => {
         // (your own profile: the server's list of your first places)
         if (!this.remote && m.pid === Presence.pid()) {
           this.ownFirsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; /* (one without its song's name isn't listed) */
-          this.ownRole = m.role || null;
+          this.ownRole = m.role || null; this.ownTags = m.profileTags || [];
           // (and your pp and best plays as the server has them — what everyone else sees on your profile)
           const v = m.verified;
           this.ownServer = { pid: m.pid, pp: v ? v.pp || 0 : 0, top: (v && v.src === 'profile' && m.data && m.data.top && m.data.top.length ? m.data.top : m.top) || [] };
           this.render(); return;
         }
-        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; this.remote.role = m.role || null;
+        if (this.remote && m.pid === this.remote.pid) { this.remote.firsts = { list: (m.firsts || []).filter(x => x && x.title), count: m.firstCount || 0 }; this.remote.role = m.role || null; this.remote.profileTags = m.profileTags || [];
         if (m.data) m.data = { ...m.data, pp: m.verified ? m.verified.pp : m.data.pp || 0, top: m.data.top && m.data.top.length ? m.data.top : m.top || [] }; /* (pp: the server's standing for them) */
         // a player whose game hasn't sent its profile yet: what the server knows of them (rank, pp, accuracy, play
         // count, ranks) — a profile is never "not shared"
@@ -498,7 +498,7 @@ const ProfileScreen = {
       ...(() => { const m = BeatmapManager.mapByHash(s.mapHash), st = m && BeatmapManager.setById.get(m.setId); return { onlineId: m && m.onlineId > 0 ? m.onlineId : s.onlineId > 0 ? s.onlineId : undefined, onlineSetId: st && st.onlineId > 0 ? st.onlineId : s.onlineSetId > 0 ? s.onlineSetId : undefined }; })() });
     const g = st.grades || {}, best = ScoreManager.bestPpPerMap();
     return {
-      name: p.name, created: p.created, plays: st.plays, playtime: st.playtime, passed: st.passed, avgAcc: st.avgAcc, notes: st.notes, highestCombo: st.highestCombo,
+      appearance: ProfileAppearance.clean(p.appearance), name: p.name, created: p.created, plays: st.plays, playtime: st.playtime, passed: st.passed, avgAcc: st.avgAcc, notes: st.notes, highestCombo: st.highestCombo,
       rankedScore: [...bestPerMap.values()].filter(s => ScoreManager.isRanked(s)).reduce((a, s) => a + (s.score || 0), 0), pp: ScoreManager.totalPp().total,
       grades: { XH: g.XH || 0, SS: g.SS || 0, SH: g.SH || 0, S: g.S || 0, A: g.A || 0 },
       level: xp.level, xpInto: xp.into, xpNeed: xp.need, xpProgress: xp.progress,
@@ -559,7 +559,8 @@ const ProfileScreen = {
     // osu!lazer's UserProfileOverlay: the cover (here the background of the top pp play) with the avatar and name,
     // a strip with play count / time and the level badge, then the detail area: performance and accuracy, rank
     // counts as rank pills, the stat list; then a section tab bar and the sections themselves.
-    const cover = h('div.pf-cover');
+    const appearance = ProfileAppearance.clean(d.appearance), cover = h('div.pf-cover');
+    cover.style.backgroundPosition = `center ${appearance.position}%`;
     // (behind it all: the background of the best play — the one at the top of Best performance — from its beatmap if
     // it's on this device, else that beatmap set's cover from osu!, so it's the same on every device and for everyone
     // looking; with no best play, your latest play's)
@@ -568,7 +569,9 @@ const ProfileScreen = {
     const setOf = x => { if (!x) return 0; const sc = x._s || (own && ScoreManager.scores.find(y => y.mapHash === hashOf(x))); return (sc && sc.onlineSetId > 0 && sc.onlineSetId) || (x.onlineSetId > 0 && x.onlineSetId) || 0; };
     const best = topPlays[0], bestMap = best && BeatmapManager.mapByHash(hashOf(best)), bestSet = setOf(best);
     const online = () => { if (bestSet) setCover(OnlineBeatmaps.coverURL(bestSet, 'cover@2x')); };
-    if (bestMap) BeatmapManager.bgURL(bestMap).then(u => u ? setCover(u) : online()).catch(online);
+    if (appearance.banner) setCover(appearance.banner);
+    else if (appearance.style !== 'signature') { /* the selected preset supplies the cover */ }
+    else if (bestMap) BeatmapManager.bgURL(bestMap).then(u => u ? setCover(u) : online()).catch(online);
     else if (bestSet) online();
     else if (own) { const last = ScoreManager.recent(1)[0], m = last && BeatmapManager.mapByHash(last.mapHash); if (m) BeatmapManager.bgURL(m).then(setCover).catch(() => {}); }
     const u = this.remote ? { pid: this.remote.pid, name: p.name, avatar: this.remote.avatar, online: !!this.remote.online, id: this.remote.id, status: this.remote.status } : null;
@@ -580,12 +583,13 @@ const ProfileScreen = {
         h('div.pf-name', fxName(h('span.pf-nm', p.name), role), own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) { await ProfileManager.setName(n); Toolbar.updateProfile(); } } }, icon('edit')) : null,
           // (your code: play as yourself on another device)
           own && Multiplayer.available() ? h('button.btn.sm.pf-signin', { onclick: () => CodePanel.open(Account.signedOut() ? { use: true } : {}) }, icon('lock'), Account.signedOut() ? 'Signed out · Use your code' : 'Your code') : null),
-        h('div.pf-tags', roleBadge(this.remote ? this.remote.role : this.ownRole), h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
-          u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null)),
+        h('div.pf-tags', roleBadge(this.remote ? this.remote.role : this.ownRole), ...ProfileAppearance.tags(own ? this.ownTags : this.remote.profileTags), h('span.pf-tag', 'osu!mania'), p.created ? h('span.pf-since', `Playing since ${new Date(p.created).toLocaleDateString([], { year: 'numeric', month: 'long' })}`) : null,
+          u ? h('span.pf-online', UserPanels.statusIcon(u), UserPanels.statusText(u)) : null), appearance.bio ? h('p.pf-bio', appearance.bio) : null),
       // (their actions as buttons; reporting them and an admin's tools under ⋯)
       u ? (() => { const all = UserPanels.menuItems(u), more = all.filter(it => it.more || it.staff);
         return h('div.pf-acts', ...all.filter(it => !it.sep && !it.header && !it.more && !it.staff && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label)),
           more.length ? h('button.btn.sm.pf-acts-more', { title: 'More', 'aria-label': 'More', onclick: e => { UISounds.click(); const r = e.currentTarget.getBoundingClientRect(); showMenu(r.left, r.bottom + 4, all.filter(it => it.more || it.staff || (it.header && more.some(m => m.staff)))); } }, icon('bars')) : null); })() : null));
+    if (own) top.append(h('button.btn.sm.pf-customize', { onclick: () => ProfileAppearance.open() }, icon('brush'), 'Customize profile'));
     // (play count and time aren't repeated here: they're in the stat list below)
     const centre = h('div.pf-centre',
       this.dailyEl = h('div.pf-daily', { hidden: true }),
@@ -651,7 +655,8 @@ const ProfileScreen = {
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); const sc = el.closest('.screen-body'); if (sc) settleOn(sc, () => el.scrollIntoView({ block: 'start' })); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
     // (the level and daily challenge sit at the cover's bottom right, beside the name: one block, not a strip of its own)
     top.querySelector('.pf-top-in').append(centre);
-    page.append(h('div.pf-header', top, detail), tabs, ...sections);
+    const header = h('div.pf-header', top, detail); ProfileAppearance.paint(header, appearance);
+    page.append(header, tabs, ...sections);
     this.paintDaily();
     // lazer lights the tab of the section you're reading
     requestAnimationFrame(() => {
@@ -939,6 +944,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.7b', title: 'Make your profile yours', sections: [
+    { icon: 'brush', title: 'Profiles', items: ['Upload a profile banner and adjust its position, or choose from six coordinated styles', 'Add a short bio and preview your profile before saving — your look follows you across devices', 'Admins can award custom community tags that appear on profiles without giving admin access'] },
+  ] },
   { id: '2026.11.7', title: 'Note appearance and audio fixes', sections: [
     { icon: 'brush', title: 'Note appearance', items: ['Adjust note height independently of column width, and choose note border colour and thickness in Settings → Gameplay → Playfield', 'Negative Percy values extend visible hold tails to help with skins that cut them short; release timing stays the same'] },
     { icon: 'sparkle', title: 'Audio', items: ['Changing song speed with pitch preservation keeps music in both ears'] },

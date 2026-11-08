@@ -362,7 +362,7 @@ async function openPlayer(pid, inPlace) {
         h('span', 'First places'), h('div', fmt(p.firsts)), h('span', 'Friends'), h('div', fmt(p.friends)), h('span', 'Devices'), h('div', fmt(p.devices) + (p.code ? ' · has a code' : '')),
         h('span', 'Daily challenge'), h('div', p.daily ? p.daily.days + ' days played · best streak ' + (p.daily.best || 0) : '—'),
         p.banned ? [h('span', 'Banned'), h('div.bad', until(p.banned))] : null, p.muted ? [h('span', 'Muted'), h('div.warn', until(p.muted))] : null)), ...side),
-      h('div.card.actions', h('h2', 'Actions'),
+      h('div.card.actions', h('h2', 'Actions'), profileTagsBox(p, act),
         p.admin ? h('p.muted', 'This is the owner (the ADMIN_CODE player).') : !ME.owner && p.role ? h('p.muted', 'An admin: only the owner can act on them.') : [
           ME.owner ? roleBox(p, act) : null,
           p.banned && p.muted ? null : h('div.row', reason),
@@ -392,6 +392,25 @@ async function openPlayer(pid, inPlace) {
     h('div.card', h('h2', 'Best plays (' + p.bests.length + ')'), p.bests.length ? h('table', h('tr', h('th', 'Beatmap'), h('th', 'pp'), h('th', 'Score'), h('th', 'Accuracy'), h('th', 'Mods'), h('th', 'Set'), h('th')),
       p.bests.map(s => h('tr', h('td', s.artist + ' - ' + s.title, h('span.muted', ' [' + s.version + ']')), h('td', fmt(s.pp)), h('td', fmt(s.score)), h('td', pct(s.acc)), h('td.muted', s.mods.join(' ') || '—'), h('td.muted', ago(s.date)),
         h('td', h('button.small.danger', { onclick: act('removeScore', () => ({ key: s.key }), 'Score removed', 'Remove this score?') }, 'Remove'))))) : h('div.empty', 'No ranked plays.')));
+}
+
+/** Cosmetic community tags, separate from the owner-only Admin role controls. */
+function profileTagsBox(p, act) {
+  const list = h('div'), entries = [];
+  const add = tag => {
+    if (entries.length >= 3) return;
+    const name = h('input.grow', { placeholder: 'e.g. Skin creator', maxlength: 24, value: tag && tag.name || '', 'aria-label': 'Profile tag name' });
+    const colour = h('input', { type: 'color', value: tag && tag.colour || '#b8a1ff', 'aria-label': 'Profile tag colour' });
+    const preview = h('div.row.mt');
+    const paint = () => preview.replaceChildren(rolePill(name.value.trim() || 'Tag preview', colour.value));
+    const row = h('div.mt', h('div.row', name, colour, h('button.small', { onclick: () => { entries.splice(entries.indexOf(entry), 1); row.remove(); addBtn.disabled = false; } }, 'Remove')), preview);
+    const entry = { name, colour, row }; entries.push(entry); list.append(row);
+    name.addEventListener('input', paint); colour.addEventListener('input', paint); paint(); addBtn.disabled = entries.length >= 3;
+  };
+  const addBtn = h('button.small', { onclick: () => add(null) }, '+ Add tag');
+  for (const tag of p.profileTags || []) add(tag);
+  return h('div', h('h3', 'Community tags'), h('p.muted.small', 'Display-only profile badges. They give no admin access. Up to three per player; only admins can assign or remove them.'), list,
+    h('div.row.mt', addBtn, h('button.primary', { onclick: act('profileTags', () => ({ tags: entries.filter(e => e.name.value.trim()).map(e => ({ name: e.name.value.trim(), colour: e.colour.value })) }), 'Profile tags saved') }, 'Save tags')));
 }
 
 /** The owner's: make a player an admin, with a role of your naming and colour (shown beside their name on the rankings
