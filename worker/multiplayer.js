@@ -61,8 +61,14 @@ const cleanConfig = c => c && typeof c === 'object' ? Object.fromEntries(Object.
 /** Public profile cosmetics. Never accept URLs/CSS or authority fields from a player. */
 export function cleanProfileAppearance(a) {
   a = a && typeof a === 'object' ? a : {};
-  return { style: ['signature', 'midnight', 'aurora', 'ember', 'sakura', 'glacier'].includes(a.style) ? a.style : 'signature',
-    banner: typeof a.banner === 'string' && a.banner.length <= 48000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '',
+  const style = ['signature', 'midnight', 'aurora', 'ember', 'sakura', 'glacier', 'miku', 'neru', 'teto'].includes(a.style) ? a.style : 'signature';
+  const banner = typeof a.banner === 'string' && a.banner.length <= 48000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '';
+  const song = a.song && typeof a.song === 'object' ? a.song : {};
+  return { style, banner,
+    background: ['best', 'song', 'preset', 'upload'].includes(a.background) ? a.background : banner ? 'upload' : style === 'signature' ? 'best' : 'preset',
+    song: { hash: typeof song.hash === 'string' && /^[a-f0-9]{32,64}$/i.test(song.hash) ? song.hash : '',
+      sid: Number.isSafeInteger(song.sid) && song.sid > 0 && song.sid <= 2147483647 ? song.sid : 0,
+      title: typeof song.title === 'string' ? song.title.trim().slice(0, 100) : '', artist: typeof song.artist === 'string' ? song.artist.trim().slice(0, 80) : '' },
     position: Number.isFinite(a.position) ? Math.min(100, Math.max(0, a.position)) : 50,
     bio: typeof a.bio === 'string' ? a.bio.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 160) : '' };
 }

@@ -9,7 +9,7 @@ const banner = 'data:image/webp;base64,UklGRg==';
 test('profile appearance validation agrees between game and server, excluding unsafe image sources', () => {
   const { ProfileAppearance, __ctx } = load(['12b-profile-appearance.js']);
   __ctx.clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-  for (const input of [null, {}, { style: 'aurora', banner, position: 27, bio: 'Hello' },
+  for (const input of [null, {}, ...['miku', 'neru', 'teto'].map(style => ({ style, background: 'preset' })), { style: 'neru', background: 'song', song: { hash: 'a'.repeat(32), sid: 123, title: 'Song', artist: 'Artist' } }, { background: 'unsafe', song: { hash: 'url(evil)', sid: Infinity, title: 'x'.repeat(200) } }, { style: 'aurora', banner, position: 27, bio: 'Hello' },
     { style: 'url(evil)', banner: 'data:image/svg+xml;base64,PHN2Zz4=', position: -100, bio: '\u0000<hello>\nthere' },
     { banner: 'https://tracker.example/banner.png', bio: 'x'.repeat(200), position: Infinity },
     { banner: 'data:image/png;base64,' + 'a'.repeat(48000), position: 300 }]) {
@@ -71,4 +71,13 @@ test('older devices keep an existing profile appearance while merging scores', (
   const a = { appearance: cleanProfileAppearance({ style: 'midnight', banner }), top: [], recent: [] };
   const merged = PresenceLogic.mergeProfile(a, { name: 'Other device', top: [], recent: [] });
   assert.deepEqual(merged.appearance, a.appearance);
+});
+
+
+test('existing appearances migrate without losing their background, and best play is independent of style', () => {
+  assert.equal(cleanProfileAppearance({ banner }).background, 'upload');
+  assert.equal(cleanProfileAppearance({ style: 'aurora' }).background, 'preset');
+  assert.equal(cleanProfileAppearance({}).background, 'best');
+  assert.equal(cleanProfileAppearance({ style: 'miku', banner, background: 'best' }).background, 'best');
+  assert.equal(cleanProfileAppearance({ background: 'song', song: { sid: '123', hash: 'not-a-map' } }).song.sid, 0);
 });

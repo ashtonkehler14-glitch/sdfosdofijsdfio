@@ -561,19 +561,9 @@ const ProfileScreen = {
     // counts as rank pills, the stat list; then a section tab bar and the sections themselves.
     const appearance = ProfileAppearance.clean(d.appearance), cover = h('div.pf-cover');
     cover.style.backgroundPosition = `center ${appearance.position}%`;
-    // (behind it all: the background of the best play — the one at the top of Best performance — from its beatmap if
-    // it's on this device, else that beatmap set's cover from osu!, so it's the same on every device and for everyone
-    // looking; with no best play, your latest play's)
-    const setCover = u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('img'); } };
-    const hashOf = x => x && (x._s ? x._s.mapHash : x.key || x.mapHash);
-    const setOf = x => { if (!x) return 0; const sc = x._s || (own && ScoreManager.scores.find(y => y.mapHash === hashOf(x))); return (sc && sc.onlineSetId > 0 && sc.onlineSetId) || (x.onlineSetId > 0 && x.onlineSetId) || 0; };
-    const best = topPlays[0], bestMap = best && BeatmapManager.mapByHash(hashOf(best)), bestSet = setOf(best);
-    const online = () => { if (bestSet) setCover(OnlineBeatmaps.coverURL(bestSet, 'cover@2x')); };
-    if (appearance.banner) setCover(appearance.banner);
-    else if (appearance.style !== 'signature') { /* the selected preset supplies the cover */ }
-    else if (bestMap) BeatmapManager.bgURL(bestMap).then(u => u ? setCover(u) : online()).catch(online);
-    else if (bestSet) online();
-    else if (own) { const last = ScoreManager.recent(1)[0], m = last && BeatmapManager.mapByHash(last.mapHash); if (m) BeatmapManager.bgURL(m).then(setCover).catch(() => {}); }
+    // Both the editor and the public profile resolve the same explicit background source.
+    this.coverPlay = topPlays[0] || (d.recent && d.recent[0]) || null;
+    ProfileAppearance.cover(cover, appearance, { best: this.coverPlay, own });
     const u = this.remote ? { pid: this.remote.pid, name: p.name, avatar: this.remote.avatar, online: !!this.remote.online, id: this.remote.id, status: this.remote.status } : null;
     // (a role's effects: Neru's gold round the picture and on the name — see roleFx)
     const role = this.remote ? this.remote.role : (this.ownRole || (typeof Presence !== 'undefined' && Presence.role) || null), fx = roleFx(role);
@@ -944,6 +934,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.7c', title: 'Profiles, in the game’s style', sections: [
+    { icon: 'brush', title: 'Profiles', items: ['The profile editor now matches the game’s menus, with a full profile preview', 'Choose your best play’s background, a song from your library, preset artwork or an upload — and switch back whenever you like', 'Miku, Neru and Teto presets, alongside refreshed mania-themed styles'] },
+  ] },
   { id: '2026.11.7b', title: 'Make your profile yours', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Upload a profile banner and adjust its position, or choose from six coordinated styles', 'Add a short bio and preview your profile before saving — your look follows you across devices', 'Admins can award custom community tags that appear on profiles without giving admin access'] },
   ] },

@@ -14,7 +14,7 @@ Coming from Web-Osu-Mania? Export a backup there (Settings → Backup & Restore)
 
 ## Your profile
 
-Open your profile and choose **Customize profile** to upload a banner (PNG, JPEG or WebP, up to 10 MB), adjust its vertical position, pick one of six styles, and write a short bio. Preview your changes before saving. Your appearance is shared with other players and kept across devices signed in with your code.
+Open your profile and choose **Customize profile**. Pick one of nine mania-themed styles, including Miku, Neru and Teto, and choose a background source: **Best play background** (updates with your best performance), **Selected song background** (search your library), **Preset artwork**, or **Uploaded banner** (PNG, JPEG or WebP, up to 10 MB). Adjust the background position and add a short bio. Preview before saving, or cancel to keep your current look. Your appearance is shared with other players and kept across devices signed in with your code. You can switch back to your best play’s background with any style.
 
 Admins can open a player in **/admin → Players → Community tags** to assign up to three named, coloured tags, or remove them. These badges are cosmetic: they never grant staff access. Admin roles remain separate.
 

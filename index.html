@@ -5301,83 +5301,117 @@ html.lp-open #toasts { right: 380px; }
 .ban-send { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .rep-check { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: var(--text-2); }
 
-/* Player-owned profile palettes and the appearance studio. */
-[data-profile-style] { --pf-accent: #ff83b9; --pf-gradient: linear-gradient(125deg, #75416d, #271d37); }
-.pf-header[data-profile-style] .pf-cover { background-image: var(--pf-gradient); }
-.pf-header[data-profile-style]:not([data-profile-style="signature"]) .pf-top { height: 280px; background: #171724; }
-.pf-header[data-profile-style] .pf-cover::after { background: linear-gradient(180deg, #11111b05, #11111b55 35%, #15151feb 100%); }
-.pf-header[data-profile-style] .pf-avatar { border: 2px solid var(--pf-accent); box-shadow: 0 0 0 5px #18182165, 0 12px 40px #0006; }
-.pf-header[data-profile-style]:not([data-profile-style="signature"]) .pf-detail { background: color-mix(in srgb, var(--pf-accent) 7%, #1b1b29); }
-.pf-header[data-profile-style]:not([data-profile-style="signature"]) .pf-centre { background: #171722; }
-.pf-header[data-profile-style] .pf-centre { border-top: 1px solid color-mix(in srgb, var(--pf-accent) 25%, transparent); }
-.pf-header[data-profile-style] .pf-lvl-bar i { background: var(--pf-accent); }
+/* Profiles use the same overlay palette and geometric artwork as the game's other menus. */
+[data-profile-style], .pa-editor { --pf-accent: #ff66aa; --pf-hue: 333; --pf-gradient: linear-gradient(115deg, #4c2a3b, #241b22); --pf-art: none;
+  --pf-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='180'%3E%3Cg fill='white' opacity='.055'%3E%3Cpath d='M0 170 50 83l50 87zM150 90l40-70 40 70zM80 65l20-35 20 35z'/%3E%3C/g%3E%3C/svg%3E"); }
+.pf-header[data-profile-style] .pf-cover, .pa-preview-cover { background: var(--pf-pattern) repeat center / 240px, var(--pf-gradient); }
+.pf-header[data-profile-style] .pf-top { height: 270px; }
+.pf-header[data-profile-style] .pf-cover::before, .pa-preview-cover::before { content: ""; position: absolute; inset: 0 0 0 auto; width: min(55%, 320px); background: var(--pf-art) no-repeat right center / auto 100%; mask-image: linear-gradient(90deg, transparent, #000 65%); }
+[data-profile-style="neru"] .pf-cover::before, [data-profile-style="neru"] .pa-preview-cover::before { background-size: auto 145%; background-position: right top; }
+.pf-cover[data-cover-kind="image"]::before, .pa-preview-cover[data-cover-kind="image"]::before { display: none; }
+.pf-header[data-profile-style] .pf-cover::after, .pa-preview-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent, hsl(var(--pf-hue) 20% 10% / .35) 40%, var(--od5)); }
+.pf-header[data-profile-style] .pf-avatar { border-radius: 8px; border: 2px solid var(--pf-accent); box-shadow: 0 4px 16px #0006; }
 .pf-header[data-profile-style] .pf-big b { color: var(--pf-accent); }
-.pf-header[data-profile-style] .pf-top-in { align-items: center; }
 .pf-header[data-profile-style] .pf-tags { flex-wrap: wrap; gap: 7px; }
-.pf-header[data-profile-style] .pf-bio { color: #eeeaf4; font-size: .87rem; line-height: 1.5; margin: 10px 0 0; max-width: 540px; overflow-wrap: anywhere; white-space: pre-wrap; text-shadow: 0 1px 5px #000a; }
-.pf-customize { position: absolute; top: 20px; right: var(--pf-pad); z-index: 2; background: #171520b8; border: 1px solid #ffffff38; backdrop-filter: blur(12px); }
-.pf-community-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid color-mix(in srgb, var(--tag-colour) 50%, transparent); background: color-mix(in srgb, var(--tag-colour) 14%, #12121c); color: var(--tag-colour); border-radius: 6px; font-size: .72rem; font-weight: 700; max-width: 100%; overflow-wrap: anywhere; line-height: 1.3; }
+.pf-header[data-profile-style] .pf-bio { color: var(--oc2); font-size: .87rem; line-height: 1.5; margin: 10px 0 0; max-width: 540px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.pf-customize { position: absolute; top: 20px; right: var(--pf-pad); z-index: 2; background: var(--od5); }
+.pf-community-tag { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid color-mix(in srgb, var(--tag-colour) 50%, transparent); background: color-mix(in srgb, var(--tag-colour) 14%, #12121c); color: var(--tag-colour); border-radius: 4px; font-size: .72rem; font-weight: 700; max-width: 100%; overflow-wrap: anywhere; line-height: 1.3; }
 .pf-tag-dot { width: 5px; height: 5px; border-radius: 50%; flex: none; background: currentColor; }
-.pa-wrap { transform: scale(var(--zoom, 1)); transform-origin: 0 0; width: 100vw; height: 100dvh; display: flex; align-items: center; justify-content: center; background: #070810b8; backdrop-filter: blur(14px); padding: 18px; }
-.pa-editor { position: relative; width: min(1020px, 100%); max-height: calc(100dvh - 36px); display: flex; flex-direction: column; overflow: hidden; border: 1px solid #ffffff1c; border-radius: 22px; background: #1b1b28; color: #eeeaf5; box-shadow: 0 28px 100px #0008; }
-.pa-head { padding: 25px 28px 22px; display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid #ffffff10; }
-.pa-eyebrow { color: #b8a1ff; font-size: .65rem; letter-spacing: .18em; font-weight: 800; }
-.pa-head h2 { margin: 6px 0; font-size: 1.65rem; letter-spacing: -.035em; }
-.pa-head p, .pa-section > p { margin: 0; color: #aaa7bd; font-size: .82rem; line-height: 1.5; }
-.pa-body { display: grid; grid-template-columns: 320px minmax(0, 1fr); overflow: auto; min-height: 0; }
-.pa-preview-side { padding: 28px 22px; background: #151520; }
-.pa-preview { position: relative; border-radius: 16px; overflow: hidden; min-height: 330px; background: #20202f; border: 1px solid #ffffff14; }
-.pa-preview-cover { position: absolute; inset: 0; background: var(--pf-gradient) center / cover; }
-.pa-preview-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, #11111b00, #15151f99 40%, #15151ff5 100%); }
-.pa-preview-inner { position: relative; display: flex; flex-direction: column; align-items: flex-start; padding: 22px; min-height: 330px; }
-.pa-preview-label { font-size: .6rem; font-weight: 800; letter-spacing: .15em; color: #fffd; background: #1118; border: 1px solid #fff2; padding: 5px 8px; border-radius: 5px; margin-bottom: 60px; }
-.pa-preview .avatar { border: 2px solid var(--pf-accent); box-shadow: 0 4px 20px #0005; border-radius: 18px; flex: none; }
-.pa-preview h3 { margin: 16px 0 8px; font-size: 1.3rem; overflow-wrap: anywhere; max-width: 100%; }
+/* Compensate for the playfield's scaling so menu controls stay readable in a small window. */
+.pa-wrap { transform: scale(var(--zoom, 1)); transform-origin: 0 0; width: 100vw; height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 0; }
+.pa-editor { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; color: var(--oc1); }
+.pa-editor > .ov-head { flex: none; }
+.pa-editor .ov-inner { max-width: 1440px; padding: 0 40px; }
+.pa-editor .ov-head::before { height: 58px; }
+.pa-body { width: 100%; max-width: 1440px; margin: 0 auto; display: grid; grid-template-columns: minmax(350px, .95fr) minmax(0, 1.05fr); gap: 38px; padding: 28px 40px 40px; overflow: auto; min-height: 0; flex: 1; align-items: start; }
+.pa-preview-side { position: sticky; top: 0; min-width: 0; }
+.pa-section-heading { margin: 0 0 16px; padding-bottom: 10px; font-size: .94rem; font-weight: 600; text-transform: lowercase; border-bottom: 2px solid var(--ohl); }
+.pa-preview { position: relative; overflow: hidden; border-radius: 6px; background: var(--ob4); box-shadow: 0 4px 16px #0003; }
+.pa-preview-cover { position: absolute; inset: 0 0 79px; background-position: center; background-size: cover; }
+.pa-preview-inner { position: relative; display: flex; align-items: flex-end; gap: 16px; padding: 155px 22px 20px; min-height: 290px; }
+.pa-preview .avatar { border: 2px solid var(--pf-accent); border-radius: 6px; box-shadow: 0 4px 16px #0005; flex: none; }
+.pa-preview-id { min-width: 0; padding-bottom: 3px; }
+.pa-preview h3 { margin: 0 0 8px; font-size: 1.45rem; font-weight: 600; overflow-wrap: anywhere; }
 .pa-preview-tags { display: flex; flex-wrap: wrap; gap: 5px; }
-.pa-preview-bio { line-height: 1.6; font-size: .8rem; color: #ece8f3; margin: 10px 0 0; overflow-wrap: anywhere; }
-.pa-preview-bio.placeholder { color: #9c97b0; }
-.pa-preview-caption { display: flex; align-items: center; gap: 8px; margin: 16px 5px; font-size: .75rem; color: #c4b2f8; flex-wrap: wrap; }
+.pa-preview-bio { line-height: 1.5; font-size: .8rem; color: var(--oc2); margin: 8px 0 0; overflow-wrap: anywhere; }
+.pa-preview-stats { position: relative; background: var(--ob4); display: flex; gap: 28px; padding: 16px 22px; border-top: 1px solid var(--line); }
+.pa-preview-stats span { display: block; color: var(--oc2); font-size: .7rem; margin-bottom: 5px; }
+.pa-preview-stats b { font-size: 1.25rem; font-weight: 300; color: var(--pf-accent); }
+.pa-preview-caption { display: flex; align-items: center; gap: 8px; padding: 14px 0; font-size: .75rem; color: var(--muted); }
 .pa-preview-caption .i { width: 14px; height: 14px; }
-.pa-preview-caption > span:last-child { width: 100%; color: #9892aa; font-size: .72rem; margin-top: 3px; }
-.pa-controls { padding: 28px; min-width: 0; }
-.pa-section + .pa-section { margin-top: 25px; padding-top: 23px; border-top: 1px solid #ffffff10; }
-.pa-section h3, .pa-section label { font-size: .88rem; font-weight: 700; margin: 0 0 7px; }
-.pa-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
-.pa-preset { background: #232331; text-align: left; border: 1px solid #ffffff16; border-radius: 10px; padding: 6px 6px 11px; cursor: pointer; color: #e8e4f3; transition: border-color .15s, transform .15s; min-width: 0; }
-.pa-preset:hover { border-color: var(--tile-accent); transform: translateY(-2px); }
-.pa-preset.selected { border-color: var(--tile-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tile-accent) 15%, transparent); }
-.pa-preset-art { position: relative; display: block; background: var(--tile-bg); height: 56px; border-radius: 6px; margin-bottom: 9px; overflow: hidden; }
-.pa-preset-art::before { content: ""; position: absolute; width: 23px; height: 23px; left: 9px; bottom: 9px; border-radius: 7px; background: #ffffff28; border: 1px solid var(--tile-accent); }
-.pa-preset-art::after { content: ""; position: absolute; width: 30%; height: 4px; left: 40px; bottom: 19px; border-radius: 3px; background: var(--tile-accent); opacity: .6; }
-.pa-preset b { display: block; font-size: .75rem; padding: 0 5px; }
-.pa-preset small { display: block; font-size: .6rem; color: #a7a2b9; margin: 5px 5px 0; line-height: 1.4; }
-.pa-preset-check { position: absolute; top: 5px; right: 5px; color: #15151f; background: var(--tile-accent); width: 18px; height: 18px; border-radius: 50%; display: none; place-items: center; }
+.pa-controls { min-width: 0; }
+.pa-section + .pa-section { margin-top: 28px; }
+.pa-section > p, .pa-upload-box > p, .pa-best-hint, .pa-empty { margin: 8px 0 16px; color: var(--oc2); font-size: .8rem; line-height: 1.6; }
+.pa-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pa-preset { position: relative; background: var(--ob4); text-align: left; border: 2px solid transparent; border-radius: 6px; padding: 0; overflow: hidden; cursor: pointer; color: #fff; transition: background var(--t-fast), border-color var(--t-fast); min-width: 0; }
+.pa-preset:hover { background: var(--ob3); border-color: var(--tile-accent); }
+.pa-preset.selected { border-color: var(--tile-accent); }
+.pa-preset-art { position: relative; display: block; height: 76px; overflow: hidden; background: var(--pf-pattern), linear-gradient(115deg, hsl(var(--tile-hue) 40% 28%), hsl(var(--tile-hue) 28% 13%)); }
+.pa-preset-mark { position: absolute; left: 12px; top: 13px; font-size: 2.1rem; font-weight: 900; color: var(--tile-accent); opacity: .5; font-style: italic; line-height: 1; }
+.pa-preset-name { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; padding: 9px 10px; flex-wrap: wrap; }
+.pa-preset-name b { font-size: .75rem; }
+.pa-preset-name small { font-size: .6rem; color: var(--muted); }
+.pa-character { position: absolute; height: 115%; right: -5px; top: -5px; width: auto; mask-image: linear-gradient(90deg, transparent, #000 30%); }
+.pa-note-lanes { position: absolute; right: 9px; top: -8px; height: 100px; width: 68px; transform: skew(-12deg); background: repeating-linear-gradient(90deg, #0005 0 15px, #ffffff16 15px 17px); }
+.pa-note-lanes i { position: absolute; width: 13px; height: 7px; left: calc(var(--lane) * 17px + 1px); top: calc(19px + var(--lane) * 12px); background: var(--tile-accent); border-radius: 1px; box-shadow: 0 30px 0 #ffffff99; }
+.pa-preset[data-style="aurora"] .pa-note-lanes i { height: 26px; background: linear-gradient(var(--tile-accent), transparent); border-top: 6px solid var(--tile-accent); }
+.pa-preset[data-style="sakura"] .pa-note-lanes i { width: 12px; height: 12px; border-radius: 50%; }
+.pa-preset[data-style="glacier"] .pa-note-lanes i { width: 10px; height: 10px; transform: rotate(45deg); }
+.pa-preset[data-style="midnight"] .pa-note-lanes { transform: skew(-24deg); }
+.pa-preset[data-style="ember"] .pa-note-lanes i { box-shadow: 0 22px #fff, 0 44px var(--tile-accent); }
+.pa-preset-check { position: absolute; top: 5px; right: 5px; color: #171318; background: var(--tile-accent); width: 18px; height: 18px; border-radius: 50%; display: none; place-items: center; z-index: 1; }
 .pa-preset-check .i { width: 12px; height: 12px; }
 .pa-preset.selected .pa-preset-check { display: grid; }
+.pa-sources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
+.pa-source { display: flex; gap: 10px; align-items: center; text-align: left; min-height: 46px; padding: 10px 12px; border: 0; border-radius: 6px; background: var(--ob4); color: var(--oc2); font-size: .78rem; cursor: pointer; }
+.pa-source:hover { background: var(--ob3); }
+.pa-source.selected { background: var(--ob3); color: #fff; box-shadow: inset 3px 0 var(--ohl); }
+.pa-source > .i { width: 16px; height: 16px; color: var(--ohl); flex: none; }
+.pa-source-check { margin-left: auto; visibility: hidden; }
+.pa-source.selected .pa-source-check { visibility: visible; }
+.pa-source-check .i { width: 13px; height: 13px; }
 .pa-section-title { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-.pa-optional, .pa-counter { font-size: .68rem; color: #9b95ad; }
-.pa-upload { display: flex; gap: 9px; margin: 13px 0 18px; }
-.pa-label { display: block; font-size: .72rem !important; color: #b7b1c9; }
-.pa-section .slider { width: 100%; }
-.pa-bio { width: 100%; min-height: 85px; resize: vertical; font-size: .82rem; line-height: 1.6; }
-.pa-status { font-size: .75rem; color: #c5b4f5; min-height: 1.5em; margin: 14px 0 0; }
-.pa-foot { border-top: 1px solid #ffffff14; padding: 18px 28px; display: flex; align-items: center; gap: 10px; background: #1d1d2b; }
-.pa-foot > span { margin-right: auto; font-size: .72rem; color: #a7a1b9; }
-.pa-editor button:focus-visible, .pa-editor input:focus-visible, .pa-editor textarea:focus-visible { outline: 2px solid #c9b4ff; outline-offset: 3px; }
+.pa-section-title > .pa-section-heading { flex: 1; }
+.pa-counter { font-size: .68rem; color: var(--muted); }
+.pa-bio { width: 100%; min-height: 90px; resize: vertical; font-size: .82rem; line-height: 1.6; }
+.pa-upload { display: flex; gap: 9px; margin: 12px 0 18px; flex-wrap: wrap; }
+.pa-position-row { padding: 14px !important; margin-top: 16px; background: var(--ob4); border-radius: 6px; }
+.pa-position-row label { font-size: .8rem; }
+.pa-position-row .slider { width: 100%; }
+.pa-position-row .fright { min-width: 45%; }
+.pa-song-picker > .input { width: 100%; margin: 10px 0; }
+.pa-picked-song { font-size: .8rem; color: var(--oc2); line-height: 1.5; }
+.pa-song-list { max-height: 220px; overflow: auto; display: grid; gap: 5px; }
+.pa-song { display: flex; gap: 12px; align-items: center; padding: 0 12px 0 0; min-height: 58px; text-align: left; border: 0; border-radius: 6px; background: var(--ob4); color: #fff; cursor: pointer; overflow: hidden; }
+.pa-song:hover, .pa-song.selected { background: var(--ob3); }
+.pa-song.selected { box-shadow: inset -3px 0 var(--ohl); }
+.pa-song-art { align-self: stretch; width: 76px; flex: none; background: var(--od4) center / cover; }
+.pa-song > span:nth-child(2) { flex: 1; min-width: 0; }
+.pa-song b, .pa-song small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pa-song b { font-size: .8rem; }
+.pa-song small { margin-top: 4px; color: var(--oc2); font-size: .7rem; }
+.pa-status { font-size: .8rem; color: var(--ohl); min-height: 1.5em; margin: 16px 0 0; }
+.pa-foot { border-top: 1px solid var(--line); padding: 16px max(40px, calc((100vw - 1360px) / 2)); display: flex; align-items: center; gap: 10px; background: var(--od5); flex: none; }
+.pa-foot > span { margin-right: auto; font-size: .75rem; color: var(--muted); }
+.pa-editor .btn.primary { background: var(--ohl); color: var(--od6); }
+.pa-editor button:focus-visible, .pa-editor input:focus-visible, .pa-editor textarea:focus-visible { outline: 2px solid var(--ohl); outline-offset: 2px; }
 .pa-editor button:disabled { opacity: .4; cursor: default; }
-@media (max-width: 700px) {
-  .pa-wrap { padding: 8px; }
-  .pa-editor { max-height: calc(100dvh - 16px); border-radius: 16px; }
-  .pa-head { padding: 18px; }
-  .pa-body { grid-template-columns: minmax(0, 1fr); }
-  .pa-preview-side { padding: 18px; }
-  .pa-preview, .pa-preview-inner { min-height: 240px; }
-  .pa-preview-label { margin-bottom: 25px; }
-  .pa-preview-caption { display: none; }
-  .pa-controls { padding: 18px; }
-  .pa-foot { padding: 14px 18px; flex-wrap: wrap; }
-  .pa-foot > span { width: 100%; }
+@media (max-width: 800px) {
+  .pa-body { grid-template-columns: minmax(0, 1fr); gap: 20px; padding: 20px; }
+  .pa-preview-side { position: static; }
+  .pa-preview-inner { padding-top: 95px; min-height: 220px; }
+  .pa-editor .ov-inner { padding: 0 20px; }
+  .pa-editor .ov-head::before { height: 28px; }
+  .pa-preset-name small { display: none; }
+  .pa-foot { padding: 14px 20px; }
+  .pa-foot > span { display: none; }
   .pa-foot .primary { margin-left: auto; }
+  .pa-preview-stats { gap: 25px; }
+  .pa-preview h3 { font-size: 1.2rem; }
+  .pa-preview .avatar { width: 64px !important; height: 64px !important; }
+  .pa-preset-art { height: 66px; }
+}
+@media (max-width: 700px) {
   .pf-header[data-profile-style] .pf-top { height: auto !important; min-height: 330px; padding-top: 95px; }
   .pf-customize { right: 15px; top: 15px; }
   .pf-header[data-profile-style] .pf-top-in { position: relative; display: grid; grid-template-columns: 80px minmax(0, 1fr); gap: 14px; }
@@ -5385,7 +5419,7 @@ html.lp-open #toasts { right: 380px; }
   .pf-header[data-profile-style] .pf-top-in > .pf-acts { grid-column: 1 / -1; display: flex; flex-direction: row; flex-wrap: wrap; gap: 6px; }
   .pf-header[data-profile-style] .pf-nm { overflow-wrap: anywhere; }
   .pf-header[data-profile-style] .pf-name { flex-wrap: wrap; font-size: 1.45rem; }
-  .pf-header[data-profile-style] .pf-avatar { width: 80px !important; height: 80px !important; border-radius: 16px; }
+  .pf-header[data-profile-style] .pf-avatar { width: 80px !important; height: 80px !important; border-radius: 6px; }
 }
 @media (prefers-reduced-motion: reduce) { .pa-preset { transition: none; } }
 </style>
@@ -15186,29 +15220,62 @@ const Screens = {
 };
 
 /* ===== 12b-profile-appearance.js ===== */
-/* Profile cosmetics are player-owned. Community tags come only from the server's admin tools. */
+/* Profile appearance uses the same overlay colours, title bars and controls as the game's menus. */
 const ProfileAppearance = {
   presets: [
-    { id: 'signature', name: 'Signature', desc: 'The original mania look', accent: '#ff83b9', bg: 'linear-gradient(125deg, #75416d, #271d37 80%)' },
-    { id: 'midnight', name: 'Midnight', desc: 'Deep violet · quiet glow', accent: '#b8a1ff', bg: 'radial-gradient(ellipse at 75% 0%, #6652ac, transparent 65%), linear-gradient(135deg, #17162e, #30234d)' },
-    { id: 'aurora', name: 'Aurora', desc: 'Emerald · northern light', accent: '#72e4c1', bg: 'radial-gradient(ellipse at 80% 0%, #318d82, transparent 65%), linear-gradient(125deg, #132f38, #172638)' },
-    { id: 'ember', name: 'Ember', desc: 'Copper · warm afterglow', accent: '#ffb07c', bg: 'radial-gradient(ellipse at 90% 0%, #a25242, transparent 70%), linear-gradient(125deg, #3c242b, #261c2b)' },
-    { id: 'sakura', name: 'Sakura', desc: 'Rose · soft bloom', accent: '#ffb1d2', bg: 'radial-gradient(ellipse at 80% 0%, #a96389, transparent 70%), linear-gradient(125deg, #482b46, #282137)' },
-    { id: 'glacier', name: 'Glacier', desc: 'Ice blue · crisp contrast', accent: '#91d8ff', bg: 'radial-gradient(ellipse at 80% 0%, #3b7595, transparent 70%), linear-gradient(125deg, #1d3047, #192132)' },
+    { id: 'signature', name: 'Signature', desc: 'osu!mania', accent: '#ff66aa', hue: 333, mark: '4K' },
+    { id: 'midnight', name: 'Midnight', desc: 'After dark', accent: '#aa88ff', hue: 255, mark: 'DT' },
+    { id: 'aurora', name: 'Aurora', desc: 'Find your flow', accent: '#72e4c1', hue: 160, mark: 'SV' },
+    { id: 'ember', name: 'Ember', desc: 'Keep the combo', accent: '#ffad70', hue: 24, mark: 'FC' },
+    { id: 'sakura', name: 'Sakura', desc: 'Full bloom', accent: '#ff9bcc', hue: 320, mark: 'SS' },
+    { id: 'glacier', name: 'Glacier', desc: 'Perfect timing', accent: '#80d5ff', hue: 200, mark: 'MAX' },
+    { id: 'miku', name: 'Miku', desc: 'Hatsune Miku', accent: '#39c5bb', hue: 176, character: 'miku', mark: '01' },
+    { id: 'neru', name: 'Neru', desc: 'Akita Neru', accent: '#ffcf3a', hue: 45, character: 'neru', mark: '02' },
+    { id: 'teto', name: 'Teto', desc: 'Kasane Teto', accent: '#ff4d6a', hue: 350, character: 'teto', mark: '04' },
   ],
   clean(a) {
     a = a && typeof a === 'object' ? a : {};
-    return { style: this.presets.some(p => p.id === a.style) ? a.style : 'signature',
-      banner: typeof a.banner === 'string' && a.banner.length <= 48000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '',
+    const style = this.presets.some(p => p.id === a.style) ? a.style : 'signature';
+    const banner = typeof a.banner === 'string' && a.banner.length <= 48000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '';
+    const song = a.song && typeof a.song === 'object' ? a.song : {};
+    return { style, banner,
+      background: ['best', 'song', 'preset', 'upload'].includes(a.background) ? a.background : banner ? 'upload' : style === 'signature' ? 'best' : 'preset',
+      song: { hash: typeof song.hash === 'string' && /^[a-f0-9]{32,64}$/i.test(song.hash) ? song.hash : '',
+        sid: Number.isSafeInteger(song.sid) && song.sid > 0 && song.sid <= 2147483647 ? song.sid : 0,
+        title: typeof song.title === 'string' ? song.title.trim().slice(0, 100) : '', artist: typeof song.artist === 'string' ? song.artist.trim().slice(0, 80) : '' },
       position: Number.isFinite(a.position) ? clamp(a.position, 0, 100) : 50,
       bio: typeof a.bio === 'string' ? a.bio.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 160) : '' };
   },
   paint(el, appearance) {
     const a = this.clean(appearance), p = this.presets.find(p => p.id === a.style);
-    el.dataset.profileStyle = a.style;
-    el.style.setProperty('--pf-accent', p.accent);
-    el.style.setProperty('--pf-gradient', p.bg);
+    el.dataset.profileStyle = a.style; el.dataset.background = a.background; el.classList.add('ov'); el.style.setProperty('--o-h', p.hue);
+    el.style.setProperty('--pf-accent', p.accent); el.style.setProperty('--pf-hue', p.hue);
+    el.style.setProperty('--pf-gradient', `linear-gradient(115deg, hsl(${p.hue} 32% 23%), hsl(${p.hue} 24% 12%))`);
+    el.style.setProperty('--pf-art', p.character ? `url("${p.character === 'neru' ? Host.asset('neru.png') : AvatarPresets.url(p.character)}")` : 'none');
     return a;
+  },
+  /** One resolver for the actual profile and the preview. Ignore a stale image when the source changes. */
+  async cover(el, appearance, { best = null, own = true } = {}) {
+    const a = this.clean(appearance), token = {};
+    el._profileCoverToken = token; el.dataset.coverKind = 'preset'; el.style.backgroundImage = ''; el.style.backgroundSize = ''; el.style.backgroundRepeat = '';
+    el.style.backgroundPosition = `center ${a.position}%`;
+    const put = url => { if (url && el._profileCoverToken === token) { el.style.backgroundImage = `url("${url}")`; el.style.backgroundSize = 'cover'; el.style.backgroundRepeat = 'no-repeat'; el.dataset.coverKind = 'image'; } };
+    if (a.background === 'preset') return;
+    if (a.background === 'upload') { put(a.banner); return; }
+    if (a.background === 'song') {
+      // The compact snapshot makes locally imported song artwork visible on other devices too.
+      if (a.banner) { put(a.banner); return; }
+      const map = own && a.song.hash && BeatmapManager.mapByHash(a.song.hash);
+      if (map) { try { const url = await BeatmapManager.bgURL(map); if (url) { put(url); return; } } catch { /* online cover below */ } }
+      if (a.song.sid) put(OnlineBeatmaps.coverURL(a.song.sid, 'cover@2x'));
+      return;
+    }
+    const play = best && (best._s || best);
+    const map = play && BeatmapManager.mapByHash(play.mapHash || play.key);
+    const set = map && BeatmapManager.setById.get(map.setId);
+    if (map) { try { const url = await BeatmapManager.bgURL(map); if (url) { put(url); return; } } catch { /* online cover below */ } }
+    const sid = (set && set.onlineId > 0 && set.onlineId) || (play && play.onlineSetId > 0 && play.onlineSetId);
+    if (sid) put(OnlineBeatmaps.coverURL(sid, 'cover@2x'));
   },
   tags(list) {
     return (Array.isArray(list) ? list : []).slice(0, 3).filter(t => t && typeof t.name === 'string' && t.name.trim()).map(t => {
@@ -15236,65 +15303,113 @@ const ProfileAppearance = {
   },
   open() {
     if (this.o) return;
-    const draft = this.clean(ProfileManager.profile.appearance);
-    let busy = false, closed = false, uploadSeq = 0;
+    const draft = this.clean(ProfileManager.profile.appearance), stats = ProfileScreen.localData();
+    const best = ProfileScreen.coverPlay || stats.top[0] || stats.recent[0];
+    let busy = false, saving = false, closed = false, uploadSeq = 0;
     const previewCover = h('div.pa-preview-cover'), previewBio = h('p.pa-preview-bio'), styleName = h('span.pa-style-name');
-    const preview = h('div.pa-preview', previewCover, h('div.pa-preview-inner', h('span.pa-preview-label', 'LIVE PREVIEW'),
-      ProfileManager.avatarEl(76), h('h3', ProfileManager.profile.name), h('div.pa-preview-tags', ...this.tags(ProfileScreen.ownTags)), previewBio));
+    const preview = h('div.pa-preview', previewCover,
+      h('div.pa-preview-inner', ProfileManager.avatarEl(84), h('div.pa-preview-id', h('h3', ProfileManager.profile.name),
+        h('div.pa-preview-tags', ...this.tags(ProfileScreen.ownTags), h('span.pf-tag', 'osu!mania')), previewBio)),
+      h('div.pa-preview-stats', h('div', h('span', 'Performance'), h('b', `${Math.round(stats.pp || 0).toLocaleString()}pp`)),
+        h('div', h('span', 'Accuracy'), h('b', `${((stats.avgAcc || 0) * 100).toFixed(2)}%`)), h('div', h('span', 'Level'), h('b', String(stats.level || 1)))));
     const status = h('p.pa-status', { role: 'status', 'aria-live': 'polite' });
-    const counter = h('span.pa-counter');
-    const bio = h('textarea.input.pa-bio', { id: 'pa-bio', maxlength: 160, rows: 3, placeholder: 'A little about you…', value: draft.bio });
-    bio.value = draft.bio;
+    const counter = h('span.pa-counter'), bio = h('textarea.input.pa-bio', { id: 'pa-bio', maxlength: 160, rows: 3, placeholder: 'A little about you…' }); bio.value = draft.bio;
     const position = h('input.slider', { id: 'pa-position', type: 'range', min: 0, max: 100, step: 1, value: draft.position, 'aria-label': 'Banner vertical position' });
     const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', hidden: true, 'aria-label': 'Upload profile banner' });
-    const remove = h('button.btn.sm', { type: 'button', onclick: () => { uploadSeq++; draft.banner = ''; draft.position = 50; position.value = 50; busy = false; save.disabled = false; status.textContent = 'Banner removed from preview. Save to apply.'; paint(); } }, icon('x'), 'Remove');
     const upload = h('button.btn.sm', { type: 'button', onclick: () => file.click() }, icon('upload'), 'Upload banner');
-    const tiles = this.presets.map(p => h('button.pa-preset', { type: 'button', dataset: { style: p.id }, style: { '--tile-bg': p.bg, '--tile-accent': p.accent }, 'aria-label': p.name + ' profile style', onclick: () => { draft.style = p.id; paint(); } },
-      h('span.pa-preset-art', h('span.pa-preset-check', icon('check'))), h('b', p.name), h('small', p.desc)));
-    const paint = () => {
-      this.paint(preview, draft); previewCover.style.backgroundImage = draft.banner ? `url("${draft.banner}")` : '';
-      previewCover.style.backgroundPosition = `center ${draft.position}%`;
-      previewBio.textContent = draft.bio || 'Your next chapter starts here.'; previewBio.classList.toggle('placeholder', !draft.bio);
-      styleName.textContent = this.presets.find(p => p.id === draft.style).name;
-      counter.textContent = `${bio.value.length} / 160`; position.disabled = !draft.banner; remove.disabled = !draft.banner;
-      for (const t of tiles) { const selected = t.dataset.style === draft.style; t.classList.toggle('selected', selected); t.setAttribute('aria-pressed', String(selected)); }
+    const remove = h('button.btn.sm', { type: 'button', onclick: () => {
+      if (saving) return; uploadSeq++; draft.banner = ''; draft.background = 'best'; draft.position = 50; position.value = 50; busy = false; save.disabled = false;
+      status.textContent = 'Best play background restored in preview. Save to apply.'; paint();
+    } }, icon('retry'), 'Use best play instead');
+    const tiles = this.presets.map(p => h('button.pa-preset', { type: 'button', dataset: { style: p.id }, style: { '--tile-hue': p.hue, '--tile-accent': p.accent },
+      'aria-label': p.name + ' profile style', onclick: () => { if (saving) return; uploadSeq++; busy = false; save.disabled = false; draft.style = p.id; draft.background = 'preset'; status.textContent = ''; paint(); } },
+      h('span.pa-preset-art', h('span.pa-preset-mark', p.mark), p.character ? h('img.pa-character', { src: AvatarPresets.url(p.character), alt: '' }) : h('span.pa-note-lanes', ...[0, 1, 2, 3].map(i => h('i', { style: { '--lane': i } }))), h('span.pa-preset-check', icon('check'))),
+      h('span.pa-preset-name', h('b', p.name), h('small', p.desc))));
+    const sourceNames = { best: 'Best play background', song: 'Selected song background', preset: 'Preset artwork', upload: 'Uploaded banner' };
+    const sources = Object.entries(sourceNames).map(([value, label]) => h('button.pa-source', { type: 'button', dataset: { source: value }, 'aria-label': label,
+      onclick: () => { if (saving) return; uploadSeq++; busy = false; save.disabled = false; draft.background = value; status.textContent = ''; paint(); } }, icon({ best: 'trophy', song: 'music', preset: 'brush', upload: 'upload' }[value]), h('span', label), h('span.pa-source-check', icon('check'))));
+    const search = h('input.input', { type: 'search', placeholder: 'Search your songs…', 'aria-label': 'Search profile background songs' });
+    const songs = h('div.pa-song-list'), pickedSong = h('div.pa-picked-song');
+    const songBox = h('div.pa-song-picker', pickedSong, search, songs);
+    const imageBox = h('div.pa-upload-box', h('p', 'PNG, JPEG or WebP · up to 10 MB.'), h('div.pa-upload', upload, remove, file));
+    const bestHint = h('p.pa-best-hint', best ? `Uses your best performance: ${best.title || (best._s && best._s.title) || 'your top play'}. Updates when you set a new best.` : 'Your best play’s background will appear here once you have a score. Until then, your preset artwork is shown.');
+    const drawSongs = () => {
+      const query = search.value.trim().toLowerCase();
+      const sets = BeatmapManager.sets.filter(s => !query || `${s.title} ${s.artist}`.toLowerCase().includes(query)).slice(0, 12);
+      clearEl(songs);
+      for (const set of sets) {
+        const map = (set.maps && set.maps[0]) || (set.mapIds && BeatmapManager.maps.get(set.mapIds[0]));
+        if (!map) continue;
+        const art = h('span.pa-song-art'), selected = draft.background === 'song' && draft.song.hash === map.hash;
+        const row = h(`button.pa-song${selected ? '.selected' : ''}`, { type: 'button', dataset: { hash: map.hash }, 'aria-label': `Use ${set.title} as profile background`, 'aria-pressed': String(selected), onclick: async () => {
+          if (saving) return;
+          const seq = ++uploadSeq; busy = true; save.disabled = true; status.textContent = 'Preparing song background…';
+          try {
+            let snapshot = ''; const url = await BeatmapManager.bgURL(map).catch(() => null);
+            if (url) { const blob = await (await fetch(url)).blob(); snapshot = await this.packBanner(new File([blob], 'background', { type: blob.type || 'image/jpeg' })); }
+            if (!snapshot && !(set.onlineId > 0)) throw new Error('This song has no background. Choose another song.');
+            if (closed || seq !== uploadSeq) return;
+            draft.song = { hash: map.hash, sid: set.onlineId > 0 ? set.onlineId : 0, title: set.title, artist: set.artist };
+            draft.banner = snapshot; draft.background = 'song'; status.textContent = 'Song background ready.'; paint(); drawSongs();
+          } catch (e) { if (!closed && seq === uploadSeq) status.textContent = e.message || 'Could not load this background.'; }
+          finally { if (!closed && seq === uploadSeq) { busy = false; save.disabled = false; } }
+        } }, art, h('span', h('b', set.title || 'Untitled'), h('small', set.artist || 'Unknown artist')), selected ? icon('check') : null);
+        songs.append(row);
+        BeatmapManager.bgURL(map).then(url => { if (url) art.style.backgroundImage = `url("${url}")`; else if (set.onlineId > 0) art.style.backgroundImage = `url("${OnlineBeatmaps.coverURL(set.onlineId, 'list')}")`; }).catch(() => {});
+      }
+      if (!songs.children.length) songs.append(h('p.pa-empty', BeatmapManager.sets.length ? 'No songs match your search.' : 'Import a beatmap to choose its background.'));
     };
-    bio.addEventListener('input', () => { draft.bio = bio.value; paint(); });
-    position.addEventListener('input', () => { draft.position = +position.value; paint(); });
+    search.addEventListener('input', drawSongs);
+    const paint = () => {
+      this.paint(preview, draft); this.cover(previewCover, draft, { best });
+      previewBio.textContent = draft.bio; previewBio.hidden = !draft.bio;
+      styleName.textContent = `${this.presets.find(p => p.id === draft.style).name} · ${sourceNames[draft.background]}`;
+      counter.textContent = `${bio.value.length} / 160`;
+      position.disabled = draft.background === 'preset'; remove.disabled = !draft.banner;
+      songBox.hidden = draft.background !== 'song'; imageBox.hidden = draft.background !== 'upload'; bestHint.hidden = draft.background !== 'best';
+      pickedSong.textContent = draft.song.title ? `Selected: ${draft.song.artist ? draft.song.artist + ' — ' : ''}${draft.song.title}` : 'Choose a song from your library.';
+      for (const t of tiles) { const selected = t.dataset.style === draft.style; t.classList.toggle('selected', selected); t.setAttribute('aria-pressed', String(selected)); }
+      for (const t of sources) { const selected = t.dataset.source === draft.background; t.classList.toggle('selected', selected); t.setAttribute('aria-pressed', String(selected)); }
+    };
+    bio.addEventListener('input', () => { draft.bio = bio.value; previewBio.textContent = draft.bio; previewBio.hidden = !draft.bio; counter.textContent = `${bio.value.length} / 160`; });
+    position.addEventListener('input', () => { draft.position = +position.value; previewCover.style.backgroundPosition = `center ${draft.position}%`; });
     file.addEventListener('change', async () => {
-      const f = file.files[0]; file.value = ''; if (!f) return;
+      const f = file.files[0]; file.value = ''; if (!f || saving) return;
       const seq = ++uploadSeq; busy = true; save.disabled = true; status.textContent = 'Preparing your banner…';
-      try { const banner = await this.packBanner(f); if (closed || seq !== uploadSeq) return; draft.banner = banner; status.textContent = 'Banner ready. Adjust its position below.'; paint(); }
+      try { const banner = await this.packBanner(f); if (closed || seq !== uploadSeq) return; draft.banner = banner; draft.background = 'upload'; status.textContent = 'Banner ready. Adjust its position below.'; paint(); }
       catch (e) { if (!closed && seq === uploadSeq) status.textContent = e.message; }
       finally { if (!closed && seq === uploadSeq) { busy = false; save.disabled = false; } }
     });
     const save = h('button.btn.primary', { type: 'button', onclick: async () => {
-      if (busy) return; busy = true; save.disabled = true;
+      if (busy) return;
+      if (draft.background === 'upload' && !draft.banner) { status.textContent = 'Upload a banner or choose another background source.'; return; }
+      if (draft.background === 'song' && !draft.song.hash && !draft.song.sid) { status.textContent = 'Choose a song first.'; search.focus(); return; }
+      saving = true; busy = true; save.disabled = true;
       const before = ProfileManager.profile.appearance;
       try {
         ProfileManager.profile.appearance = this.clean(draft); await ProfileManager.save();
-        // Send immediately as well as through the normal profile-change debounce.
         if (typeof Rankings !== 'undefined') Rankings.report();
         if (!closed) this.o?.close(); Toast.ok('Profile updated');
-      } catch { ProfileManager.profile.appearance = before; status.textContent = 'Could not save your profile. Please try again.'; busy = false; save.disabled = false; }
+      } catch { ProfileManager.profile.appearance = before; status.textContent = 'Could not save your profile. Please try again.'; saving = false; busy = false; save.disabled = false; }
     } }, icon('check'), 'Save changes');
-    const panel = h('div.pa-editor', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Customize profile' },
-      h('div.pa-head', h('div', h('span.pa-eyebrow', 'MAKE IT YOURS'), h('h2', 'Customize profile'), h('p', 'Your style, wherever you play.')), h('button.icon-btn', { 'aria-label': 'Close profile editor', onclick: () => this.o.close() }, icon('x'))),
-      h('div.pa-body', h('aside.pa-preview-side', preview, h('div.pa-preview-caption', icon('brush'), styleName, h('span', 'Only you can edit your profile.'))),
-        h('div.pa-controls', h('section.pa-section', h('h3', 'Choose your style'), h('p', 'A coordinated colour palette for your profile.'), h('div.pa-presets', ...tiles)),
-          h('section.pa-section', h('div.pa-section-title', h('h3', 'Profile banner'), h('span.pa-optional', 'Optional')), h('p', 'PNG, JPEG or WebP · up to 10 MB. Wide images work best.'), h('div.pa-upload', upload, remove, file),
-            h('label.pa-label', { for: 'pa-position' }, 'Banner position'), position),
-          h('section.pa-section', h('div.pa-section-title', h('label', { for: 'pa-bio' }, 'About you'), counter), bio), status)),
-      h('div.pa-foot', h('span', 'Preview changes before saving.'), h('button.btn.ghost', { onclick: () => this.o.close() }, 'Cancel'), save));
+    const close = h('button.icon-btn', { 'aria-label': 'Close profile editor', onclick: () => this.o.close() }, icon('x'));
+    const panel = h('div.pa-editor.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Customize profile', style: { '--o-h': 333 } },
+      overlayHeader('customize profile', { icon: 'brush', actions: [close] }),
+      h('div.pa-body', h('aside.pa-preview-side', h('h2.pa-section-heading', 'profile preview'), preview, h('div.pa-preview-caption', icon('brush'), styleName)),
+        h('div.pa-controls', h('section.pa-section', h('h2.pa-section-heading', 'style'), h('p', 'Choose a complete look, then pick the background below.'), h('div.pa-presets', ...tiles)),
+          h('section.pa-section', h('h2.pa-section-heading', 'background'), h('div.pa-sources', ...sources), bestHint, songBox, imageBox,
+            h('div.set-row.form.frange.pa-position-row', h('div.fleft', h('label', { for: 'pa-position' }, 'Background position')), h('div.fright', position))),
+          h('section.pa-section', h('div.pa-section-title', h('label.pa-section-heading', { for: 'pa-bio' }, 'about you'), counter), bio), status)),
+      h('div.pa-foot', h('span', 'Changes are only applied when you save.'), h('button.btn.ghost', { onclick: () => this.o.close() }, 'Cancel'), save));
     this.o = makeOverlay(panel, { cls: 'pa-wrap', onKey: e => {
       if (e.key !== 'Tab') return false;
-      const controls = [...panel.querySelectorAll('button:not(:disabled), input:not(:disabled):not([type=file]), textarea:not(:disabled)')];
+      const controls = [...panel.querySelectorAll('button:not(:disabled), input:not(:disabled):not([type=file]), textarea:not(:disabled)')].filter(el => el.getClientRects().length);
       const first = controls[0], last = controls[controls.length - 1];
       if (e.shiftKey && document.activeElement === first) { last.focus(); return true; }
       if (!e.shiftKey && document.activeElement === last) { first.focus(); return true; }
       return false;
     }, onClose: () => { closed = true; uploadSeq++; this.o = null; } });
-    paint(); requestAnimationFrame(() => tiles.find(t => t.dataset.style === draft.style)?.focus());
+    paint(); drawSongs(); requestAnimationFrame(() => tiles.find(t => t.dataset.style === draft.style)?.focus());
   },
 };
 
@@ -24148,19 +24263,9 @@ const ProfileScreen = {
     // counts as rank pills, the stat list; then a section tab bar and the sections themselves.
     const appearance = ProfileAppearance.clean(d.appearance), cover = h('div.pf-cover');
     cover.style.backgroundPosition = `center ${appearance.position}%`;
-    // (behind it all: the background of the best play — the one at the top of Best performance — from its beatmap if
-    // it's on this device, else that beatmap set's cover from osu!, so it's the same on every device and for everyone
-    // looking; with no best play, your latest play's)
-    const setCover = u => { if (u) { cover.style.backgroundImage = `url("${u}")`; cover.classList.add('img'); } };
-    const hashOf = x => x && (x._s ? x._s.mapHash : x.key || x.mapHash);
-    const setOf = x => { if (!x) return 0; const sc = x._s || (own && ScoreManager.scores.find(y => y.mapHash === hashOf(x))); return (sc && sc.onlineSetId > 0 && sc.onlineSetId) || (x.onlineSetId > 0 && x.onlineSetId) || 0; };
-    const best = topPlays[0], bestMap = best && BeatmapManager.mapByHash(hashOf(best)), bestSet = setOf(best);
-    const online = () => { if (bestSet) setCover(OnlineBeatmaps.coverURL(bestSet, 'cover@2x')); };
-    if (appearance.banner) setCover(appearance.banner);
-    else if (appearance.style !== 'signature') { /* the selected preset supplies the cover */ }
-    else if (bestMap) BeatmapManager.bgURL(bestMap).then(u => u ? setCover(u) : online()).catch(online);
-    else if (bestSet) online();
-    else if (own) { const last = ScoreManager.recent(1)[0], m = last && BeatmapManager.mapByHash(last.mapHash); if (m) BeatmapManager.bgURL(m).then(setCover).catch(() => {}); }
+    // Both the editor and the public profile resolve the same explicit background source.
+    this.coverPlay = topPlays[0] || (d.recent && d.recent[0]) || null;
+    ProfileAppearance.cover(cover, appearance, { best: this.coverPlay, own });
     const u = this.remote ? { pid: this.remote.pid, name: p.name, avatar: this.remote.avatar, online: !!this.remote.online, id: this.remote.id, status: this.remote.status } : null;
     // (a role's effects: Neru's gold round the picture and on the name — see roleFx)
     const role = this.remote ? this.remote.role : (this.ownRole || (typeof Presence !== 'undefined' && Presence.role) || null), fx = roleFx(role);
@@ -24531,6 +24636,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.7c', title: 'Profiles, in the game’s style', sections: [
+    { icon: 'brush', title: 'Profiles', items: ['The profile editor now matches the game’s menus, with a full profile preview', 'Choose your best play’s background, a song from your library, preset artwork or an upload — and switch back whenever you like', 'Miku, Neru and Teto presets, alongside refreshed mania-themed styles'] },
+  ] },
   { id: '2026.11.7b', title: 'Make your profile yours', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Upload a profile banner and adjust its position, or choose from six coordinated styles', 'Add a short bio and preview your profile before saving — your look follows you across devices', 'Admins can award custom community tags that appear on profiles without giving admin access'] },
   ] },
@@ -33741,7 +33849,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '046ba23aadbe';
+const APP_BUILD = '3ac9be727924';
 
 const App = {
   lastReport: null,
