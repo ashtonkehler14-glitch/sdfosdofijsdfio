@@ -5503,6 +5503,7 @@ html.lp-open #toasts { right: 380px; }
 .pa-color-control b, .pa-color-value { display: block; font-size: .76rem; }
 .pa-color-value { margin-top: 5px; font-family: monospace; color: var(--muted); }
 .pa-custom-colors p { margin: 14px 0 0; font-size: .72rem; color: var(--muted); line-height: 1.5; }
+.pa-custom-colors > .btn { margin-top: 14px; }
 .pa-editor .pa-preset[data-style="custom"] .pa-preset-art { background: linear-gradient(120deg, var(--tile-custom-surface, #1b1b20), var(--tile-accent)); }
 .pa-editor .pa-preset[data-style="custom"] .pa-note-lanes { display: none; }
 .pf-header[data-profile-style] .pf-name { text-shadow: none; }

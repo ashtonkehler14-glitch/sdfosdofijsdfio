@@ -5,15 +5,17 @@ const ProfileAppearance = {
     { id: 'midnight', name: 'Midnight', desc: 'After dark', accent: '#aa88ff', hue: 255, mark: 'DT' },
     { id: 'aurora', name: 'Aurora', desc: 'Find your flow', accent: '#72e4c1', hue: 160, mark: 'SV' },
     { id: 'ember', name: 'Ember', desc: 'Keep the combo', accent: '#ffad70', hue: 24, mark: 'FC' },
-    { id: 'custom', name: 'Custom', desc: 'Your colours', accent: '#aa88ff', hue: 255, mark: '+' },
+    { id: 'custom', name: 'Custom', desc: 'Your colours', accent: '#ff66aa', hue: 333, mark: '+' },
   ],
+  defaultColors() { return { accent: this.presets[0].accent, surface: '#1b1b20' }; },
   clean(a) {
     a = a && typeof a === 'object' ? a : {};
     const previous = { miku: 'aurora', teto: 'ember', neru: 'ember', sakura: 'signature', glacier: 'aurora' };
     const style = this.presets.some(p => p.id === a.style) ? a.style : (typeof a.style === 'string' && Object.hasOwn(previous, a.style) ? previous[a.style] : 'signature');
     const banner = typeof a.banner === 'string' && a.banner.length <= 180000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '';
     const song = a.song && typeof a.song === 'object' ? a.song : {};
-    return { style, banner, colors: { accent: /^#[0-9a-f]{6}$/i.test(a.colors && a.colors.accent) ? a.colors.accent.toLowerCase() : '#aa88ff', surface: /^#[0-9a-f]{6}$/i.test(a.colors && a.colors.surface) ? a.colors.surface.toLowerCase() : '#1b1b20' },
+    const defaults = this.defaultColors();
+    return { style, banner, colors: { accent: /^#[0-9a-f]{6}$/i.test(a.colors && a.colors.accent) ? a.colors.accent.toLowerCase() : defaults.accent, surface: /^#[0-9a-f]{6}$/i.test(a.colors && a.colors.surface) ? a.colors.surface.toLowerCase() : defaults.surface },
       background: ['best', 'song', 'upload'].includes(a.background) ? a.background : banner ? 'upload' : 'best',
       song: { hash: typeof song.hash === 'string' && /^[a-f0-9]{32,64}$/i.test(song.hash) ? song.hash : '',
         sid: Number.isSafeInteger(song.sid) && song.sid > 0 && song.sid <= 2147483647 ? song.sid : 0,
@@ -41,7 +43,7 @@ const ProfileAppearance = {
   paint(el, appearance) {
     const a = this.clean(appearance), preset = this.presets.find(p => p.id === a.style);
     const palette = this.palette(a.style === 'custom' ? a.colors.surface : '#1b1b20', a.style === 'custom' ? a.colors.accent : preset.accent);
-    const hue = a.style === 'custom' ? palette.hue : preset.hue;
+    const hue = a.style === 'custom' && a.colors.accent !== this.presets[0].accent ? palette.hue : preset.hue;
     el.dataset.profileStyle = a.style; el.dataset.background = a.background; el.classList.add('ov');
     const vars = { '--o-h': hue, '--pf-hue': hue, '--pf-accent': palette.highlight, '--pf-soft-accent': palette.soft,
       '--ob6': palette.deep, '--ob5': palette.surface, '--ob4': palette.raised, '--ob3': palette.hover, '--ob2': palette.light,
@@ -131,14 +133,20 @@ const ProfileAppearance = {
       'aria-label': p.name + ' profile style', onclick: () => { if (saving) return; draft.style = p.id; paint(); } },
       h('span.pa-preset-art', h('span.pa-preset-mark', p.mark), h('span.pa-note-lanes', ...[0, 1, 2, 3].map(i => h('i', { style: { '--lane': i } }))), h('span.pa-preset-check', icon('check'))),
       h('span.pa-preset-name', h('b', p.name), h('small', p.desc))));
-    const colors = h('div.pa-custom-colors');
+    const colors = h('div.pa-custom-colors'), colorInputs = {};
     const colorFields = [['accent', 'Accent colour'], ['surface', 'Background colour']].map(([key, label]) => {
       const input = h('input', { type: 'color', value: draft.colors[key], 'aria-label': label });
       const value = h('span.pa-color-value', draft.colors[key].toUpperCase());
+      colorInputs[key] = { input, value };
       input.addEventListener('input', () => { draft.colors[key] = input.value; value.textContent = input.value.toUpperCase(); paint(); });
       return h('label.pa-color-control', input, h('span', h('b', label), value));
     });
-    colors.append(h('div.pa-color-fields', ...colorFields), h('p', 'Text and accents adjust for readability. Your banner stays unchanged.'));
+    colors.append(h('div.pa-color-fields', ...colorFields), h('p', 'Text and accents adjust for readability. Your banner stays unchanged.'),
+      h('button.btn.sm', { type: 'button', onclick: () => {
+        if (saving) return;
+        draft.colors = this.defaultColors(); paint();
+        status.textContent = 'Signature colours restored in preview. Save to apply.';
+      } }, icon('retry'), 'Reset to default'));
     const sourceNames = { best: 'Best play background', song: 'Selected song background', upload: 'Uploaded banner' };
     const sources = Object.entries(sourceNames).map(([value, label]) => h('button.pa-source', { type: 'button', dataset: { source: value }, 'aria-label': label,
       onclick: () => { if (saving) return; uploadSeq++; busy = false; save.disabled = false; draft.background = value; status.textContent = ''; paint(); } }, icon({ best: 'trophy', song: 'music', upload: 'upload' }[value]), h('span', label), h('span.pa-source-check', icon('check'))));
@@ -176,6 +184,7 @@ const ProfileAppearance = {
     search.addEventListener('input', drawSongs);
     const paint = () => {
       colors.hidden = draft.style !== 'custom';
+      for (const [key, field] of Object.entries(colorInputs)) { field.input.value = draft.colors[key]; field.value.textContent = draft.colors[key].toUpperCase(); }
       this.paint(panel, draft); this.paint(preview, draft); this.cover(previewCover, draft, { best });
       previewBio.textContent = draft.bio; previewBio.hidden = !draft.bio;
       styleName.textContent = `${this.presets.find(p => p.id === draft.style).name} · ${sourceNames[draft.background]}`;

@@ -65,7 +65,7 @@ export function cleanProfileAppearance(a) {
   const style = ['signature', 'midnight', 'aurora', 'ember', 'custom'].includes(a.style) ? a.style : (typeof a.style === 'string' && Object.hasOwn(previous, a.style) ? previous[a.style] : 'signature');
   const banner = typeof a.banner === 'string' && a.banner.length <= 180000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '';
   const song = a.song && typeof a.song === 'object' ? a.song : {};
-  return { style, banner, colors: { accent: /^#[0-9a-f]{6}$/i.test(a.colors && a.colors.accent) ? a.colors.accent.toLowerCase() : '#aa88ff', surface: /^#[0-9a-f]{6}$/i.test(a.colors && a.colors.surface) ? a.colors.surface.toLowerCase() : '#1b1b20' },
+  return { style, banner, colors: { accent: /^#[0-9a-f]{6}$/i.test(a.colors && a.colors.accent) ? a.colors.accent.toLowerCase() : '#ff66aa', surface: /^#[0-9a-f]{6}$/i.test(a.colors && a.colors.surface) ? a.colors.surface.toLowerCase() : '#1b1b20' },
     background: ['best', 'song', 'upload'].includes(a.background) ? a.background : banner ? 'upload' : 'best',
     song: { hash: typeof song.hash === 'string' && /^[a-f0-9]{32,64}$/i.test(song.hash) ? song.hash : '',
       sid: Number.isSafeInteger(song.sid) && song.sid > 0 && song.sid <= 2147483647 ? song.sid : 0,
