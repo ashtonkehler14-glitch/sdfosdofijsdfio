@@ -9,10 +9,10 @@ const banner = 'data:image/webp;base64,UklGRg==';
 test('profile appearance validation agrees between game and server, excluding unsafe image sources', () => {
   const { ProfileAppearance, __ctx } = load(['12b-profile-appearance.js']);
   __ctx.clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-  for (const input of [null, {}, ...['miku', 'neru', 'teto'].map(style => ({ style, background: 'preset' })), { style: 'neru', background: 'song', song: { hash: 'a'.repeat(32), sid: 123, title: 'Song', artist: 'Artist' } }, { background: 'unsafe', song: { hash: 'url(evil)', sid: Infinity, title: 'x'.repeat(200) } }, { style: 'aurora', banner, position: 27, bio: 'Hello' },
+  for (const input of [null, {}, ...['miku', 'neru', 'teto'].map(style => ({ style, background: 'preset' })), { style: 'neru', background: 'song', song: { hash: 'a'.repeat(32), sid: 123, title: 'Song', artist: 'Artist' } }, { background: 'unsafe', song: { hash: 'url(evil)', sid: Infinity, title: 'x'.repeat(200) } }, { style: 'aurora', banner, position: 27, bio: 'Hello' }, { style: 'custom', colors: { accent: '#ABCDEF', surface: '#252525' } }, { style: 'constructor', colors: { accent: 'url(evil)', surface: 'white' } }, { style: '__proto__' },
     { style: 'url(evil)', banner: 'data:image/svg+xml;base64,PHN2Zz4=', position: -100, bio: '\u0000<hello>\nthere' },
     { banner: 'https://tracker.example/banner.png', bio: 'x'.repeat(200), position: Infinity },
-    { banner: 'data:image/png;base64,' + 'a'.repeat(48000), position: 300 }]) {
+    { banner: 'data:image/png;base64,' + 'a'.repeat(180000), position: 300 }]) {
     assert.deepEqual(JSON.parse(JSON.stringify(ProfileAppearance.clean(input))), cleanProfileAppearance(input));
   }
   assert.equal(cleanProfileAppearance({ style: 'aurora', banner }).banner, banner);
@@ -82,4 +82,39 @@ test('existing appearances migrate without losing their background, and best pla
   assert.equal(cleanProfileAppearance({ background: 'preset', style: 'teto' }).background, 'best');
   assert.equal(cleanProfileAppearance({ style: 'miku', banner, background: 'best' }).background, 'best');
   assert.equal(cleanProfileAppearance({ background: 'song', song: { sid: '123', hash: 'not-a-map' } }).song.sid, 0);
+});
+
+
+test('curated presets exclude characters; custom colours are validated and survive profile sharing', () => {
+  const { ProfileAppearance } = load(['12b-profile-appearance.js']);
+  assert.deepEqual(Array.from(ProfileAppearance.presets, p => p.id), ['signature', 'midnight', 'aurora', 'ember', 'custom']);
+  const appearance = cleanProfileAppearance({ style: 'custom', colors: { accent: '#AABBCC', surface: '#222233' }, banner, background: 'upload' });
+  assert.deepEqual(appearance.colors, { accent: '#aabbcc', surface: '#222233' });
+  const p = new PresenceLogic(); p.join('player', { pid: 'player123', name: 'Player', key: 'x'.repeat(32) });
+  p.message('player', { t: 'stats', profile: { appearance } });
+  assert.deepEqual(p.profileMsg('player123').data.appearance, appearance);
+  assert.equal(cleanProfileAppearance({ style: 'miku', banner, background: 'upload' }).banner, banner);
+  assert.equal(cleanProfileAppearance({ style: 'constructor' }).style, 'signature');
+});
+
+test('custom palettes keep readable text and buttons on both light and dark backgrounds', () => {
+  const { ProfileAppearance } = load(['12b-profile-appearance.js']);
+  const lum = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4).reduce((n, v, i) => n + v * [.2126, .7152, .0722][i], 0);
+  const ratio = (a, b) => (Math.max(lum(a), lum(b)) + .05) / (Math.min(lum(a), lum(b)) + .05);
+  for (const surface of ['#000000', '#ffffff', '#777777', '#1b1b20', '#aabbee']) for (const accent of ['#ffffff', '#000000', '#8daaff']) {
+    const p = ProfileAppearance.palette(surface, accent);
+    assert.ok(ratio(p.text, surface) >= 4.5, `${p.text} on ${surface}`);
+    assert.ok(ratio(p.muted, surface) >= 4.5);
+    assert.ok(ratio(p.buttonText, p.highlight) >= 4.5);
+  }
+});
+
+
+test('higher-quality banner payloads are shared, with oversized images still rejected', () => {
+  const image = 'data:image/webp;base64,' + 'A'.repeat(120000);
+  assert.equal(cleanProfileAppearance({ banner: image }).banner, image);
+  assert.equal(cleanProfileAppearance({ banner: image + 'A'.repeat(100000) }).banner, '');
+  const p = new PresenceLogic(); p.join('player', { pid: 'player123', name: 'Player', key: 'x'.repeat(32) });
+  p.message('player', { t: 'stats', profile: { appearance: { banner: image, background: 'upload' } } });
+  assert.equal(p.profileMsg('player123').data.appearance.banner, image);
 });

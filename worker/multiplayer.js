@@ -61,10 +61,11 @@ const cleanConfig = c => c && typeof c === 'object' ? Object.fromEntries(Object.
 /** Public profile cosmetics. Never accept URLs/CSS or authority fields from a player. */
 export function cleanProfileAppearance(a) {
   a = a && typeof a === 'object' ? a : {};
-  const style = ['signature', 'midnight', 'aurora', 'ember', 'sakura', 'glacier', 'miku', 'neru', 'teto'].includes(a.style) ? a.style : 'signature';
-  const banner = typeof a.banner === 'string' && a.banner.length <= 48000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '';
+  const previous = { miku: 'aurora', teto: 'ember', neru: 'ember', sakura: 'signature', glacier: 'aurora' };
+  const style = ['signature', 'midnight', 'aurora', 'ember', 'custom'].includes(a.style) ? a.style : (typeof a.style === 'string' && Object.hasOwn(previous, a.style) ? previous[a.style] : 'signature');
+  const banner = typeof a.banner === 'string' && a.banner.length <= 180000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '';
   const song = a.song && typeof a.song === 'object' ? a.song : {};
-  return { style, banner,
+  return { style, banner, colors: { accent: /^#[0-9a-f]{6}$/i.test(a.colors && a.colors.accent) ? a.colors.accent.toLowerCase() : '#aa88ff', surface: /^#[0-9a-f]{6}$/i.test(a.colors && a.colors.surface) ? a.colors.surface.toLowerCase() : '#1b1b20' },
     background: ['best', 'song', 'upload'].includes(a.background) ? a.background : banner ? 'upload' : 'best',
     song: { hash: typeof song.hash === 'string' && /^[a-f0-9]{32,64}$/i.test(song.hash) ? song.hash : '',
       sid: Number.isSafeInteger(song.sid) && song.sid > 0 && song.sid <= 2147483647 ? song.sid : 0,
@@ -1624,7 +1625,7 @@ export class PresenceLogic {
     return { t: 'tags', key, tags: list, all: PresenceLogic.USER_TAGS, can: !!pid && this.played(pid, key) };
   }
   savePlaylist(p) { if (this.persistPlaylist) this.persistPlaylist(p); }
-  static PROFILE_MAX = 150000; // profile JSON, including a compact raster banner and 50 best plays
+  static PROFILE_MAX = 350000; // profile JSON, including a compact raster banner and 50 best plays
   /** Does this key own this public id? The first key used with an id claims it. */
   claim(pid, key) {
     const k = String(key || '');

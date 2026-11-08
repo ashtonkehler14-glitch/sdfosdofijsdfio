@@ -69,10 +69,10 @@ try {
   });
   await alice.locator('input[type=file][aria-label="Upload profile banner"]').setInputFiles({ name: 'banner.png', mimeType: 'image/png', buffer: Buffer.from(image, 'base64') });
   await alice.waitForFunction(() => typeof window.releaseProfileUpload === 'function');
-  await alice.getByRole('button', { name: 'Miku profile style', exact: true }).click();
+  await alice.getByRole('button', { name: 'Midnight profile style', exact: true }).click();
   await alice.evaluate(() => window.releaseProfileUpload());
   await alice.waitForFunction(() => document.querySelector('.pa-status').textContent.includes('Banner ready'));
-  assert.equal(await alice.locator('.pa-preview').getAttribute('data-profile-style'), 'miku');
+  assert.equal(await alice.locator('.pa-preview').getAttribute('data-profile-style'), 'midnight');
   await alice.getByRole('button', { name: 'Aurora profile style', exact: true }).click();
   await alice.locator('#pa-position').fill('25'); await alice.locator('#pa-position').dispatchEvent('input');
   const draft = await alice.evaluate(() => ({ style: document.querySelector('.pa-preview').dataset.profileStyle, image: document.querySelector('.pa-preview-cover').style.backgroundImage, saved: AshtonkMania.ProfileManager.profile.appearance }));
@@ -86,7 +86,7 @@ try {
   await alice.evaluate(() => { while (Overlays.top()) Overlays.top().close(); AshtonkMania.Screens.go('profile', { force: true }); });
   await alice.waitForSelector('.pf-header[data-profile-style=aurora]');
   const saved = await alice.evaluate(() => AshtonkMania.ProfileManager.profile.appearance);
-  assert.equal(saved.position, 25); assert.ok(saved.banner.length <= 48000);
+  assert.equal(saved.position, 25); assert.ok(saved.banner.length <= 180000);
   await alice.getByRole('button', { name: 'Customize profile', exact: true }).click();
   assert.equal(await alice.locator('#pa-bio').inputValue(), saved.bio);
   await alice.getByRole('button', { name: 'Ember profile style' }).click();
@@ -146,8 +146,8 @@ try {
   await mobile.waitForSelector('.pa-editor', { state: 'detached' });
   await mobile.setViewportSize({ width: 390, height: 844 });
   await mobile.getByRole('button', { name: 'Customize profile', exact: true }).click();
-  await mobile.getByRole('button', { name: 'Miku profile style' }).click();
-  assert.ok((await mobile.locator('.pa-preview-cover').evaluate(el => getComputedStyle(el, '::before').backgroundImage)).includes('profile-art/miku.png'));
+  await mobile.getByRole('button', { name: 'Midnight profile style' }).click();
+  assert.equal(await mobile.locator('.pa-preview-cover').evaluate(el => getComputedStyle(el, '::before').backgroundImage), 'none');
   await mobile.getByRole('button', { name: 'Midnight profile style' }).click();
   const overflow = await mobile.evaluate(() => { const p = document.querySelector('.pa-editor'), b = p.getBoundingClientRect(); return { x: b.x, right: b.right, bottom: b.bottom, width: innerWidth, height: innerHeight, panelWidth: b.width, scrollWidth: p.scrollWidth, clientWidth: p.clientWidth }; });
   assert.ok(overflow.x >= 0 && overflow.right <= overflow.width + 1 && overflow.bottom <= overflow.height + 1 && overflow.scrollWidth <= overflow.clientWidth + 1 && overflow.panelWidth >= overflow.width * .8, JSON.stringify(overflow));
@@ -165,23 +165,29 @@ try {
   console.log('PASS: appearance restore, mobile editor fit/readability, mobile save and remote profile layout');
   await alice.getByRole('button', { name: 'Customize profile', exact: true }).click();
   const uploadedPreview = await alice.locator('.pa-preview-cover').evaluate(el => el.style.backgroundImage);
-  for (const name of ['Miku', 'Neru', 'Teto']) {
+  for (const name of ['Signature', 'Midnight', 'Aurora', 'Ember', 'Custom']) {
     await alice.getByRole('button', { name: name + ' profile style', exact: true }).click();
     assert.equal(await alice.locator('.pa-preview').getAttribute('data-profile-style'), name.toLowerCase());
-    assert.equal(await alice.locator('.pa-editor').getAttribute('data-profile-style'), name.toLowerCase());
     assert.equal(await alice.locator('.pa-preview').getAttribute('data-background'), 'upload');
     assert.equal(await alice.locator('.pa-preview-cover').evaluate(el => el.style.backgroundImage), uploadedPreview);
-    const art = alice.locator(`.pa-preset[data-style="${name.toLowerCase()}"] img`);
-    assert.ok((await art.getAttribute('src')).includes(name === 'Neru' ? 'neru.png' : `profile-art/${name.toLowerCase()}.png`));
-    await art.evaluate(async el => { await el.decode(); });
-    assert.ok(await art.evaluate(el => el.naturalWidth > 256));
-    const overlay = await alice.locator('.pa-preview-cover').evaluate(el => { const css = getComputedStyle(el, '::before'); return { image: css.backgroundImage, events: css.pointerEvents }; });
-    assert.ok(overlay.image.includes(name === 'Neru' ? 'neru.png' : `profile-art/${name.toLowerCase()}.png`));
-    assert.equal(overlay.events, 'none');
+    assert.equal(await alice.locator('.pa-preview-cover').evaluate(el => getComputedStyle(el, '::before').backgroundImage), 'none');
   }
-  assert.equal(await alice.getByRole('button', { name: 'Preset artwork', exact: true }).count(), 0);
-  await alice.getByRole('button', { name: 'Neru profile style', exact: true }).click();
-  if (process.env.SHOT_DIR) await alice.screenshot({ path: join(process.env.SHOT_DIR, 'profile-menu-neru.png') });
+  for (const name of ['Miku', 'Neru', 'Teto']) assert.equal(await alice.getByRole('button', { name: name + ' profile style', exact: true }).count(), 0);
+  await alice.locator('input[aria-label="Accent colour"]').fill('#79b8ff');
+  await alice.locator('input[aria-label="Accent colour"]').dispatchEvent('input');
+  await alice.locator('input[aria-label="Background colour"]').fill('#20212b');
+  await alice.locator('input[aria-label="Background colour"]').dispatchEvent('input');
+  assert.equal(await alice.locator('.pa-preview').evaluate(el => getComputedStyle(el).getPropertyValue('--ob5').trim()), '#20212b');
+  if (process.env.SHOT_DIR) await alice.screenshot({ path: join(process.env.SHOT_DIR, 'profile-custom-colors.png') });
+  await alice.locator('input[aria-label="Background colour"]').fill('#ffffff');
+  await alice.locator('input[aria-label="Background colour"]').dispatchEvent('input');
+  const light = await alice.evaluate(() => ({ label: getComputedStyle(document.querySelector('.pa-preset-name b')).color, source: getComputedStyle(document.querySelector('.pa-source.selected')).color, base: getComputedStyle(document.querySelector('.pa-editor')).backgroundColor }));
+  assert.notEqual(light.label, 'rgb(255, 255, 255)'); assert.notEqual(light.source, 'rgb(255, 255, 255)'); assert.equal(light.base, 'rgb(255, 255, 255)');
+  await alice.waitForFunction(() => { const values = getComputedStyle(document.querySelector('.pa-preset')).backgroundColor.match(/[0-9.]+/g).slice(0, 3).map(Number); return values.reduce((a, b) => a + b, 0) > 600; });
+  if (process.env.SHOT_DIR) await alice.screenshot({ path: join(process.env.SHOT_DIR, 'profile-custom-light.png') });
+  await alice.locator('input[aria-label="Background colour"]').fill('#20212b');
+  await alice.locator('input[aria-label="Background colour"]').dispatchEvent('input');
+
   await alice.getByRole('button', { name: 'Selected song background', exact: true }).click();
   await alice.getByRole('button', { name: /^Use .+ as profile background$/ }).first().click();
   await alice.waitForFunction(() => document.querySelector('.pa-status').textContent === 'Song background ready.');
@@ -190,12 +196,17 @@ try {
   await alice.waitForSelector('.pa-editor', { state: 'detached' });
   const chosen = await alice.evaluate(() => AshtonkMania.ProfileManager.profile.appearance);
   assert.equal(chosen.background, 'song'); assert.ok(chosen.song.hash); assert.ok(chosen.song.title); assert.ok(chosen.banner.startsWith('data:image/'));
-  await bob.waitForFunction(pid => { AshtonkMania.Presence.send({ t: 'profile', pid }); return !!document.querySelector('.pf-header[data-profile-style=neru][data-background=song]'); }, alicePid, { polling: 400 });
+  await bob.waitForFunction(pid => { AshtonkMania.Presence.send({ t: 'profile', pid }); return !!document.querySelector('.pf-header[data-profile-style=custom][data-background=song]'); }, alicePid, { polling: 400 });
   assert.equal(await bob.locator('.pf-cover').getAttribute('data-cover-kind'), 'image');
-  assert.ok((await bob.locator('.pf-cover').evaluate(el => getComputedStyle(el, '::before').backgroundImage)).includes('neru.png'));
+  assert.deepEqual(await bob.evaluate(() => AshtonkMania.ProfileScreen.remote.data.appearance.colors), { accent: '#79b8ff', surface: '#20212b' });
+  assert.equal(chosen.style, 'custom'); assert.deepEqual(chosen.colors, { accent: '#79b8ff', surface: '#20212b' });
   const songBefore = chosen.banner;
+  await alice.reload(); await alice.waitForFunction(() => document.querySelector('#loading-screen.done'));
+  await alice.evaluate(() => { while (Overlays.top()) Overlays.top().close(); AshtonkMania.Screens.go('profile', { force: true }); });
+  await alice.waitForSelector('.pf-header[data-profile-style=custom]');
+  assert.deepEqual(await alice.evaluate(() => AshtonkMania.ProfileManager.profile.appearance.colors), chosen.colors);
   await alice.getByRole('button', { name: 'Customize profile', exact: true }).click();
-  await alice.getByRole('button', { name: 'Miku profile style', exact: true }).click();
+  await alice.getByRole('button', { name: 'Midnight profile style', exact: true }).click();
   assert.equal(await alice.locator('.pa-preview').getAttribute('data-background'), 'song');
   assert.ok((await alice.locator('.pa-preview-cover').evaluate(el => el.style.backgroundImage)).includes(songBefore));
   await alice.getByRole('button', { name: 'Save changes', exact: true }).click();
@@ -204,8 +215,8 @@ try {
     const A = AshtonkMania, root = A.ProfileScreen.page.closest('.ov');
     return { theme: root.dataset.profileStyle, hue: getComputedStyle(root).getPropertyValue('--o-h').trim(), background: A.ProfileManager.profile.appearance.background, image: A.ProfileManager.profile.appearance.banner };
   });
-  assert.ok((await alice.locator('.pf-cover').evaluate(el => getComputedStyle(el, '::before').backgroundImage)).includes('profile-art/miku.png'));
-  assert.equal(theme.theme, 'miku'); assert.equal(theme.hue, '176'); assert.equal(theme.background, 'song'); assert.equal(theme.image, songBefore);
+  assert.equal(await alice.locator('.pf-cover').evaluate(el => getComputedStyle(el, '::before').backgroundImage), 'none');
+  assert.equal(theme.theme, 'midnight'); assert.equal(theme.hue, '255'); assert.equal(theme.background, 'song'); assert.equal(theme.image, songBefore);
   await alice.reload(); await alice.waitForFunction(() => document.querySelector('#loading-screen.done'));
   await alice.evaluate(() => { while (Overlays.top()) Overlays.top().close(); AshtonkMania.Screens.go('profile', { force: true }); });
   await alice.waitForSelector('.pf-header[data-background=song]');
@@ -220,6 +231,6 @@ try {
     return { kind: el.dataset.coverKind, image: el.style.backgroundImage, size: el.style.backgroundSize };
   });
   assert.equal(bestCover.kind, 'image'); assert.ok(bestCover.image.includes('blob:')); assert.equal(bestCover.size, 'cover');
-  console.log('PASS: official character assets, full profile themes, preserved upload/song backgrounds, remote/reloaded song backgrounds and best-play reset');
+  console.log('PASS: curated presets, no character overlays, custom colour preview/save/sharing, preserved banners and best-play reset');
   assert.deepEqual(errors, []);
 } finally { await browser?.close(); await mf.dispose(); }

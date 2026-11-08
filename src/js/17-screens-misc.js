@@ -568,7 +568,7 @@ const ProfileScreen = {
     const u = this.remote ? { pid: this.remote.pid, name: p.name, avatar: this.remote.avatar, online: !!this.remote.online, id: this.remote.id, status: this.remote.status } : null;
     // (a role's effects: Neru's gold round the picture and on the name — see roleFx)
     const role = this.remote ? this.remote.role : (this.ownRole || (typeof Presence !== 'undefined' && Presence.role) || null), fx = roleFx(role);
-    const top = h(`div.pf-top${fx ? `.fx-${fx}` : ''}`, { style: fx ? { '--rc': /^#[0-9a-f]{6}$/i.test(role.colour || '') ? role.colour : '#ffcc22' } : {} }, cover, h('div.pf-top-in',
+    const top = h(`div.pf-top${fx ? `.fx-${fx}` : ''}`, { style: fx ? { '--rc': /^#[0-9a-f]{6}$/i.test(role.colour || '') ? role.colour : '#ffcc22' } : {} }, h('div.pf-banner', cover), h('div.pf-top-in',
       fxAvatar(avatar, role),
       h('div.pf-id',
         h('div.pf-name', fxName(h('span.pf-nm', p.name), role), own ? h('button.icon-btn', { title: 'Rename', 'aria-label': 'Rename', onclick: async () => { const n = await Dialog.prompt('Username', p.name); if (n) { await ProfileManager.setName(n); Toolbar.updateProfile(); } } }, icon('edit')) : null,
@@ -580,7 +580,7 @@ const ProfileScreen = {
       u ? (() => { const all = UserPanels.menuItems(u), more = all.filter(it => it.more || it.staff);
         return h('div.pf-acts', ...all.filter(it => !it.sep && !it.header && !it.more && !it.staff && it.label !== 'View profile').map(it => h(`button.btn.sm${it.danger ? '.danger' : ''}`, { onclick: () => { UISounds.click(); it.onClick && it.onClick(); setTimeout(() => this.render(), 300); } }, it.icon ? icon(it.icon) : null, it.label)),
           more.length ? h('button.btn.sm.pf-acts-more', { title: 'More', 'aria-label': 'More', onclick: e => { UISounds.click(); const r = e.currentTarget.getBoundingClientRect(); showMenu(r.left, r.bottom + 4, all.filter(it => it.more || it.staff || (it.header && more.some(m => m.staff)))); } }, icon('bars')) : null); })() : null));
-    if (own) top.append(h('button.btn.sm.pf-customize', { onclick: () => ProfileAppearance.open() }, icon('brush'), 'Customize profile'));
+    if (own) top.querySelector('.pf-banner').append(h('button.btn.sm.pf-customize', { onclick: () => ProfileAppearance.open() }, icon('brush'), 'Customize profile'));
     // (play count and time aren't repeated here: they're in the stat list below)
     const centre = h('div.pf-centre',
       this.dailyEl = h('div.pf-daily', { hidden: true }),
@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.7f', title: 'Your profile, your colours', sections: [
+    { icon: 'brush', title: 'Profiles', items: ['Four coordinated themes and a Custom option to pick your own accent and background colours; character presets are removed', 'Sharper uploaded banners, with a dedicated artwork area above your name and bio', 'A cleaner identity row and compact stats layout, with the same arrangement in the profile preview'] },
+  ] },
   { id: '2026.11.7e', title: 'Softer profile themes and banner characters', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Profile themes use softer colours and more neutral menus', 'Miku, Teto and Neru appear over your banner when their theme is selected, keeping your song background or uploaded image underneath'] },
   ] },

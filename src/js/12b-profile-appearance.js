@@ -5,18 +5,15 @@ const ProfileAppearance = {
     { id: 'midnight', name: 'Midnight', desc: 'After dark', accent: '#aa88ff', hue: 255, mark: 'DT' },
     { id: 'aurora', name: 'Aurora', desc: 'Find your flow', accent: '#72e4c1', hue: 160, mark: 'SV' },
     { id: 'ember', name: 'Ember', desc: 'Keep the combo', accent: '#ffad70', hue: 24, mark: 'FC' },
-    { id: 'sakura', name: 'Sakura', desc: 'Full bloom', accent: '#ff9bcc', hue: 320, mark: 'SS' },
-    { id: 'glacier', name: 'Glacier', desc: 'Perfect timing', accent: '#80d5ff', hue: 200, mark: 'MAX' },
-    { id: 'miku', name: 'Miku', desc: 'Hatsune Miku', accent: '#39c5bb', hue: 176, character: 'miku', art: 'profile-art/miku.png', mark: '01' },
-    { id: 'neru', name: 'Neru', desc: 'Akita Neru', accent: '#ffcf3a', hue: 45, character: 'neru', art: 'neru.png', mark: '02' },
-    { id: 'teto', name: 'Teto', desc: 'Kasane Teto', accent: '#ff4d6a', hue: 350, character: 'teto', art: 'profile-art/teto.png', mark: '04' },
+    { id: 'custom', name: 'Custom', desc: 'Your colours', accent: '#aa88ff', hue: 255, mark: '+' },
   ],
   clean(a) {
     a = a && typeof a === 'object' ? a : {};
-    const style = this.presets.some(p => p.id === a.style) ? a.style : 'signature';
-    const banner = typeof a.banner === 'string' && a.banner.length <= 48000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '';
+    const previous = { miku: 'aurora', teto: 'ember', neru: 'ember', sakura: 'signature', glacier: 'aurora' };
+    const style = this.presets.some(p => p.id === a.style) ? a.style : (typeof a.style === 'string' && Object.hasOwn(previous, a.style) ? previous[a.style] : 'signature');
+    const banner = typeof a.banner === 'string' && a.banner.length <= 180000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '';
     const song = a.song && typeof a.song === 'object' ? a.song : {};
-    return { style, banner,
+    return { style, banner, colors: { accent: /^#[0-9a-f]{6}$/i.test(a.colors && a.colors.accent) ? a.colors.accent.toLowerCase() : '#aa88ff', surface: /^#[0-9a-f]{6}$/i.test(a.colors && a.colors.surface) ? a.colors.surface.toLowerCase() : '#1b1b20' },
       background: ['best', 'song', 'upload'].includes(a.background) ? a.background : banner ? 'upload' : 'best',
       song: { hash: typeof song.hash === 'string' && /^[a-f0-9]{32,64}$/i.test(song.hash) ? song.hash : '',
         sid: Number.isSafeInteger(song.sid) && song.sid > 0 && song.sid <= 2147483647 ? song.sid : 0,
@@ -24,12 +21,36 @@ const ProfileAppearance = {
       position: Number.isFinite(a.position) ? clamp(a.position, 0, 100) : 50,
       bio: typeof a.bio === 'string' ? a.bio.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 160) : '' };
   },
+  /** Derive readable surfaces and text from two validated colours, without accepting user CSS. */
+  palette(surface, accent) {
+    const rgb = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+    const mix = (a, b, amount) => '#' + rgb(a).map((v, i) => Math.round(v + (rgb(b)[i] - v) * amount).toString(16).padStart(2, '0')).join('');
+    const luminance = hex => rgb(hex).map(v => { v /= 255; return v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4; }).reduce((n, v, i) => n + v * [.2126, .7152, .0722][i], 0);
+    const contrast = (a, b) => (Math.max(luminance(a), luminance(b)) + .05) / (Math.min(luminance(a), luminance(b)) + .05);
+    const foreground = base => ['#f1eff5', '#17171d', '#ffffff', '#000000'].find(c => contrast(c, base) >= 4.5) || '#000000';
+    const text = foreground(surface);
+    let highlight = accent;
+    for (let i = 0; i < 12 && contrast(highlight, surface) < 4.5; i++) highlight = mix(highlight, text, .15);
+    const [r, g, b] = rgb(accent).map(v => v / 255), hi = Math.max(r, g, b), lo = Math.min(r, g, b), delta = hi - lo;
+    const hue = !delta ? 255 : ((hi === r ? (g - b) / delta : hi === g ? (b - r) / delta + 2 : (r - g) / delta + 4) * 60 + 360) % 360;
+    const muted = mix(text, surface, .32);
+    return { hue, text, muted: contrast(muted, surface) >= 4.5 ? muted : text, highlight, buttonText: foreground(highlight),
+      surface, raised: mix(surface, text, .045), hover: mix(surface, text, .085), light: mix(surface, text, .14), deep: mix(surface, '#000000', .22),
+      line: mix(surface, text, .12), soft: mix(highlight, text, .25) };
+  },
   paint(el, appearance) {
-    const a = this.clean(appearance), p = this.presets.find(p => p.id === a.style);
-    el.dataset.profileStyle = a.style; el.dataset.background = a.background; el.classList.add('ov'); el.style.setProperty('--o-h', p.hue);
-    el.style.setProperty('--pf-character-art', p.art ? `url("${Host.asset(p.art)}")` : 'none');
-    el.style.setProperty('--pf-accent', p.accent); el.style.setProperty('--pf-hue', p.hue);
-    el.style.setProperty('--pf-gradient', `linear-gradient(115deg, hsl(${p.hue} 14% 20%), hsl(${p.hue} 8% 12%))`);
+    const a = this.clean(appearance), preset = this.presets.find(p => p.id === a.style);
+    const palette = this.palette(a.style === 'custom' ? a.colors.surface : '#1b1b20', a.style === 'custom' ? a.colors.accent : preset.accent);
+    const hue = a.style === 'custom' ? palette.hue : preset.hue;
+    el.dataset.profileStyle = a.style; el.dataset.background = a.background; el.classList.add('ov');
+    const vars = { '--o-h': hue, '--pf-hue': hue, '--pf-accent': palette.highlight, '--pf-soft-accent': palette.soft,
+      '--ob6': palette.deep, '--ob5': palette.surface, '--ob4': palette.raised, '--ob3': palette.hover, '--ob2': palette.light,
+      '--od6': palette.deep, '--od5': palette.surface, '--od4': palette.raised, '--od3': palette.hover,
+      '--oc1': palette.text, '--oc2': palette.muted, '--text': palette.text, '--text-2': palette.muted, '--muted': palette.muted,
+      '--ohl': palette.highlight, '--accent': palette.highlight, '--accent-2': palette.highlight, '--accent-3': palette.soft, '--line': palette.line, '--pf-line': palette.line, '--pf-button-text': palette.buttonText,
+      '--pf-gradient': `linear-gradient(115deg, ${palette.hover}, ${palette.deep})` };
+    for (const [key, value] of Object.entries(vars)) el.style.setProperty(key, value);
+    el.style.color = palette.text;
     return a;
   },
   /** One resolver for the actual profile and the preview. Ignore a stale image when the source changes. */
@@ -68,11 +89,11 @@ const ProfileAppearance = {
       const img = new Image(); img.src = url; await img.decode();
       if (!img.naturalWidth || !img.naturalHeight) throw new Error('This image could not be opened.');
       // Preserve a little height for the focal-position control. Flatten uploads to a safe, compact raster image.
-      for (const width of [1440, 1200, 960, 720]) {
-        const ratio = Math.min(1, width / img.naturalWidth, 900 / img.naturalHeight);
+      for (const width of [1600, 1440, 1200, 960]) {
+        const ratio = Math.min(1, width / img.naturalWidth, 1000 / img.naturalHeight);
         const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.naturalWidth * ratio)); c.height = Math.max(1, Math.round(img.naturalHeight * ratio));
-        const ctx = c.getContext('2d'); ctx.fillStyle = '#1b1729'; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
-        for (const q of [0.86, 0.7, 0.5, 0.35]) { const data = c.toDataURL('image/webp', q); if (data.length <= 48000 && /^data:image\/(webp|png|jpeg);/.test(data)) return data; }
+        const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, c.width, c.height);
+        for (const q of [0.9, 0.82, 0.72]) { const data = c.toDataURL('image/webp', q); if (data.length <= 180000 && /^data:image\/(webp|png|jpeg);/.test(data)) return data; }
       }
       throw new Error('This image is too detailed to fit. Try a smaller or simpler image.');
     } catch (e) { throw new Error(e && e.message || 'This image could not be opened.'); }
@@ -84,7 +105,7 @@ const ProfileAppearance = {
     const best = ProfileScreen.coverPlay || stats.top[0] || stats.recent[0];
     let busy = false, saving = false, closed = false, uploadSeq = 0;
     const previewCover = h('div.pa-preview-cover'), previewBio = h('p.pa-preview-bio'), styleName = h('span.pa-style-name');
-    const preview = h('div.pa-preview', previewCover,
+    const preview = h('div.pa-preview', h('div.pa-preview-banner', previewCover),
       h('div.pa-preview-inner', ProfileManager.avatarEl(84), h('div.pa-preview-id', h('h3', ProfileManager.profile.name),
         h('div.pa-preview-tags', ...this.tags(ProfileScreen.ownTags), h('span.pf-tag', 'osu!mania')), previewBio)),
       h('div.pa-preview-stats', h('div', h('span', 'Performance'), h('b', `${Math.round(stats.pp || 0).toLocaleString()}pp`)),
@@ -100,8 +121,16 @@ const ProfileAppearance = {
     } }, icon('retry'), 'Use best play instead');
     const tiles = this.presets.map(p => h('button.pa-preset', { type: 'button', dataset: { style: p.id }, style: { '--tile-hue': p.hue, '--tile-accent': p.accent },
       'aria-label': p.name + ' profile style', onclick: () => { if (saving) return; draft.style = p.id; paint(); } },
-      h('span.pa-preset-art', h('span.pa-preset-mark', p.mark), p.character ? h('img.pa-character', { src: Host.asset(p.art), alt: '' }) : h('span.pa-note-lanes', ...[0, 1, 2, 3].map(i => h('i', { style: { '--lane': i } }))), h('span.pa-preset-check', icon('check'))),
+      h('span.pa-preset-art', h('span.pa-preset-mark', p.mark), h('span.pa-note-lanes', ...[0, 1, 2, 3].map(i => h('i', { style: { '--lane': i } }))), h('span.pa-preset-check', icon('check'))),
       h('span.pa-preset-name', h('b', p.name), h('small', p.desc))));
+    const colors = h('div.pa-custom-colors');
+    const colorFields = [['accent', 'Accent colour'], ['surface', 'Background colour']].map(([key, label]) => {
+      const input = h('input', { type: 'color', value: draft.colors[key], 'aria-label': label });
+      const value = h('span.pa-color-value', draft.colors[key].toUpperCase());
+      input.addEventListener('input', () => { draft.colors[key] = input.value; value.textContent = input.value.toUpperCase(); paint(); });
+      return h('label.pa-color-control', input, h('span', h('b', label), value));
+    });
+    colors.append(h('div.pa-color-fields', ...colorFields), h('p', 'Text and accents adjust for readability. Your banner stays unchanged.'));
     const sourceNames = { best: 'Best play background', song: 'Selected song background', upload: 'Uploaded banner' };
     const sources = Object.entries(sourceNames).map(([value, label]) => h('button.pa-source', { type: 'button', dataset: { source: value }, 'aria-label': label,
       onclick: () => { if (saving) return; uploadSeq++; busy = false; save.disabled = false; draft.background = value; status.textContent = ''; paint(); } }, icon({ best: 'trophy', song: 'music', upload: 'upload' }[value]), h('span', label), h('span.pa-source-check', icon('check'))));
@@ -138,6 +167,7 @@ const ProfileAppearance = {
     };
     search.addEventListener('input', drawSongs);
     const paint = () => {
+      colors.hidden = draft.style !== 'custom';
       this.paint(panel, draft); this.paint(preview, draft); this.cover(previewCover, draft, { best });
       previewBio.textContent = draft.bio; previewBio.hidden = !draft.bio;
       styleName.textContent = `${this.presets.find(p => p.id === draft.style).name} · ${sourceNames[draft.background]}`;
@@ -145,7 +175,7 @@ const ProfileAppearance = {
       position.disabled = draft.background === 'upload' && !draft.banner; remove.disabled = !draft.banner;
       songBox.hidden = draft.background !== 'song'; imageBox.hidden = draft.background !== 'upload'; bestHint.hidden = draft.background !== 'best';
       pickedSong.textContent = draft.song.title ? `Selected: ${draft.song.artist ? draft.song.artist + ' — ' : ''}${draft.song.title}` : 'Choose a song from your library.';
-      for (const t of tiles) { const selected = t.dataset.style === draft.style; t.classList.toggle('selected', selected); t.setAttribute('aria-pressed', String(selected)); }
+      for (const t of tiles) { if (t.dataset.style === 'custom') { t.style.setProperty('--tile-accent', draft.colors.accent); t.style.setProperty('--tile-custom-surface', draft.colors.surface); } const selected = t.dataset.style === draft.style; t.classList.toggle('selected', selected); t.setAttribute('aria-pressed', String(selected)); }
       for (const t of sources) { const selected = t.dataset.source === draft.background; t.classList.toggle('selected', selected); t.setAttribute('aria-pressed', String(selected)); }
     };
     bio.addEventListener('input', () => { draft.bio = bio.value; previewBio.textContent = draft.bio; previewBio.hidden = !draft.bio; counter.textContent = `${bio.value.length} / 160`; });
@@ -173,7 +203,7 @@ const ProfileAppearance = {
     const panel = h('div.pa-editor.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Customize profile', style: { '--o-h': 333 } },
       overlayHeader('customize profile', { icon: 'brush', actions: [close] }),
       h('div.pa-body', h('aside.pa-preview-side', h('h2.pa-section-heading', 'profile preview'), preview, h('div.pa-preview-caption', icon('brush'), styleName)),
-        h('div.pa-controls', h('section.pa-section', h('h2.pa-section-heading', 'theme'), h('p', 'Change the profile’s colours and mood. Your background stays the same.'), h('div.pa-presets', ...tiles)),
+        h('div.pa-controls', h('section.pa-section', h('h2.pa-section-heading', 'theme'), h('p', 'Change the profile’s colours and mood. Your background stays the same.'), h('div.pa-presets', ...tiles), colors),
           h('section.pa-section', h('h2.pa-section-heading', 'background'), h('div.pa-sources', ...sources), bestHint, songBox, imageBox,
             h('div.set-row.form.frange.pa-position-row', h('div.fleft', h('label', { for: 'pa-position' }, 'Background position')), h('div.fright', position))),
           h('section.pa-section', h('div.pa-section-title', h('label.pa-section-heading', { for: 'pa-bio' }, 'about you'), counter), bio), status)),
