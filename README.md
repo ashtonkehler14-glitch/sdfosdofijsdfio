@@ -12,6 +12,12 @@ To play without the website, press **Ctrl+S** in the game (or Settings → Maint
 
 Coming from Web-Osu-Mania? Export a backup there (Settings → Backup & Restore) and import it here. Your songs, scores, collections, keybinds and skin come with it.
 
+## Note appearance
+
+In **Settings → Gameplay → Playfield**, adjust **Column width (lane width)** and **Note height** independently. Note height applies to tap notes and hold caps in custom and imported skins. **Note border thickness** (Off–4px) and **Note border colour** add an outline following those notes' visible shapes; hold bodies keep their skin artwork. Defaults preserve the skin's original appearance.
+
+In the mods panel, enable **Percy** to adjust its tail offset from −500 to +500ms. Positive values shorten the drawn hold; negative values extend it to help compensate for skins with cut-off tails. This changes only the drawing: keep releasing at the original end time.
+
 ## Host it
 
 `npx wrangler deploy` puts it on Cloudflare: the game, beatmap search and downloads, and online multiplayer.

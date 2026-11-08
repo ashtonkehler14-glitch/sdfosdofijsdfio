@@ -153,6 +153,13 @@ const SettingsPanel = {
         row = form('fsel', cap, sel);
         break;
       }
+      case 'color': {
+        const inp = h('input', { type: 'color', value: val(), 'aria-label': it.l });
+        inp.addEventListener('input', () => { Settings.set(it.k, inp.value); updReset(); });
+        inp.addEventListener('change', flash);
+        row = form('fsel', cap, inp);
+        break;
+      }
       case 'text': {
         const inp = h('input.input', { value: val() });
         inp.addEventListener('change', () => { Settings.set(it.k, inp.value); updReset(); });
@@ -627,7 +634,7 @@ const ModSelect = {
     if (ids.includes('FL')) rows.push(slider('Flashlight — flashlight size', 'flSize', 0.5, 1.5, 0.1, v => `${v.toFixed(1)}×`));
     if (ids.includes('MU')) rows.push(check('Muted — start muted (the music gets louder with your combo)', 'muInverse'), check('Muted — enable metronome', 'muMetronome'),
       slider('Muted — final volume at combo', 'muCount', 0, 500, 10, v => `${v}`));
-    if (ids.includes('PC')) rows.push(slider('Percy — long note tail cut-off', 'percy', 0, 500, 10, v => `${v}ms`));
+    if (ids.includes('PC')) rows.push(slider('Percy — tail offset (negative extends holds)', 'percy', -500, 500, 10, v => `${v}ms`));
     return rows;
   },
 };
