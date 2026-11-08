@@ -2206,7 +2206,7 @@ export class PresenceLogic {
   static MAX_EV = 240000; // a play's inputs kept for late watchers (t, col, down — ~80,000 key events)
   // (lazer's user status: "Appear offline" keeps a player off the list — and out of reach for spectating and invites)
   // (`role`: an admin's, the owner's — their name and picture in Neru's colours wherever they show)
-  list() { return [...this.users.entries()].filter(([, u]) => u.vis !== 'offline').map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size, dnd: u.vis === 'dnd' || undefined, role: (u.pid && this.roleOf(u.pid)) || undefined })); }
+  list() { return [...this.users.entries()].filter(([, u]) => u.vis !== 'offline').map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size, dnd: u.vis === 'dnd' || undefined, role: (u.pid && this.roleOf(u.pid)) || undefined, ...(u.adminViewReady ? { adminViewReady: true } : {}) })); }
   join(id, msg) {
     // the same browser tab reconnecting replaces its old entry straight away (no ghost of yourself)
     const cid = str(msg && msg.cid, 40), gone = [], out = [];
@@ -2549,9 +2549,9 @@ const cleanStatus = s => ['menu', 'room', 'ranked', 'playing', 'watching'].inclu
 
 /** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room.
  *  The same (single) instance also runs presence — who's online — for invites. */
-import { officialGet, osuApi, osuLoginState, osuStatus, beatmapListing, beatmapInfo } from './index.js';
+import { officialGet, osuApi, osuLoginState, osuStatus, beatmapListing, beatmapInfo, lookupExactBeatmap } from './index.js';
 import { sha256hex } from './sha256.js';
-import { verifyPlay, acceptPlay, ModSystem } from './verify-bundle.js';
+import { verifyPlay, acceptPlay, ModSystem, md5Hex } from './verify-bundle.js';
 /** A score kept from before its mods stopped counting (Difficulty Adjust and the others lazer doesn't rank): left out. */
 const rankedMods = x => !x || !Array.isArray(x.mods) || ModSystem.isRanked(x.mods.map(String));
 const rankedBoard = v => (Array.isArray(v) ? v.filter(rankedMods) : []);
@@ -3152,6 +3152,7 @@ export class Matchmaker {
     const key = String(body.hash || ''), r = body.r;
     if (!/^[a-f0-9]{64}$/.test(key)) return json({ error: 'Bad beatmap file.' }, 400);
     if (r.error) return json({ error: r.error }, 422);
+    if (r.unlisted) return json({ ok: true, key, pp: 0, rankStatus: 'missing', unranked: true, reason: 'This beatmap is not in the beatmap explorer.' });
     // (a play sent again from before an admin took it off — the game catching up, one at a time — stays off)
     const gone = this.presence.removedAt(pid, key);
     if (gone && body.date != null && !(Number(body.date) > gone)) return json({ error: 'Taken off by an admin.', removed: true }, 422);
@@ -3161,7 +3162,7 @@ export class Matchmaker {
     await this.ensureBests(pid);
     const { out, entry, total, rank, of, best, daily: dailyRes } = this.presence.recordVerified(pid, key, r, { daily, playlist });
     this.send(out);
-    return json({ ok: true, key, score: entry.score, accuracy: entry.acc, combo: entry.combo, grade: entry.grade, pp: entry.pp, stars: entry.stars, total, rank, of, best, daily: dailyRes });
+    return json({ ok: true, key, score: entry.score, accuracy: entry.acc, combo: entry.combo, grade: entry.grade, pp: entry.pp, stars: entry.stars, total, rank, of, best, daily: dailyRes, rankStatus: r.rankStatus });
   }
   /** Several plays of one player's at once (the game catching up on best plays the server doesn't have): { pid, key,
    *  items: [{ hash, r }] } — each onto the boards and into their best plays as score() puts one. */
@@ -3180,13 +3181,14 @@ export class Matchmaker {
     for (const it of body.items.slice(0, 25)) {
       const key = String((it && it.hash) || ''), r = it && it.r;
       if (!r || typeof r !== 'object' || r.error || !/^[a-f0-9]{64}$/.test(key)) { results.push({ key, error: (r && r.error) || 'Bad beatmap file.' }); continue; }
+      if (r.unlisted) { results.push({ key, ok: true, pp: 0, rankStatus: 'missing', unranked: true }); continue; }
       // (taken off by an admin: not back from the player's own game — a play made since is another matter)
       const gone = this.presence.removedAt(pid, key);
       if (gone && !(Number(it.date) > gone)) { results.push({ key, error: 'Taken off by an admin.', removed: true }); continue; }
       if (!this.presence.boards.has(key)) { const v = await this.state.storage.get(`lb:${key}`).catch(() => null); if (!this.presence.boards.has(key)) this.presence.boards.set(key, rankedBoard(v)); }
       const got = this.presence.recordVerified(pid, key, r, {});
       out.push(...got.out);
-      results.push({ key, ok: true, pp: got.entry.pp });
+      results.push({ key, ok: true, pp: got.entry.pp, rankStatus: r.rankStatus });
     }
     this.send(out);
     return json({ ok: true, results });
@@ -3597,20 +3599,23 @@ async function judgeFile(osu, { result = null, play = null, noFail = false } = {
   // (the game's own result, taken as it is; a play sent as its key presses only — an older game — is judged)
   try { const text = new TextDecoder().decode(bytes); r = result && typeof result === 'object' ? acceptPlay(text, result, { noFail }) : verifyPlay(text, play, { noFail }); }
   catch { r = { error: 'The play could not be judged.' }; }
-  // (the file's MD5 is how osu! itself knows a beatmap: it finds the set of a file that doesn't say which it's from —
-  // only worked out for one that doesn't)
-  let md5 = '';
-  if (!(r && r.beatmapId > 0)) try { md5 = hex(await crypto.subtle.digest('MD5', bytes)); } catch { md5 = ''; }
+  // Always identify the actual file: copied beatmap/set IDs cannot authenticate an edited difficulty.
+  const md5 = md5Hex(bytes);
   return { hash, md5, r };
 }
-/** As in osu!, only ranked / approved beatmaps give pp: the set's status from the osu! API (kept a week). When osu!
- *  can't say — not reachable, no osu! API key on this server, the beatmap not found there — the play keeps the pp the
- *  game gave it (the game only gives pp on beatmaps osu! told it are ranked). */
-async function rankedOnly(r, md5, env) {
-  if (!r || r.error || !(r.pp > 0) || env.TEST_ALL_RANKED === '1') return r;
-  const { status: st, setId } = await beatmapStatus(r, md5, env);
-  if (setId > 0 && !(r.beatmapSetId > 0)) r = { ...r, beatmapSetId: setId };
-  return st && st !== 'ranked' && st !== 'approved' ? { ...r, pp: 0, unranked: true } : r;
+/** Only exact online difficulties can enter rankings; ranked / approved ones keep pp. Missing files stay local,
+ *  while service failures are retryable and never turn an unavailable check into ranked credit. */
+export async function rankedOnly(r, md5, env, lookup = lookupExactBeatmap) {
+  if (!r || r.error) return r;
+  if (env.TEST_ALL_RANKED === '1') return { ...r, rankStatus: 'ranked', checksum: md5 };
+  try {
+    const b = await lookup(md5, env, fetch, r.beatmapSetId);
+    if (!b?.id || b.checksum && String(b.checksum).toLowerCase() !== md5) return { ...r, pp: 0, unlisted: true, unranked: true, rankStatus: 'missing' };
+    const status = String(b.beatmapset?.status || b.status || '').toLowerCase(), ranked = status === 'ranked' || status === 'approved';
+    return { ...r, beatmapId: b.id, beatmapSetId: b.beatmapset_id || b.beatmapset?.id || 0, checksum: md5, rankStatus: status || 'unknown', ...(ranked ? {} : { pp: 0, unranked: true }) };
+  } catch (e) {
+    return e?.status === 404 ? { ...r, pp: 0, unlisted: true, unranked: true, rankStatus: 'missing' } : { ...r, pp: 0, error: 'Beatmap availability could not be checked. Please try again.', rankingUnavailable: true };
+  }
 }
 
 /** A judged beatmap's ranked status on osu!: by its set id, else its beatmap id, else its file's MD5 ('' when unknown). */
@@ -3696,6 +3701,7 @@ export async function handleMultiplayer(request, env, url) {
     const j = await judgePlay(request, {});
     if (j.res) return j.res;
     j.r = await rankedOnly(j.r, j.md5, env);
+    if (j.r?.rankingUnavailable) return json({ error: j.r.error }, 503);
     // (a daily challenge play on a beatmap whose file doesn't say its id — older ones don't: found from the file's MD5,
     // or it could never match the day's beatmap)
     if (j.r && !j.r.error && j.body.daily && !(j.r.beatmapId > 0) && /^[a-f0-9]{32}$/.test(j.md5 || '')) {
@@ -3717,6 +3723,7 @@ export async function handleMultiplayer(request, env, url) {
       return j ? { hash: j.hash, r: await rankedOnly(j.r, j.md5, env), date: Number(p.result.date) || 0 } : { hash: '', r: { error: 'Bad beatmap file.' } };
     }));
     const stub = env.MATCHMAKER.get(env.MATCHMAKER.idFromName('global'));
+    if (items.some(x => x.r?.rankingUnavailable)) return json({ error: 'Beatmap availability could not be checked. Please try again.' }, 503);
     return stub.fetch(new Request(new URL('/judged-scores', url), { method: 'POST', body: JSON.stringify({ pid: body.pid, key: body.key, items }), headers: { 'content-type': 'application/json' } }));
   }
   if (path === '/api/mp/rooms') {

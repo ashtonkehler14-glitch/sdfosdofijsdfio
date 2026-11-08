@@ -321,6 +321,7 @@ const ResultsScreen = {
       const el = h('div.res-grank', { hidden: true });
       const ours = sent => !(sent < (s.date || 0) - 3000); // (sent as this play ended, or later)
       const show = (d, sent) => {
+        if (d?.key === s.mapHash && d.rankStatus === 'missing' && ours(sent)) { el.hidden = false; clearEl(el).append(h('span', 'Unranked · Beatmap not found in the explorer. Local score saved.')); return; }
         if (!d || d.key !== s.mapHash || !d.rank || !ours(sent)) return;
         el.hidden = false;
         clearEl(el).append(icon('trophy'), h('span', d.best ? 'Global rank ' : 'Your best is '), h('b', `#${fmtInt(d.rank)}`), h('span.muted', ` of ${fmtInt(d.of)}`));

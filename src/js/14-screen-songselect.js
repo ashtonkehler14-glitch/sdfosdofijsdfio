@@ -1027,6 +1027,7 @@ const SongSelect = {
     };
   },
   schedulePreview(m, ms = 60) {
+    BeatmapStatus.checkMap(m);
     clearTimeout(this._previewT);
     this._previewT = setTimeout(() => this.preview(m), ms);
   },

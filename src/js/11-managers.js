@@ -67,18 +67,18 @@ const ScoreManager = {
   /** pp of a score (osu!mania formula). Older scores without stored pp are computed on demand. */
   ppOf(s) {
     // (no pp for a play with mods lazer doesn't rank — Difficulty Adjust and the like — as its rankings give none)
-    if (!s || !s.passed || !ModSystem.isRanked(s.mods || [], s.modConfig)) return 0;
+    if (!s || !s.passed || !this.isRanked(s) || !ModSystem.isRanked(s.mods || [], s.modConfig)) return 0;
     if (typeof s.pp === 'number' && s.srVersion === SR_VERSION) return s.pp;
     const m = typeof BeatmapManager !== 'undefined' ? BeatmapManager.mapByHash(s.mapHash) : null;
     const stars = (s.rate || 1) === 1 && m && m.srVersion === SR_VERSION ? m.stars : (s.stars || 0);
     return OsuMath.pp(stars, s.counts || [0, 0, 0, 0, 0, 0], s.mods || []);
   },
   /** As in osu!, only plays on ranked (or approved) beatmaps count toward your pp — loved, qualified, pending and
-   *  graveyard ones, and beatmaps that aren't online, don't. The status the set had when the score was set, else
-   *  the one looked up for it now. */
+   *  graveyard ones, and beatmaps that aren't online, don't. Confirmation belongs to the exact difficulty file,
+   *  never just a set ID or an imported score's old set metadata. */
   isRanked(s) {
-    let st = s && s.status;
-    if (!st && typeof BeatmapManager !== 'undefined') { const m = BeatmapManager.mapByHash(s.mapHash), set = m && BeatmapManager.setById.get(m.setId); st = set && set.status; }
+    const m = s && typeof BeatmapManager !== 'undefined' ? BeatmapManager.mapByHash(s.mapHash) : null;
+    let st = m?.rankStatus || s?.rankStatus;
     st = String(st || '').toLowerCase();
     return st === 'ranked' || st === 'approved';
   },

@@ -78,6 +78,7 @@ const Verified = {
       }
       if (daily && d.daily === 'day') Toast.err('Your daily challenge score wasn\'t counted', 'The daily challenge changed to a new day while you played.');
       else if (daily && d.daily === 'map') Toast.err('Your daily challenge score wasn\'t counted', 'That isn\'t today\'s daily challenge beatmap.');
+      if (d.rankStatus && rec) await BeatmapStatus.keepMapStatus(rec, d.rankStatus).catch(e => console.warn('beatmap status not saved locally', e));
       if (background) return d;
       this.last = { d, at: Date.now(), sent };
       Bus.emit('verified', d, sent);

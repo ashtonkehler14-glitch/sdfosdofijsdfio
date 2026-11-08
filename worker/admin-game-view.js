@@ -27,15 +27,26 @@ export class AdminGameView {
     const u = this.p.users.get(id), now = this.p.now();
     const error = msg => [{ to: id, msg: { t: 'adminViewError', msg } }];
     if (!u) return [];
+    if (m.t === 'adminViewAvailability') {
+      u.adminViewReady = m.enabled === true;
+      return [...(!u.adminViewReady ? this.leave(id) : []), this.p.broadcast()];
+    }
     if (m.t === 'adminViewRequest') {
       if (!this.p.isStaff(u.pid)) return error('Only admins can request a game view.');
       const player = this.p.users.get(m.to);
       if (!player?.pid || player.vis === 'offline' || m.to === id || player.pid === u.pid) return error('That player is not available.');
-      if (this.asked.has(id) && now - this.asked.get(id) < 15000) return error('Please wait before requesting another game view.');
+      if (m.direct === true && !player.adminViewReady) return error('That player has not enabled admin viewing from their user menu.');
+      if (this.asked.has(id) && now - this.asked.get(id) < (player.adminViewReady ? 3000 : 15000)) return error('Please wait before starting another game view.');
       if ([...this.sessions.values()].some(s => [s.admin, s.player].includes(id) || [s.admin, s.player].includes(m.to))) return error('A game-view request or share is already open.');
       const session = crypto.randomUUID();
       this.sessions.set(session, { admin: id, player: m.to, accepted: false, expires: now + 90000, count: 0, window: now });
       this.asked.set(id, now);
+      if (player.adminViewReady) {
+        const s = this.sessions.get(session); s.accepted = true; s.expires = now + 30 * 60000;
+        return [{ to: id, msg: { t: 'adminViewPending', session, name: player.name } },
+          { to: id, msg: { t: 'adminViewReady', session, host: false, iceServers: this.iceServers } },
+          { to: m.to, msg: { t: 'adminViewReady', session, host: true, name: u.name, notify: m.notify === true, iceServers: this.iceServers } }];
+      }
       return [{ to: id, msg: { t: 'adminViewPending', session, name: player.name } },
         { to: m.to, msg: { t: 'adminViewRequest', session, name: u.name, role: this.p.roleOf(u.pid)?.name || 'Admin' } }];
     }

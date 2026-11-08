@@ -288,13 +288,32 @@ export async function handleGetBeatmap(url, env, fetchImpl = fetch) {
  *  set they're from): `/api/lookupBeatmap?id=` or `?checksum=`. */
 export async function handleLookupBeatmap(url, env, fetchImpl = fetch) {
   const id = url.searchParams.get('id') || '', sum = (url.searchParams.get('checksum') || '').toLowerCase();
-  const path = /^\d{1,10}$/.test(id) ? `beatmaps/${id}` : /^[a-f0-9]{32}$/.test(sum) ? `beatmaps/lookup?checksum=${sum}` : '';
+  const path = /^[a-f0-9]{32}$/.test(sum) ? `beatmaps/lookup?checksum=${sum}` : /^\d{1,10}$/.test(id) ? `beatmaps/${id}` : '';
   if (!path) return json({ error: 'Give a beatmap id or checksum.' }, 400);
   try {
-    const b = await osuRequest(path, 7 * 86400000, env, fetchImpl);
+    const b = sum ? await lookupExactBeatmap(sum, env, fetchImpl, url.searchParams.get('setId')) : await osuRequest(path, 7 * 86400000, env, fetchImpl);
     const set = b && b.beatmapset;
     return json({ beatmapId: b.id || 0, setId: b.beatmapset_id || (set && set.id) || 0, status: String((set && set.status) || b.status || '') }, 200, { 'Cache-Control': 'public, max-age=86400' });
   } catch (e) { return json({ error: e.message || 'Not found' }, e.status === 404 ? 404 : e.status || 500); }
+}
+
+/** IDs in imported metadata are hints; only an exact file checksum confirms a difficulty is online. */
+export async function lookupExactBeatmap(checksum, env, fetchImpl = fetch, setId = 0) {
+  if (!/^[a-f0-9]{32}$/.test(checksum || '')) throw new OsuApiError(400, 'Invalid beatmap checksum.');
+  try {
+    const b = await osuRequest(`beatmaps/lookup?checksum=${checksum}`, 7 * 86400000, env, fetchImpl);
+    if (!b?.id || b.checksum && String(b.checksum).toLowerCase() !== checksum) throw new OsuApiError(404, 'Beatmap not found.');
+    return b;
+  } catch (e) {
+    if (e.status === 404 || !/^\d{1,10}$/.test(String(setId)) || !(Number(setId) > 0)) throw e;
+    // Use the explorer's fallback catalogue only when it provides exact difficulty checksums.
+    const { data: set } = await listing('getBeatmap', `beatmapsets/${setId}`, `beatmapSetId=${setId}`, SET_TTL, env, fetchImpl);
+    const maps = set.beatmaps || set.ChildrenBeatmaps || [], hashOf = m => String(m.checksum || m.MD5 || m.md5 || '').toLowerCase();
+    const found = maps.find(m => hashOf(m) === checksum);
+    if (!found) { if (maps.some(m => /^[a-f0-9]{32}$/.test(hashOf(m)))) throw new OsuApiError(404, 'Beatmap not found.'); throw e; }
+    const names = { '-2': 'graveyard', '-1': 'wip', 0: 'pending', 1: 'ranked', 2: 'approved', 3: 'qualified', 4: 'loved' }, status = set.status ?? set.ranked ?? set.RankedStatus;
+    return { ...found, id: found.id || found.BeatmapID, checksum, beatmapset_id: Number(set.id || set.SetID || setId), beatmapset: { id: Number(set.id || set.SetID || setId), status: names[status] || String(status || '') } };
+  }
 }
 
 export async function handleDownload(id, fetchImpl = fetch, provider = '') {

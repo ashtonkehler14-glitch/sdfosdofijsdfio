@@ -187,6 +187,7 @@ const Sync = {
     for (const k of this.KEEP) if (s[k] !== undefined) o[k] = s[k];
     // (and the beatmap's osu! ids: a device without the beatmap still shows it's a ranked one on your profile)
     const m = BeatmapManager.mapByHash(s.mapHash), set = m && BeatmapManager.setById.get(m.setId);
+    if (m?.rankStatus || s.rankStatus) o.rankStatus = m?.rankStatus || s.rankStatus;
     if (m && m.onlineId > 0) o.onlineId = m.onlineId; else if (s.onlineId > 0) o.onlineId = s.onlineId;
     if (set && set.onlineId > 0) o.onlineSetId = set.onlineId; else if (s.onlineSetId > 0) o.onlineSetId = s.onlineSetId;
     return o;

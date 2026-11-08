@@ -2330,4 +2330,4 @@ function acceptPlay(osuText, res, { noFail = false } = {}) {
   };
 }
 
-export { verifyPlay, acceptPlay, ModSystem };
+export { verifyPlay, acceptPlay, ModSystem, md5Hex };

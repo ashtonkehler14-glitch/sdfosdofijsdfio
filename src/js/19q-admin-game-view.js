@@ -1,35 +1,63 @@
 /* Admin game view: a player-approved game-tab video, separate from replay-based gameplay spectating.
  * Only video is shared. No keyboard events, DOM, account codes or remote-control channel are transmitted. */
 const AdminGameView = {
-  current: null,
+  current: null, available: null,
   init() {
     this.handle = 'ashtonkmania-' + clientId();
     try { navigator.mediaDevices?.setCaptureHandleConfig?.({ exposeOrigin: true, handle: this.handle, permittedOrigins: [location.origin] }); } catch { /* not supported */ }
-    Bus.on('presence:changed', () => { if (this.current && !Presence.ws) this.stop('The online connection closed.'); });
+    Bus.on('presence:changed', () => { if (!Presence.ws) { this.disable(); this.stop('The online connection closed.'); } });
     Bus.on('presence:admin', () => { if (this.current && !this.current.host && !Presence.isAdmin) this.stop('Admin access ended.'); });
-    window.addEventListener('pagehide', () => this.stop());
+    window.addEventListener('pagehide', () => { this.disable(); this.stop(); });
   },
   send(t, extra = {}) { const s = this.current; if (s?.session) Presence.send({ t, session: s.session, ...extra }); },
   request(u) {
     if (!Staff.on() || !Presence.ws || !u?.id || u.id === Presence.me) return;
     if (this.current) { Toast.err('Game view already open', 'Finish the current request or share first.'); return; }
     if (typeof RTCPeerConnection === 'undefined') { Toast.err('Game view unavailable', 'This browser does not support live game views.'); return; }
+    Dialog.popup(`Admin Spectate · ${u.name || 'Player'}`, 'Send the player a notification when you start viewing? The game-sharing indicator remains visible.',
+      [{ label: 'Notify and spectate', cls: 'ok', onClick: () => this.start(u, true) }, { label: 'Spectate without extra notice', cls: 'ok', onClick: () => this.start(u, false) }, { label: 'Cancel', cls: 'cancel', cancel: true }], { icon: 'film' });
+  },
+  start(u, notify) {
+    if (!Staff.on() || this.current || !Presence.ws) return;
     const s = this.current = { host: false, name: u.name || 'Player', session: null };
     this.viewer(s);
     s.timer = setTimeout(() => { if (this.current === s) this.stop('The request timed out.'); }, 95000);
-    Presence.send({ t: 'adminViewRequest', to: u.id });
+    Presence.send({ t: 'adminViewRequest', to: u.id, direct: true, notify });
+  },
+  enable() {
+    if (this.available) { this.disable(); return; }
+    if (this.current) { Toast.err('Game view already open', 'Close the current view first.'); return; }
+    if (!Presence.ws || Presence.ws.readyState !== 1) { Toast.err('You’re offline', 'Connect to the online service before enabling admin viewing.'); return; }
+    if (!navigator.mediaDevices?.getDisplayMedia || typeof RTCPeerConnection === 'undefined') { Toast.err('Admin viewing unavailable', 'Use desktop Chrome or Edge to share this game tab.'); return; }
+    const s = this.current = { host: true, name: 'admins', standby: true };
+    const { o } = Dialog.popup('Enable admin viewing', 'Share this game tab for this session. Admins can join without another request until you stop sharing or close the tab. Account-code panels remain hidden.',
+      [{ label: 'Enable and share game tab', cls: 'ok', onClick: () => this.share(s) }, { label: 'Cancel', cls: 'cancel', cancel: true }],
+      { icon: 'film', onClose: () => { if (this.current === s && !s.accepting) this.stop(); } });
+    s.dialog = o;
+  },
+  disable() {
+    const s = this.available;
+    if (!s) return;
+    this.available = null;
+    if (this.current === s) this.stop();
+    else { s.observer?.disconnect(); s.stream?.getTracks().forEach(t => t.stop()); s.bar?.remove(); }
+    Presence.send({ t: 'adminViewAvailability', enabled: false });
   },
   viewer(s) {
     s.video = h('video.admin-view-video', { autoplay: true, muted: true, playsinline: true, 'aria-label': 'Live player game view' });
-    s.status = h('span', { role: 'status', 'aria-live': 'polite' }, 'Waiting for the player to share their game tab…');
+    s.status = h('span', { role: 'status', 'aria-live': 'polite' }, 'Connecting to the player’s game tab…');
     const panel = h('div.admin-view-panel.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Admin game view' },
-      overlayHeader('admin game view', { icon: 'film', actions: [h('button.icon-btn', { 'aria-label': 'Close admin game view', onclick: () => this.stop() }, icon('x'))] }),
       h('div.admin-view-heading', h('b', s.name), h('span', 'Live game tab · View only')),
       h('div.admin-view-stage', s.video), h('div.admin-view-footer', s.status, h('button.btn', { onclick: () => this.stop() }, 'Stop watching')));
-    s.overlay = makeOverlay(panel, { cls: 'admin-view-wrap', onClose: () => { if (this.current === s) this.stop(); } });
+    s.overlay = makeOverlay(panel, { cls: 'admin-view-wrap', backdrop: false, onClose: () => { if (this.current === s) this.stop(); } });
+    document.body.append(s.overlay.el);
   },
   on(m) {
     if (m.t === 'adminViewRequest') { this.invited(m); return; }
+    if (m.t === 'adminViewReady' && m.host && !this.current && this.available) {
+      const source = this.available; source.session = m.session; source.name = m.name || 'Admin'; source.pc = null; source.signals = Promise.resolve(); this.current = source;
+      if (m.notify) Toast.show('Admin spectating', `${source.name} is viewing your game.`);
+    }
     const s = this.current;
     if (!s && m.t === 'adminViewPending') { Presence.send({ t: 'adminViewStop', session: m.session }); return; }
     if (!s) return;
@@ -67,7 +95,7 @@ const AdminGameView = {
     let stream;
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: 'browser', cursor: 'always', frameRate: { ideal: 15, max: 20 }, width: { max: 1280 }, height: { max: 720 } },
+        video: { displaySurface: 'browser', cursor: 'always', frameRate: { ideal: 30, max: 60 }, width: { ideal: 1920, max: 2560 }, height: { ideal: 1080, max: 1440 } },
         audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude', monitorTypeSurfaces: 'exclude',
       });
       if (this.current !== s) { stream.getTracks().forEach(t => t.stop()); return; }
@@ -77,15 +105,17 @@ const AdminGameView = {
         stream.getTracks().forEach(t => t.stop()); this.stop('Select this game tab to share it. Other tabs and windows are not shared.'); return;
       }
       s.stream = stream; s.track = track;
-      track.addEventListener('ended', () => { if (this.current === s) this.stop('Screen sharing stopped.'); });
+      try { track.contentHint = 'detail'; } catch { /* optional capture hint */ }
+      track.addEventListener('ended', () => { if (this.available === s) this.disable(); else if (this.current === s) this.stop('Screen sharing stopped.'); });
       track.addEventListener('capturehandlechange', () => {
-        if (track.getCaptureHandle?.()?.handle !== this.handle && this.current === s) this.stop('The shared tab changed.');
+        if (track.getCaptureHandle?.()?.handle !== this.handle) { if (this.available === s) this.disable(); else if (this.current === s) this.stop('The shared tab changed.'); }
       });
       this.sharingBar(s);
       s.observer = new MutationObserver(() => this.protect(s));
       s.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
       this.protect(s);
-      this.send('adminViewAccept');
+      if (s.standby) { this.available = s; this.current = null; this.protect(s); Presence.send({ t: 'adminViewAvailability', enabled: true }); }
+      else this.send('adminViewAccept');
     } catch (e) {
       stream?.getTracks().forEach(t => t.stop());
       if (this.current === s) this.stop(e?.name === 'NotAllowedError' ? 'Game-tab sharing was cancelled.' : 'Game-tab sharing is unavailable in this browser.');
@@ -95,21 +125,21 @@ const AdminGameView = {
     s.label = h('span', `Sharing your game with ${s.name}`);
     s.pause = h('button.btn.sm', { onclick: () => { s.paused = !s.paused; this.protect(s); } }, 'Pause sharing');
     s.bar = h('div.admin-view-sharing', { role: 'status' }, icon('film'), s.label, s.pause,
-      h('button.btn.sm', { onclick: () => this.stop() }, 'Stop sharing'));
+      h('button.btn.sm', { onclick: () => this.available === s ? this.disable() : this.stop() }, 'Stop sharing'));
     document.body.append(s.bar);
   },
   protect(s) {
-    if (this.current !== s || !s.track) return;
+    if (this.current !== s && this.available !== s || !s.track) return;
     const privatePanel = [...document.querySelectorAll('.login-panel, .setup-step-account, input[type=password], [data-private]')].some(el => el.getClientRects().length);
     const paused = !!s.paused || privatePanel;
     s.track.enabled = !paused;
-    const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : `Sharing your game with ${s.name}`;
+    const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : s.standby && !s.session ? 'Admin viewing enabled · This tab only' : `Sharing your game with ${s.name}`;
     const button = s.paused ? 'Resume sharing' : 'Pause sharing';
     if (s.label.textContent !== label) s.label.textContent = label;
     if (s.pause.textContent !== button) s.pause.textContent = button;
     if (paused === s.sentPaused) return;
     s.sentPaused = paused;
-    this.send('adminViewState', { paused });
+    if (this.current === s) this.send('adminViewState', { paused });
   },
   async ready(s, iceServers = []) {
     if (this.current !== s || s.pc) return;
@@ -120,7 +150,10 @@ const AdminGameView = {
     pc.onconnectionstatechange = () => {
       if (this.current !== s) return;
       clearTimeout(s.disconnected);
-      if (pc.connectionState === 'connected') { if (!s.host) this.status(s); }
+      if (pc.connectionState === 'connected') {
+        if (!s.host) this.status(s);
+        else for (const sender of pc.getSenders()) { const p = sender.getParameters(); if (p.encodings?.length) { p.encodings[0].maxBitrate = 8000000; p.degradationPreference = 'maintain-resolution'; sender.setParameters(p).catch(() => {}); } }
+      }
       else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') this.stop('The game-view connection ended.');
       else if (pc.connectionState === 'disconnected') s.disconnected = setTimeout(() => { if (this.current === s) this.stop('The game-view connection was lost.'); }, 10000);
     };
@@ -161,7 +194,9 @@ const AdminGameView = {
     if (notify) this.send('adminViewStop');
     this.current = null;
     for (const t of [s.timer, s.connecting, s.disconnected]) clearTimeout(t);
-    s.observer?.disconnect(); s.pc?.close(); s.stream?.getTracks().forEach(t => t.stop());
+    s.pc?.close();
+    if (this.available === s) { s.pc = null; s.session = null; s.sentPaused = null; this.protect(s); if (reason) Toast.show('Admin view ended', reason); return; }
+    s.observer?.disconnect(); s.stream?.getTracks().forEach(t => t.stop());
     if (s.video) { s.video.pause(); s.video.srcObject = null; }
     s.bar?.remove(); s.dialog?.close(); s.overlay?.close();
     if (reason) Toast.show('Game view ended', reason);

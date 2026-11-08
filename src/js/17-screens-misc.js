@@ -935,6 +935,11 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8f', title: 'Cleaner menus and sharper admin spectating', sections: [
+    { icon: 'brush', title: 'Menus', items: ['Dropdowns now match the game’s menus, with keyboard navigation and touch-friendly choices'] },
+    { icon: 'film', title: 'Admin spectating', items: ['Admin Spectate sits beside Spectate and opens a sharper, full-screen game view', 'Enable admin viewing once from your user menu to let admins join without repeated requests; you can still pause or stop sharing', 'Admins choose whether to send an extra notification before joining'] },
+    { icon: 'trophy', title: 'Scores', items: ['Imported difficulties missing from the beatmap explorer stay playable and save local scores, without entering rankings or earning ranked pp'] },
+  ] },
   { id: '2026.11.8e', title: 'Spectator chat and live game views', sections: [
     { icon: 'film', title: 'Spectating', items: ['Admins can request a live view of your game tab to follow menus and gameplay', 'Sharing starts only after you accept; pause or stop at any time from the sharing bar', 'Retrying a song keeps spectators in gameplay instead of returning them to the song card', 'A lounge-style spectator chat is shared by the player and everyone watching, with a chat button on both sides'] },
   ] },

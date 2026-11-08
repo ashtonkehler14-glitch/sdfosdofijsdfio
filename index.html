@@ -320,6 +320,22 @@ svg.i.lzi { background: currentColor; -webkit-mask: var(--lzi) center / contain 
 .input:focus, .select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .2); }
 .select { appearance: none; padding-right: 34px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 17px) 17px, calc(100% - 12px) 17px; background-size: 5px 5px; background-repeat: no-repeat; }
 .select option { background: var(--panel-solid); }
+.game-select { position: relative; display: inline-flex; align-items: center; vertical-align: middle; }
+.game-select-native { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; opacity: 0 !important; pointer-events: none !important; z-index: -1; }
+.game-select-trigger { all: unset; display: flex; align-items: center; min-width: 0; width: 100%; height: 100%; cursor: pointer; color: inherit; font: inherit; }
+.game-select-value { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.game-select:focus-within { border-color: var(--ohl, var(--accent)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ohl, var(--accent)) 25%, transparent); }
+.game-select[aria-disabled="true"] { opacity: .45; }
+.game-select-trigger:disabled { cursor: default; }
+.game-select-menu { position: fixed; z-index: 12000; overflow: auto; overscroll-behavior: contain; padding: 4px; border-radius: 5px; border: 1px solid var(--line, #ffffff12); border-top: 3px solid var(--ohl, #ff66aa); background: var(--ob5, #242029); color: var(--oc1, #fff); box-shadow: 0 10px 30px #0008; }
+.game-select-option { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 36px; padding: 8px 12px; border-radius: 3px; cursor: pointer; border-left: 2px solid transparent; }
+.game-select-option > span { min-width: 0; overflow-wrap: anywhere; }
+.game-select-option > .i { width: 14px; height: 14px; flex: none; color: var(--ohl, #ff66aa); }
+.game-select-option.active { background: var(--ob3, #39323f); border-left-color: var(--ohl, #ff66aa); }
+.game-select-option[aria-selected="true"] { color: var(--ohl, #ff99c4); }
+.game-select-option[aria-disabled="true"] { opacity: .4; cursor: default; }
+.game-select-empty { padding: 12px; color: var(--oc2); }
+@media (pointer: coarse) { .game-select-option { min-height: 44px; } }
 .toggle { position: relative; width: 44px; height: 24px; flex: none; border-radius: 99px; border: 0; background: rgba(255, 255, 255, .12); transition: background var(--t-fast); padding: 0; }
 .toggle::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #d8cfee; transition: transform var(--t-fast) var(--ease), background var(--t-fast); }
 .toggle.on { background: var(--accent); }
@@ -5508,13 +5524,14 @@ html.lp-open #toasts { right: 380px; }
 .ov[data-profile-style] .ov-icon { background: var(--ob4); color: var(--ohl); }
 
 /* Player-approved admin game-tab viewing. */
-.admin-view-wrap { display: flex; align-items: center; justify-content: center; }
-.admin-view-panel { width: min(1160px, 94%); height: min(850px, 92%); display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: var(--od5); }
-.admin-view-panel > .ov-head { flex: none; }
-.admin-view-heading, .admin-view-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 24px; flex: none; }
+.admin-view-wrap { position: fixed !important; inset: 0 !important; z-index: 5000; }
+.admin-view-panel { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; background: #000; color: #fff; }
+.admin-view-heading, .admin-view-footer { position: absolute; left: 0; right: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 24px; }
+.admin-view-heading { top: 0; background: linear-gradient(#000b, transparent); }
+.admin-view-footer { bottom: 0; background: linear-gradient(transparent, #000b); }
 .admin-view-heading span, .admin-view-footer > span { font-size: .8rem; color: var(--oc2); }
-.admin-view-stage { flex: 1; min-height: 0; margin: 0 24px; background: #08090d; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; display: flex; }
-.admin-view-video { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.admin-view-stage { position: absolute; inset: 0; background: #000; overflow: hidden; display: flex; }
+.admin-view-video { width: 100%; height: 100%; object-fit: contain; pointer-events: none; filter: none; opacity: 1; }
 .spectator-chat.mp-side { position: fixed; z-index: 2100; right: 20px; bottom: 20px; width: min(400px, calc(100vw - 24px)); height: min(360px, calc(100dvh - 80px)); min-height: 0; background: var(--ob5); border: 1px solid var(--line); box-shadow: 0 8px 32px #0008; color: var(--oc1); }
 .spectator-chat-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; background: var(--ob4); }
 .spectator-chat-head h3 { margin: 0 0 4px; font-size: 15px; }
@@ -5530,7 +5547,7 @@ html.lp-open #toasts { right: 380px; }
 .admin-view-sharing > .i { color: #ffcc22; flex: none; }
 .admin-view-sharing > span { min-width: 0; }
 .admin-view-sharing .btn { flex: none; font-size: 12px; padding: 6px 10px; color: #fff; background: #37343e; }
-@media (max-width: 700px) { .admin-view-footer, .admin-view-heading { padding: 10px 14px; flex-wrap: wrap; } .admin-view-stage { margin: 0 14px; } .admin-view-sharing { flex-wrap: wrap; justify-content: center; width: max-content; } }
+@media (max-width: 700px) { .admin-view-footer, .admin-view-heading { padding: 10px 14px; flex-wrap: wrap; } .admin-view-sharing { flex-wrap: wrap; justify-content: center; width: max-content; } }
 </style>
 <style id="css-no-anim" media="not all">
 *, *::before, *::after { transition: none !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
@@ -9832,9 +9849,10 @@ const BeatmapManager = {
    *  `available`: the set's files (lower case). Its `problems` say why it can't be played (then it isn't kept). */
   _mapRecord(d, setId, available, added) {
     const info = d.info || inspectBeatmap(d.bm, available), v = info, stats = info.stats;
-    const m = info.metadata;
+    const m = info.metadata, old = this.maps.get('map-' + d.hash.slice(0, 16));
     return {
       id: 'map-' + d.hash.slice(0, 16), hash: d.hash, setId,
+      ...(old?.hash === d.hash ? { rankStatus: old.rankStatus, rankChecked: old.rankChecked, rankError: old.rankError } : {}),
       onlineId: parseInt(m.BeatmapID || '-1', 10),
       title: m.Title || 'Unknown title', titleUnicode: m.TitleUnicode || m.Title || '',
       artist: m.Artist || 'Unknown artist', artistUnicode: m.ArtistUnicode || m.Artist || '',
@@ -12786,18 +12804,18 @@ const ScoreManager = {
   /** pp of a score (osu!mania formula). Older scores without stored pp are computed on demand. */
   ppOf(s) {
     // (no pp for a play with mods lazer doesn't rank — Difficulty Adjust and the like — as its rankings give none)
-    if (!s || !s.passed || !ModSystem.isRanked(s.mods || [], s.modConfig)) return 0;
+    if (!s || !s.passed || !this.isRanked(s) || !ModSystem.isRanked(s.mods || [], s.modConfig)) return 0;
     if (typeof s.pp === 'number' && s.srVersion === SR_VERSION) return s.pp;
     const m = typeof BeatmapManager !== 'undefined' ? BeatmapManager.mapByHash(s.mapHash) : null;
     const stars = (s.rate || 1) === 1 && m && m.srVersion === SR_VERSION ? m.stars : (s.stars || 0);
     return OsuMath.pp(stars, s.counts || [0, 0, 0, 0, 0, 0], s.mods || []);
   },
   /** As in osu!, only plays on ranked (or approved) beatmaps count toward your pp — loved, qualified, pending and
-   *  graveyard ones, and beatmaps that aren't online, don't. The status the set had when the score was set, else
-   *  the one looked up for it now. */
+   *  graveyard ones, and beatmaps that aren't online, don't. Confirmation belongs to the exact difficulty file,
+   *  never just a set ID or an imported score's old set metadata. */
   isRanked(s) {
-    let st = s && s.status;
-    if (!st && typeof BeatmapManager !== 'undefined') { const m = BeatmapManager.mapByHash(s.mapHash), set = m && BeatmapManager.setById.get(m.setId); st = set && set.status; }
+    const m = s && typeof BeatmapManager !== 'undefined' ? BeatmapManager.mapByHash(s.mapHash) : null;
+    let st = m?.rankStatus || s?.rankStatus;
     st = String(st || '').toLowerCase();
     return st === 'ranked' || st === 'approved';
   },
@@ -14594,6 +14612,7 @@ const Toolbar = {
       { sep: true },
       { label: 'What\'s new', icon: 'sparkle', onClick: () => Screens.go('changelog') },
       { label: 'Settings', icon: 'gear', onClick: () => SettingsPanel.open() },
+      ...(navigator.mediaDevices?.getDisplayMedia ? [{ label: AdminGameView.available ? 'Disable admin viewing' : 'Enable admin viewing', icon: 'film', onClick: () => AdminGameView.enable() }] : []),
       // (playing as yourself on another device: your code)
       ...(!Multiplayer.available() ? [] : [{ sep: true }, Account.signedOut()
         ? { label: 'Play as yourself here (your code)', icon: 'lock', onClick: () => CodePanel.open({ use: true }) }
@@ -15578,6 +15597,139 @@ const ProfileAppearance = {
       return false;
     }, onClose: () => { closed = true; uploadSeq++; bannerObserver?.disconnect(); this.o = null; } });
     paint(); drawSongs(); requestAnimationFrame(() => tiles.find(t => t.dataset.style === draft.style)?.focus());
+  },
+};
+
+/* ===== 12c-dropdowns.js ===== */
+/* Lazer-style dropdowns. Keep the real select as the form/settings source, with an accessible custom menu above it. */
+const GameDropdowns = {
+  current: null, sequence: 0,
+  init() {
+    if (this.observer) return;
+    const scan = node => { if (node.nodeType !== 1) return; if (node.matches('select')) this.upgrade(node); for (const s of node.querySelectorAll('select')) this.upgrade(s); };
+    scan(document.body);
+    this.observer = new MutationObserver(records => {
+      const changed = new Set();
+      for (const r of records) {
+        if (r.type === 'childList') for (const n of r.addedNodes) if (n.nodeType === 1) scan(n);
+        const s = r.target.nodeType === 1 && r.target.closest('select');
+        if (s?._gameDropdown) changed.add(s);
+      }
+      for (const s of changed) this.sync(s);
+      if (this.current && (!this.current.select.isConnected || this.current.select.disabled || !this.current.anchor.getClientRects().length)) this.close(false);
+    });
+    this.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['selected', 'disabled', 'label', 'value', 'class', 'style', 'aria-label', 'title', 'hidden'] });
+    window.addEventListener('keydown', e => this.key(e), true);
+    document.addEventListener('pointerdown', e => { if (this.current && !this.current.menu.contains(e.target) && !this.current.anchor.contains(e.target)) this.close(false); }, true);
+    window.addEventListener('resize', () => this.close(false));
+    document.addEventListener('scroll', e => { if (this.current && !this.current.menu.contains(e.target)) this.close(false); }, true);
+    Bus.on('screen:changed', () => this.close(false));
+  },
+  upgrade(select) {
+    if (select._gameDropdown || select.multiple || select.size > 1 || !select.parentNode) return;
+    const anchor = h('div.game-select'), text = h('span.game-select-value');
+    const button = h('button.game-select-trigger', { type: 'button', role: 'combobox', 'aria-haspopup': 'listbox', 'aria-expanded': 'false', onclick: e => {
+      e.preventDefault(); if (select.disabled) return;
+      if (this.current?.select === select) this.close(); else this.open(select);
+    } }, text);
+    select.before(anchor); anchor.append(select, button);
+    select._gameDropdown = { anchor, button, text, classes: select.className };
+    select.classList.add('game-select-native'); select.tabIndex = -1; select.setAttribute('aria-hidden', 'true');
+    select.addEventListener('change', () => this.sync(select));
+    select.addEventListener('focus', () => button.focus());
+    // Programmatic settings resets and collection changes retain the native select API.
+    for (const prop of ['value', 'selectedIndex']) {
+      const descriptor = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, prop);
+      if (descriptor?.get && descriptor.set) Object.defineProperty(select, prop, { configurable: true,
+        get() { return descriptor.get.call(this); }, set: value => { descriptor.set.call(select, value); this.sync(select); } });
+    }
+    this.sync(select);
+  },
+  sync(select) {
+    const d = select._gameDropdown;
+    if (!d) return;
+    const classes = [...select.classList].filter(c => c !== 'game-select-native').join(' ');
+    if (d.anchor.className !== `game-select ${classes}`) d.anchor.className = `game-select ${classes}`;
+    if (d.anchor.style.cssText !== select.style.cssText) d.anchor.style.cssText = select.style.cssText;
+    const value = select.selectedOptions[0]?.label || 'Select…';
+    if (d.text.textContent !== value) d.text.textContent = value;
+    d.button.disabled = select.disabled;
+    d.anchor.hidden = select.hidden;
+    d.button.setAttribute('aria-label', select.getAttribute('aria-label') || select.title || select.closest('label')?.querySelector('span')?.textContent || 'Choose an option');
+    d.anchor.setAttribute('aria-disabled', String(select.disabled));
+    d.button.title = select.title || value;
+    if (this.current?.select === select) this.render();
+  },
+  open(select) {
+    if (select.disabled) return;
+    this.close(false);
+    const d = select._gameDropdown, menu = h('div.game-select-menu', { role: 'listbox', id: `game-dropdown-${++this.sequence}`, 'aria-label': d.button.getAttribute('aria-label') });
+    const style = getComputedStyle(d.anchor), rect = d.anchor.getBoundingClientRect();
+    for (const name of ['--ob6', '--ob5', '--ob4', '--ob3', '--oc1', '--oc2', '--ohl', '--accent', '--line']) menu.style.setProperty(name, style.getPropertyValue(name));
+    menu.style.fontFamily = style.fontFamily;
+    menu.style.fontSize = `${Math.max(13, Math.min(18, parseFloat(style.fontSize) * rect.height / (d.anchor.offsetHeight || rect.height)))}px`;
+    this.current = { select, anchor: d.anchor, button: d.button, menu, active: select.selectedIndex, typed: '', typedAt: 0 };
+    d.button.setAttribute('aria-expanded', 'true'); d.button.setAttribute('aria-controls', menu.id);
+    document.body.append(menu); this.render();
+    const width = Math.min(innerWidth - 16, Math.max(190, rect.width));
+    const below = innerHeight - rect.bottom - 8, above = rect.top - 8, up = below < 180 && above > below;
+    menu.style.width = `${width}px`; menu.style.maxHeight = `${Math.max(48, Math.min(340, up ? above : below))}px`;
+    menu.style.left = `${clamp(rect.left, 8, Math.max(8, innerWidth - width - 8))}px`;
+    menu.style.top = `${up ? Math.max(8, rect.top - menu.offsetHeight - 4) : rect.bottom + 4}px`;
+    this.highlight(); d.button.focus({ preventScroll: true });
+  },
+  options() { const c = this.current; return c ? [...c.select.options].map((option, index) => ({ option, index, disabled: option.disabled || option.parentElement?.disabled || option.hidden })) : []; },
+  render() {
+    const c = this.current;
+    if (!c) return;
+    clearEl(c.menu);
+    const options = this.options();
+    for (const { option, index, disabled } of options) {
+      if (option.hidden) continue;
+      const row = h('div.game-select-option', { role: 'option', id: `${c.menu.id}-${index}`, 'data-value': option.value,
+        'aria-selected': String(index === c.select.selectedIndex), 'aria-disabled': String(!!disabled),
+        onpointerenter: () => { if (!disabled && this.current === c) { c.active = index; this.highlight(false); } },
+        onpointerdown: e => e.preventDefault(), onclick: e => { e.stopPropagation(); if (!disabled) this.choose(index); } },
+        h('span', option.label), index === c.select.selectedIndex ? icon('check') : null);
+      c.menu.append(row);
+    }
+    if (!options.length) c.menu.append(h('div.game-select-empty', 'No options'));
+    this.highlight(false);
+  },
+  highlight(scroll = true) {
+    const c = this.current;
+    if (!c) return;
+    for (const row of c.menu.children) row.classList.toggle('active', row.id === `${c.menu.id}-${c.active}`);
+    const row = document.getElementById(`${c.menu.id}-${c.active}`);
+    if (row) { c.button.setAttribute('aria-activedescendant', row.id); if (scroll) row.scrollIntoView({ block: 'nearest' }); }
+  },
+  choose(index) {
+    const c = this.current, item = this.options().find(x => x.index === index);
+    if (!c || !item || item.disabled) return;
+    const previous = c.select.value, value = item.option.value;
+    this.close();
+    if (previous !== value) { c.select.value = value; c.select.dispatchEvent(new Event('input', { bubbles: true })); c.select.dispatchEvent(new Event('change', { bubbles: true })); }
+  },
+  close(focus = true) {
+    const c = this.current;
+    if (!c) return;
+    this.current = null; c.menu.remove(); c.button.setAttribute('aria-expanded', 'false'); c.button.removeAttribute('aria-controls'); c.button.removeAttribute('aria-activedescendant');
+    if (focus && c.button.isConnected && !c.button.disabled) c.button.focus({ preventScroll: true });
+  },
+  key(e) {
+    const focused = e.target.closest?.('.game-select')?.querySelector('select');
+    if (!this.current && (!focused || !['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(e.key))) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) { this.close(false); return; }
+    if (!this.current) { e.preventDefault(); e.stopImmediatePropagation(); this.open(focused); return; }
+    const c = this.current, enabled = this.options().filter(x => !x.disabled), at = enabled.findIndex(x => x.index === c.active);
+    if (e.key === 'Tab') { this.close(false); return; }
+    if (e.key === 'Escape') this.close();
+    else if (e.key === 'Enter' || e.key === ' ') this.choose(c.active);
+    else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { const next = enabled[clamp(at + (e.key === 'ArrowDown' ? 1 : -1), 0, enabled.length - 1)]; if (next) { c.active = next.index; this.highlight(); } }
+    else if (e.key === 'Home' || e.key === 'End') { const next = e.key === 'Home' ? enabled[0] : enabled.at(-1); if (next) { c.active = next.index; this.highlight(); } }
+    else if (e.key.length === 1) { const now = performance.now(); c.typed = (now - c.typedAt > 700 ? '' : c.typed) + e.key.toLowerCase(); c.typedAt = now; const next = enabled.find(x => x.option.label.toLowerCase().startsWith(c.typed)); if (next) { c.active = next.index; this.highlight(); } }
+    else { this.close(false); return; }
+    e.preventDefault(); e.stopImmediatePropagation();
   },
 };
 
@@ -19729,6 +19881,7 @@ const SongSelect = {
     };
   },
   schedulePreview(m, ms = 60) {
+    BeatmapStatus.checkMap(m);
     clearTimeout(this._previewT);
     this._previewT = setTimeout(() => this.preview(m), ms);
   },
@@ -22128,6 +22281,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       id: 'sc-' + uid(), mapHash: s.rec.hash, mapId: s.rec.id, setId: s.rec.setId,
       title: s.rec.title, artist: s.rec.artist, version: s.rec.version, creator: s.rec.creator,
       status: (BeatmapManager.setById.get(s.rec.setId) || {}).status || null, // (only plays on ranked beatmaps count toward pp)
+      rankStatus: s.rec.rankStatus || null,
       keys: s.keys, stars, pp,
       mods: s.mods, rate: s.rate, score: summary.score, scoreStd: summary.scoreStd, accuracy: summary.accuracy, maxCombo: summary.maxCombo,
       counts: summary.counts, grade, passed, date: Date.now(),
@@ -23446,6 +23600,7 @@ const ResultsScreen = {
       const el = h('div.res-grank', { hidden: true });
       const ours = sent => !(sent < (s.date || 0) - 3000); // (sent as this play ended, or later)
       const show = (d, sent) => {
+        if (d?.key === s.mapHash && d.rankStatus === 'missing' && ours(sent)) { el.hidden = false; clearEl(el).append(h('span', 'Unranked · Beatmap not found in the explorer. Local score saved.')); return; }
         if (!d || d.key !== s.mapHash || !d.rank || !ours(sent)) return;
         el.hidden = false;
         clearEl(el).append(icon('trophy'), h('span', d.best ? 'Global rank ' : 'Your best is '), h('b', `#${fmtInt(d.rank)}`), h('span.muted', ` of ${fmtInt(d.of)}`));
@@ -24854,6 +25009,11 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8f', title: 'Cleaner menus and sharper admin spectating', sections: [
+    { icon: 'brush', title: 'Menus', items: ['Dropdowns now match the game’s menus, with keyboard navigation and touch-friendly choices'] },
+    { icon: 'film', title: 'Admin spectating', items: ['Admin Spectate sits beside Spectate and opens a sharper, full-screen game view', 'Enable admin viewing once from your user menu to let admins join without repeated requests; you can still pause or stop sharing', 'Admins choose whether to send an extra notification before joining'] },
+    { icon: 'trophy', title: 'Scores', items: ['Imported difficulties missing from the beatmap explorer stay playable and save local scores, without entering rankings or earning ranked pp'] },
+  ] },
   { id: '2026.11.8e', title: 'Spectator chat and live game views', sections: [
     { icon: 'film', title: 'Spectating', items: ['Admins can request a live view of your game tab to follow menus and gameplay', 'Sharing starts only after you accept; pause or stop at any time from the sharing bar', 'Retrying a song keeps spectators in gameplay instead of returning them to the song card', 'A lounge-style spectator chat is shared by the player and everyone watching, with a chat button on both sides'] },
   ] },
@@ -26139,6 +26299,41 @@ const ExplorerScreen = {
  *  found nothing, the next week. */
 const BeatmapStatus = {
   busy: false, DAY: 86400000,
+  mapDue(m, now = Date.now()) { return !m.rankChecked || now - m.rankChecked > (m.rankError ? 60000 : 7 * this.DAY); },
+  async keepMapStatus(m, status) {
+    if (!m || BeatmapManager.maps.get(m.id) !== m) return;
+    const changed = m.rankStatus !== status;
+    m.rankStatus = status; m.rankChecked = Date.now(); m.rankError = false;
+    await DB.put('maps', m);
+    if (changed) {
+      const scores = ScoreManager.forMap(m.hash);
+      for (const s of scores) s.rankStatus = status;
+      if (scores.length) await ScoreManager.putBack(scores);
+      Bus.emit('scores:changed');
+    }
+  },
+  /** Each difficulty is checked independently: sharing a ranked set's ID does not rank edited/custom files. */
+  checkMap(m) {
+    if (!m || !this.mapDue(m) || !navigator.onLine) return Promise.resolve();
+    const pending = this._maps || (this._maps = new Map());
+    if (pending.has(m.hash)) return pending.get(m.hash);
+    const work = (async () => {
+      try {
+        const file = await BeatmapManager.getFile(m.setId, m.osuPath);
+        if (!file) return;
+        const checksum = md5Hex(new Uint8Array(await file.arrayBuffer())), set = BeatmapManager.setById.get(m.setId);
+        const res = await fetch(Host.api(`api/lookupBeatmap?checksum=${checksum}${set?.onlineId > 0 ? `&setId=${set.onlineId}` : ''}`), { signal: timeoutSignal(20000) });
+        if (res.status === 404) { await this.keepMapStatus(m, 'missing'); return; }
+        if (!res.ok) throw Object.assign(new Error('Beatmap status unavailable'), { status: res.status });
+        const found = await res.json();
+        if (!(found.beatmapId > 0)) { await this.keepMapStatus(m, 'missing'); return; }
+        await this.keepMapStatus(m, String(found.status || 'unknown').toLowerCase());
+      } catch (e) {
+        if (BeatmapManager.maps.get(m.id) === m) { m.rankChecked = Date.now(); m.rankError = true; await DB.put('maps', m).catch(() => {}); }
+      } finally { pending.delete(m.hash); }
+    })();
+    pending.set(m.hash, work); return work;
+  },
   /** Statuses that stay as they are; any other (qualified, pending, WIP, the graveyard) can still become ranked. */
   FINAL: new Set(['ranked', 'approved', 'loved']),
   due(s, now = Date.now()) {
@@ -26190,6 +26385,10 @@ const BeatmapStatus = {
         await DB.put('sets', { ...set, maps: undefined }).catch(() => {});
         await sleep(700);
       }
+      // Prioritise played and selected difficulties, then check the rest without interrupting gameplay.
+      const maps = [...BeatmapManager.maps.values()].filter(m => this.mapDue(m)).sort((a, b) => (b.id === SongSelect.selectedId) - (a.id === SongSelect.selectedId) || ScoreManager.playCount(b.hash) - ScoreManager.playCount(a.hash)).slice(0, 200);
+      for (const m of maps) { while (Screens.currentName === 'gameplay') await sleep(5000); await this.checkMap(m); await sleep(700); }
+      if ([...BeatmapManager.maps.values()].some(m => !m.rankChecked)) setTimeout(() => this.sync(), 5000);
     } finally { this.busy = false; }
     // (pp follows: only plays on ranked beatmaps count, and the profile and rankings are worked out from them)
     if (changed) { Bus.emit('library:changed'); if (typeof Rankings !== 'undefined') Rankings.report(); }
@@ -28640,7 +28839,7 @@ const Presence = {
   },
   /** Something that keeps you online while nobody's at the keyboard: a room, spectating or being watched, a song. */
   busy() {
-    return Multiplayer.inRoom() || (typeof AdminGameView !== 'undefined' && !!AdminGameView.current) || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers)) ||
+    return Multiplayer.inRoom() || (typeof AdminGameView !== 'undefined' && !!(AdminGameView.current || AdminGameView.available)) || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers)) ||
       (Screens.currentName === 'gameplay' && typeof GameplayScreen !== 'undefined' && GameplayScreen.s && GameplayScreen.s.running);
   },
   goAway() {
@@ -29126,6 +29325,10 @@ const MultiplayerScreen = {
           const pp = Presence.players.find(x => x.pid === p.pid);
           if (pp) Spectate.watch(pp); else Toast.err('Can\'t spectate right now', `${p.name} isn't on the online service.`);
         } }, icon('film'), 'Spectate') : null,
+        !isMe && p.playing && !p.fin && Presence.isAdmin && p.pid ? h('button.btn.sm.mp-spec', { onclick: () => {
+          const online = Presence.players.find(x => x.pid === p.pid);
+          if (online) AdminGameView.request(online); else Toast.err('Player is offline');
+        } }, icon('film'), 'Admin Spectate') : null,
         state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : state === 'reconnecting' ? 'sync' : state === 'quit' ? 'x' : 'check')), state) : null,
         // (lazer: the host's buttons at the panel's end — hand over the host, and kick (between matches))
         host && !isMe ? h('button.mp-pact', { title: `Give host to ${p.name}`, 'aria-label': `Give host to ${p.name}`, onclick: () => { UISounds.click(); Multiplayer.send({ t: 'giveHost', id: p.id }); } }, icon('crown')) : null,
@@ -31303,6 +31506,7 @@ const UserPanels = {
     const me = u.id && u.id === Presence.me, items = [{ label: 'View profile', icon: 'user', onClick: () => this.profile(u) }];
     if (me) return items;
     if (this.canSpectate(u)) items.push({ label: 'Spectate', icon: 'film', onClick: () => Spectate.watch(u) });
+    if (this.canSpectate(u) && Presence.isAdmin) items.push({ label: 'Admin Spectate', icon: 'film', onClick: () => AdminGameView.request(u) });
     if (u.online && u.pid && Friends.has(u.pid)) items.push({ label: 'Send message', icon: 'chat', onClick: () => Chat.message(u) });
     if (this.canInvite(u)) items.push({ label: 'Invite to room', icon: 'multi', onClick: () => { Presence.invite(u.id); Toast.ok('Invited', u.name); } });
     if (Friends.has(u.pid)) items.push({ sep: true }, { label: 'Remove friend', icon: 'x', danger: true, onClick: () => Friends.toggle(u) });
@@ -31359,6 +31563,7 @@ const UserPanels = {
     const friend = Friends.has(u.pid), me = u.id && u.id === Presence.me;
     const acts = [];
     if (this.canSpectate(u)) acts.push({ label: 'Spectate', primary: true, onClick: () => Spectate.watch(u) });
+    if (this.canSpectate(u) && Presence.isAdmin) acts.push({ label: 'Admin Spectate', onClick: () => AdminGameView.request(u) });
     if (this.canInvite(u)) acts.push({ label: 'Invite to room', primary: !acts.length, onClick: () => { Presence.invite(u.id); Toast.ok('Invited', u.name); } });
     if (!me && !friend && u.online && u.id) acts.push(Friends.incoming(u.pid) ? { label: 'Accept friend request', primary: true, onClick: () => Friends.answer(u.pid, true) }
       : Friends.requested(u.pid) ? { label: 'Friend request sent', close: false } : { label: 'Add friend', primary: !acts.length, onClick: () => Friends.toggle(u) });
@@ -32331,6 +32536,7 @@ const Verified = {
       }
       if (daily && d.daily === 'day') Toast.err('Your daily challenge score wasn\'t counted', 'The daily challenge changed to a new day while you played.');
       else if (daily && d.daily === 'map') Toast.err('Your daily challenge score wasn\'t counted', 'That isn\'t today\'s daily challenge beatmap.');
+      if (d.rankStatus && rec) await BeatmapStatus.keepMapStatus(rec, d.rankStatus).catch(e => console.warn('beatmap status not saved locally', e));
       if (background) return d;
       this.last = { d, at: Date.now(), sent };
       Bus.emit('verified', d, sent);
@@ -33599,6 +33805,7 @@ const Sync = {
     for (const k of this.KEEP) if (s[k] !== undefined) o[k] = s[k];
     // (and the beatmap's osu! ids: a device without the beatmap still shows it's a ranked one on your profile)
     const m = BeatmapManager.mapByHash(s.mapHash), set = m && BeatmapManager.setById.get(m.setId);
+    if (m?.rankStatus || s.rankStatus) o.rankStatus = m?.rankStatus || s.rankStatus;
     if (m && m.onlineId > 0) o.onlineId = m.onlineId; else if (s.onlineId > 0) o.onlineId = s.onlineId;
     if (set && set.onlineId > 0) o.onlineSetId = set.onlineId; else if (s.onlineSetId > 0) o.onlineSetId = s.onlineSetId;
     return o;
@@ -34032,7 +34239,6 @@ const Staff = {
     if (role && !(Presence.role && Presence.role.owner)) return [];
     const name = u.name || 'them';
     return [{ sep: true }, { header: 'Admin' }, ...[
-      ...(u.online && u.id ? [{ label: 'Request live game view…', icon: 'film', onClick: () => AdminGameView.request(u) }] : []),
       { label: 'Send a message…', icon: 'envelope', onClick: () => this.warn(u) },
       { label: 'Mute for 10 minutes', icon: 'mute', onClick: () => this.run('mute', { pid: u.pid, minutes: 10, reason: '' }, `${name} muted for 10 minutes`) },
       { label: 'Mute for a day', icon: 'mute', onClick: () => this.run('mute', { pid: u.pid, minutes: 1440, reason: '' }, `${name} muted for a day`) },
@@ -34107,35 +34313,63 @@ const Staff = {
 /* Admin game view: a player-approved game-tab video, separate from replay-based gameplay spectating.
  * Only video is shared. No keyboard events, DOM, account codes or remote-control channel are transmitted. */
 const AdminGameView = {
-  current: null,
+  current: null, available: null,
   init() {
     this.handle = 'ashtonkmania-' + clientId();
     try { navigator.mediaDevices?.setCaptureHandleConfig?.({ exposeOrigin: true, handle: this.handle, permittedOrigins: [location.origin] }); } catch { /* not supported */ }
-    Bus.on('presence:changed', () => { if (this.current && !Presence.ws) this.stop('The online connection closed.'); });
+    Bus.on('presence:changed', () => { if (!Presence.ws) { this.disable(); this.stop('The online connection closed.'); } });
     Bus.on('presence:admin', () => { if (this.current && !this.current.host && !Presence.isAdmin) this.stop('Admin access ended.'); });
-    window.addEventListener('pagehide', () => this.stop());
+    window.addEventListener('pagehide', () => { this.disable(); this.stop(); });
   },
   send(t, extra = {}) { const s = this.current; if (s?.session) Presence.send({ t, session: s.session, ...extra }); },
   request(u) {
     if (!Staff.on() || !Presence.ws || !u?.id || u.id === Presence.me) return;
     if (this.current) { Toast.err('Game view already open', 'Finish the current request or share first.'); return; }
     if (typeof RTCPeerConnection === 'undefined') { Toast.err('Game view unavailable', 'This browser does not support live game views.'); return; }
+    Dialog.popup(`Admin Spectate · ${u.name || 'Player'}`, 'Send the player a notification when you start viewing? The game-sharing indicator remains visible.',
+      [{ label: 'Notify and spectate', cls: 'ok', onClick: () => this.start(u, true) }, { label: 'Spectate without extra notice', cls: 'ok', onClick: () => this.start(u, false) }, { label: 'Cancel', cls: 'cancel', cancel: true }], { icon: 'film' });
+  },
+  start(u, notify) {
+    if (!Staff.on() || this.current || !Presence.ws) return;
     const s = this.current = { host: false, name: u.name || 'Player', session: null };
     this.viewer(s);
     s.timer = setTimeout(() => { if (this.current === s) this.stop('The request timed out.'); }, 95000);
-    Presence.send({ t: 'adminViewRequest', to: u.id });
+    Presence.send({ t: 'adminViewRequest', to: u.id, direct: true, notify });
+  },
+  enable() {
+    if (this.available) { this.disable(); return; }
+    if (this.current) { Toast.err('Game view already open', 'Close the current view first.'); return; }
+    if (!Presence.ws || Presence.ws.readyState !== 1) { Toast.err('You’re offline', 'Connect to the online service before enabling admin viewing.'); return; }
+    if (!navigator.mediaDevices?.getDisplayMedia || typeof RTCPeerConnection === 'undefined') { Toast.err('Admin viewing unavailable', 'Use desktop Chrome or Edge to share this game tab.'); return; }
+    const s = this.current = { host: true, name: 'admins', standby: true };
+    const { o } = Dialog.popup('Enable admin viewing', 'Share this game tab for this session. Admins can join without another request until you stop sharing or close the tab. Account-code panels remain hidden.',
+      [{ label: 'Enable and share game tab', cls: 'ok', onClick: () => this.share(s) }, { label: 'Cancel', cls: 'cancel', cancel: true }],
+      { icon: 'film', onClose: () => { if (this.current === s && !s.accepting) this.stop(); } });
+    s.dialog = o;
+  },
+  disable() {
+    const s = this.available;
+    if (!s) return;
+    this.available = null;
+    if (this.current === s) this.stop();
+    else { s.observer?.disconnect(); s.stream?.getTracks().forEach(t => t.stop()); s.bar?.remove(); }
+    Presence.send({ t: 'adminViewAvailability', enabled: false });
   },
   viewer(s) {
     s.video = h('video.admin-view-video', { autoplay: true, muted: true, playsinline: true, 'aria-label': 'Live player game view' });
-    s.status = h('span', { role: 'status', 'aria-live': 'polite' }, 'Waiting for the player to share their game tab…');
+    s.status = h('span', { role: 'status', 'aria-live': 'polite' }, 'Connecting to the player’s game tab…');
     const panel = h('div.admin-view-panel.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Admin game view' },
-      overlayHeader('admin game view', { icon: 'film', actions: [h('button.icon-btn', { 'aria-label': 'Close admin game view', onclick: () => this.stop() }, icon('x'))] }),
       h('div.admin-view-heading', h('b', s.name), h('span', 'Live game tab · View only')),
       h('div.admin-view-stage', s.video), h('div.admin-view-footer', s.status, h('button.btn', { onclick: () => this.stop() }, 'Stop watching')));
-    s.overlay = makeOverlay(panel, { cls: 'admin-view-wrap', onClose: () => { if (this.current === s) this.stop(); } });
+    s.overlay = makeOverlay(panel, { cls: 'admin-view-wrap', backdrop: false, onClose: () => { if (this.current === s) this.stop(); } });
+    document.body.append(s.overlay.el);
   },
   on(m) {
     if (m.t === 'adminViewRequest') { this.invited(m); return; }
+    if (m.t === 'adminViewReady' && m.host && !this.current && this.available) {
+      const source = this.available; source.session = m.session; source.name = m.name || 'Admin'; source.pc = null; source.signals = Promise.resolve(); this.current = source;
+      if (m.notify) Toast.show('Admin spectating', `${source.name} is viewing your game.`);
+    }
     const s = this.current;
     if (!s && m.t === 'adminViewPending') { Presence.send({ t: 'adminViewStop', session: m.session }); return; }
     if (!s) return;
@@ -34173,7 +34407,7 @@ const AdminGameView = {
     let stream;
     try {
       stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: 'browser', cursor: 'always', frameRate: { ideal: 15, max: 20 }, width: { max: 1280 }, height: { max: 720 } },
+        video: { displaySurface: 'browser', cursor: 'always', frameRate: { ideal: 30, max: 60 }, width: { ideal: 1920, max: 2560 }, height: { ideal: 1080, max: 1440 } },
         audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude', monitorTypeSurfaces: 'exclude',
       });
       if (this.current !== s) { stream.getTracks().forEach(t => t.stop()); return; }
@@ -34183,15 +34417,17 @@ const AdminGameView = {
         stream.getTracks().forEach(t => t.stop()); this.stop('Select this game tab to share it. Other tabs and windows are not shared.'); return;
       }
       s.stream = stream; s.track = track;
-      track.addEventListener('ended', () => { if (this.current === s) this.stop('Screen sharing stopped.'); });
+      try { track.contentHint = 'detail'; } catch { /* optional capture hint */ }
+      track.addEventListener('ended', () => { if (this.available === s) this.disable(); else if (this.current === s) this.stop('Screen sharing stopped.'); });
       track.addEventListener('capturehandlechange', () => {
-        if (track.getCaptureHandle?.()?.handle !== this.handle && this.current === s) this.stop('The shared tab changed.');
+        if (track.getCaptureHandle?.()?.handle !== this.handle) { if (this.available === s) this.disable(); else if (this.current === s) this.stop('The shared tab changed.'); }
       });
       this.sharingBar(s);
       s.observer = new MutationObserver(() => this.protect(s));
       s.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
       this.protect(s);
-      this.send('adminViewAccept');
+      if (s.standby) { this.available = s; this.current = null; this.protect(s); Presence.send({ t: 'adminViewAvailability', enabled: true }); }
+      else this.send('adminViewAccept');
     } catch (e) {
       stream?.getTracks().forEach(t => t.stop());
       if (this.current === s) this.stop(e?.name === 'NotAllowedError' ? 'Game-tab sharing was cancelled.' : 'Game-tab sharing is unavailable in this browser.');
@@ -34201,21 +34437,21 @@ const AdminGameView = {
     s.label = h('span', `Sharing your game with ${s.name}`);
     s.pause = h('button.btn.sm', { onclick: () => { s.paused = !s.paused; this.protect(s); } }, 'Pause sharing');
     s.bar = h('div.admin-view-sharing', { role: 'status' }, icon('film'), s.label, s.pause,
-      h('button.btn.sm', { onclick: () => this.stop() }, 'Stop sharing'));
+      h('button.btn.sm', { onclick: () => this.available === s ? this.disable() : this.stop() }, 'Stop sharing'));
     document.body.append(s.bar);
   },
   protect(s) {
-    if (this.current !== s || !s.track) return;
+    if (this.current !== s && this.available !== s || !s.track) return;
     const privatePanel = [...document.querySelectorAll('.login-panel, .setup-step-account, input[type=password], [data-private]')].some(el => el.getClientRects().length);
     const paused = !!s.paused || privatePanel;
     s.track.enabled = !paused;
-    const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : `Sharing your game with ${s.name}`;
+    const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : s.standby && !s.session ? 'Admin viewing enabled · This tab only' : `Sharing your game with ${s.name}`;
     const button = s.paused ? 'Resume sharing' : 'Pause sharing';
     if (s.label.textContent !== label) s.label.textContent = label;
     if (s.pause.textContent !== button) s.pause.textContent = button;
     if (paused === s.sentPaused) return;
     s.sentPaused = paused;
-    this.send('adminViewState', { paused });
+    if (this.current === s) this.send('adminViewState', { paused });
   },
   async ready(s, iceServers = []) {
     if (this.current !== s || s.pc) return;
@@ -34226,7 +34462,10 @@ const AdminGameView = {
     pc.onconnectionstatechange = () => {
       if (this.current !== s) return;
       clearTimeout(s.disconnected);
-      if (pc.connectionState === 'connected') { if (!s.host) this.status(s); }
+      if (pc.connectionState === 'connected') {
+        if (!s.host) this.status(s);
+        else for (const sender of pc.getSenders()) { const p = sender.getParameters(); if (p.encodings?.length) { p.encodings[0].maxBitrate = 8000000; p.degradationPreference = 'maintain-resolution'; sender.setParameters(p).catch(() => {}); } }
+      }
       else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') this.stop('The game-view connection ended.');
       else if (pc.connectionState === 'disconnected') s.disconnected = setTimeout(() => { if (this.current === s) this.stop('The game-view connection was lost.'); }, 10000);
     };
@@ -34267,7 +34506,9 @@ const AdminGameView = {
     if (notify) this.send('adminViewStop');
     this.current = null;
     for (const t of [s.timer, s.connecting, s.disconnected]) clearTimeout(t);
-    s.observer?.disconnect(); s.pc?.close(); s.stream?.getTracks().forEach(t => t.stop());
+    s.pc?.close();
+    if (this.available === s) { s.pc = null; s.session = null; s.sentPaused = null; this.protect(s); if (reason) Toast.show('Admin view ended', reason); return; }
+    s.observer?.disconnect(); s.stream?.getTracks().forEach(t => t.stop());
     if (s.video) { s.video.pause(); s.video.srcObject = null; }
     s.bar?.remove(); s.dialog?.close(); s.overlay?.close();
     if (reason) Toast.show('Game view ended', reason);
@@ -34367,7 +34608,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '898748b99d73';
+const APP_BUILD = 'cc299243afe0';
 
 const App = {
   lastReport: null,
@@ -34400,6 +34641,7 @@ const App = {
     AudioManager.init();
     Zoom.init();
     Toolbar.build();
+    GameDropdowns.init();
     AdminGameView.init();
     SpectatorChat.init();
     Tooltip.init();

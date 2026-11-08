@@ -439,9 +439,10 @@ const BeatmapManager = {
    *  `available`: the set's files (lower case). Its `problems` say why it can't be played (then it isn't kept). */
   _mapRecord(d, setId, available, added) {
     const info = d.info || inspectBeatmap(d.bm, available), v = info, stats = info.stats;
-    const m = info.metadata;
+    const m = info.metadata, old = this.maps.get('map-' + d.hash.slice(0, 16));
     return {
       id: 'map-' + d.hash.slice(0, 16), hash: d.hash, setId,
+      ...(old?.hash === d.hash ? { rankStatus: old.rankStatus, rankChecked: old.rankChecked, rankError: old.rankError } : {}),
       onlineId: parseInt(m.BeatmapID || '-1', 10),
       title: m.Title || 'Unknown title', titleUnicode: m.TitleUnicode || m.Title || '',
       artist: m.Artist || 'Unknown artist', artistUnicode: m.ArtistUnicode || m.Artist || '',

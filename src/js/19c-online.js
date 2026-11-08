@@ -629,6 +629,7 @@ const UserPanels = {
     const me = u.id && u.id === Presence.me, items = [{ label: 'View profile', icon: 'user', onClick: () => this.profile(u) }];
     if (me) return items;
     if (this.canSpectate(u)) items.push({ label: 'Spectate', icon: 'film', onClick: () => Spectate.watch(u) });
+    if (this.canSpectate(u) && Presence.isAdmin) items.push({ label: 'Admin Spectate', icon: 'film', onClick: () => AdminGameView.request(u) });
     if (u.online && u.pid && Friends.has(u.pid)) items.push({ label: 'Send message', icon: 'chat', onClick: () => Chat.message(u) });
     if (this.canInvite(u)) items.push({ label: 'Invite to room', icon: 'multi', onClick: () => { Presence.invite(u.id); Toast.ok('Invited', u.name); } });
     if (Friends.has(u.pid)) items.push({ sep: true }, { label: 'Remove friend', icon: 'x', danger: true, onClick: () => Friends.toggle(u) });
@@ -685,6 +686,7 @@ const UserPanels = {
     const friend = Friends.has(u.pid), me = u.id && u.id === Presence.me;
     const acts = [];
     if (this.canSpectate(u)) acts.push({ label: 'Spectate', primary: true, onClick: () => Spectate.watch(u) });
+    if (this.canSpectate(u) && Presence.isAdmin) acts.push({ label: 'Admin Spectate', onClick: () => AdminGameView.request(u) });
     if (this.canInvite(u)) acts.push({ label: 'Invite to room', primary: !acts.length, onClick: () => { Presence.invite(u.id); Toast.ok('Invited', u.name); } });
     if (!me && !friend && u.online && u.id) acts.push(Friends.incoming(u.pid) ? { label: 'Accept friend request', primary: true, onClick: () => Friends.answer(u.pid, true) }
       : Friends.requested(u.pid) ? { label: 'Friend request sent', close: false } : { label: 'Add friend', primary: !acts.length, onClick: () => Friends.toggle(u) });

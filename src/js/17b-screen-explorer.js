@@ -1018,6 +1018,41 @@ const ExplorerScreen = {
  *  found nothing, the next week. */
 const BeatmapStatus = {
   busy: false, DAY: 86400000,
+  mapDue(m, now = Date.now()) { return !m.rankChecked || now - m.rankChecked > (m.rankError ? 60000 : 7 * this.DAY); },
+  async keepMapStatus(m, status) {
+    if (!m || BeatmapManager.maps.get(m.id) !== m) return;
+    const changed = m.rankStatus !== status;
+    m.rankStatus = status; m.rankChecked = Date.now(); m.rankError = false;
+    await DB.put('maps', m);
+    if (changed) {
+      const scores = ScoreManager.forMap(m.hash);
+      for (const s of scores) s.rankStatus = status;
+      if (scores.length) await ScoreManager.putBack(scores);
+      Bus.emit('scores:changed');
+    }
+  },
+  /** Each difficulty is checked independently: sharing a ranked set's ID does not rank edited/custom files. */
+  checkMap(m) {
+    if (!m || !this.mapDue(m) || !navigator.onLine) return Promise.resolve();
+    const pending = this._maps || (this._maps = new Map());
+    if (pending.has(m.hash)) return pending.get(m.hash);
+    const work = (async () => {
+      try {
+        const file = await BeatmapManager.getFile(m.setId, m.osuPath);
+        if (!file) return;
+        const checksum = md5Hex(new Uint8Array(await file.arrayBuffer())), set = BeatmapManager.setById.get(m.setId);
+        const res = await fetch(Host.api(`api/lookupBeatmap?checksum=${checksum}${set?.onlineId > 0 ? `&setId=${set.onlineId}` : ''}`), { signal: timeoutSignal(20000) });
+        if (res.status === 404) { await this.keepMapStatus(m, 'missing'); return; }
+        if (!res.ok) throw Object.assign(new Error('Beatmap status unavailable'), { status: res.status });
+        const found = await res.json();
+        if (!(found.beatmapId > 0)) { await this.keepMapStatus(m, 'missing'); return; }
+        await this.keepMapStatus(m, String(found.status || 'unknown').toLowerCase());
+      } catch (e) {
+        if (BeatmapManager.maps.get(m.id) === m) { m.rankChecked = Date.now(); m.rankError = true; await DB.put('maps', m).catch(() => {}); }
+      } finally { pending.delete(m.hash); }
+    })();
+    pending.set(m.hash, work); return work;
+  },
   /** Statuses that stay as they are; any other (qualified, pending, WIP, the graveyard) can still become ranked. */
   FINAL: new Set(['ranked', 'approved', 'loved']),
   due(s, now = Date.now()) {
@@ -1069,6 +1104,10 @@ const BeatmapStatus = {
         await DB.put('sets', { ...set, maps: undefined }).catch(() => {});
         await sleep(700);
       }
+      // Prioritise played and selected difficulties, then check the rest without interrupting gameplay.
+      const maps = [...BeatmapManager.maps.values()].filter(m => this.mapDue(m)).sort((a, b) => (b.id === SongSelect.selectedId) - (a.id === SongSelect.selectedId) || ScoreManager.playCount(b.hash) - ScoreManager.playCount(a.hash)).slice(0, 200);
+      for (const m of maps) { while (Screens.currentName === 'gameplay') await sleep(5000); await this.checkMap(m); await sleep(700); }
+      if ([...BeatmapManager.maps.values()].some(m => !m.rankChecked)) setTimeout(() => this.sync(), 5000);
     } finally { this.busy = false; }
     // (pp follows: only plays on ranked beatmaps count, and the profile and rankings are worked out from them)
     if (changed) { Bus.emit('library:changed'); if (typeof Rankings !== 'undefined') Rankings.report(); }

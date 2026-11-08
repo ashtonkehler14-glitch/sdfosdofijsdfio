@@ -37,6 +37,7 @@ const App = {
     AudioManager.init();
     Zoom.init();
     Toolbar.build();
+    GameDropdowns.init();
     AdminGameView.init();
     SpectatorChat.init();
     Tooltip.init();

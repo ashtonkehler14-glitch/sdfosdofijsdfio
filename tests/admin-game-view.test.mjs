@@ -40,6 +40,34 @@ test('no signals before player acceptance; signalling stays inside the accepted 
   assert.equal(p.message('p', { t: 'adminViewState', session, paused: true })[0].msg.paused, true);
 });
 
+test('direct admin viewing requires prior player opt-in and preserves the notification choice', () => {
+  const { p, tick } = setup();
+  assert.equal(p.message('a', { t: 'adminViewRequest', to: 'p', direct: true })[0].msg.t, 'adminViewError');
+  assert.equal(p.adminView.sessions.size, 0);
+  p.message('p', { t: 'adminViewAvailability', enabled: true });
+  assert.equal(p.list().find(u => u.id === 'p').adminViewReady, true);
+  for (const notify of [false, true]) {
+    const out = p.message('a', { t: 'adminViewRequest', to: 'p', direct: true, notify });
+    assert.equal(out.some(x => x.msg.t === 'adminViewRequest'), false, 'no repeated player request');
+    const ready = out.find(x => x.to === 'p' && x.msg.t === 'adminViewReady');
+    assert.equal(ready.msg.notify, notify);
+    p.message('p', { t: 'adminViewAvailability', enabled: false });
+    assert.equal(p.adminView.sessions.size, 0);
+    tick(15001); p.message('p', { t: 'adminViewAvailability', enabled: true });
+  }
+});
+
+test('ending an admin view keeps prior opt-in until the player explicitly stops sharing', () => {
+  const { AdminGameView: A, __ctx } = load(['19q-admin-game-view.js']);
+  let stopped = 0, closed = 0;
+  __ctx.document = { querySelectorAll: () => [] }; __ctx.Presence = { send() {} };
+  const s = { host: true, standby: true, session: 's', track: { enabled: true }, label: {}, pause: {}, pc: { close: () => closed++ },
+    stream: { getTracks: () => [{ stop: () => stopped++ }] }, observer: { disconnect() {} }, bar: { remove() {} } };
+  A.current = A.available = s; A.stop();
+  assert.equal(A.current, null); assert.equal(A.available, s); assert.equal(stopped, 0); assert.equal(closed, 1);
+  A.disable(); assert.equal(A.available, null); assert.equal(stopped, 1);
+});
+
 test('relay configuration is sent only to the accepted pair, and malformed entries are ignored', () => {
   const { p, request } = setup();
   p.adminView.configure(JSON.stringify([{ urls: 'turns:relay.test:5349?transport=tcp', username: 'u', credential: 'test' }, { urls: 'https://not-an-ice-server.test' }]));
