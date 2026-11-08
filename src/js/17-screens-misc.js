@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8d', title: 'Your profile across devices', sections: [
+    { icon: 'brush', title: 'Profiles', items: ['Profiles and profile customization now follow the game’s landscape menus on mobile', 'Saved profile changes start syncing to your account immediately for your other devices'] },
+  ] },
   { id: '2026.11.8c', title: 'Cleaner profile customization', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Banner proportions now follow lazer’s expanded profile cover, with matching crops in the editor', 'A simpler profile editor with compact themes, a clear banner selector and fewer repeated controls'] },
   ] },

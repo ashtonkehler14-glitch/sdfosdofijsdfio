@@ -52,10 +52,11 @@ const Sync = {
     Bus.on('settings:changed', k => { if (k !== '*' && this.local(k)) return; this.touch(k === '*' ? 'full' : k); this.later(); });
     for (const [ev, part] of [['skin:changed', 'skin'], ['collections:changed', 'cols'], ['favorites:changed', 'favs'], ['mapoffset:changed', 'offsets'], ['library:changed', 'sets']])
       Bus.on(ev, () => { this.touch(part); this.later(); });
-    // (your name and picture: only when one of them changed — the profile is saved for other things too)
+    // Profile edits go up immediately, including the complete appearance and uploaded banner.
+    // Score/stat saves leave these unchanged and do not upload the profile again.
     const prof = () => { const p = ProfileManager.profile || {}; return `${p.name}|${p.avatar}|${p.avatarSig || ''}|${JSON.stringify(p.appearance || {})}`; };
     this._prof = prof();
-    Bus.on('profile:changed', () => { const s = prof(); if (s === this._prof) return; this._prof = s; this.touch('profile'); this.later(2000); });
+    Bus.on('profile:changed', () => { const s = prof(); if (s === this._prof) return; this._prof = s; this.touch('profile'); this.later(0); });
     Bus.on('account:changed', () => { this.tidy(); this.later(); });
     Bus.on('scores:changed', () => this.later());
     // (back to the game after a while — a phone put down, another tab: what your other devices played since)

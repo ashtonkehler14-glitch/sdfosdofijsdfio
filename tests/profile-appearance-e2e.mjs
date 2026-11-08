@@ -42,6 +42,10 @@ try {
   async function device(name, mobile = false) {
     const context = await browser.newContext({ viewport: mobile ? { width: 844, height: 390 } : { width: 1440, height: 960 }, isMobile: mobile, hasTouch: mobile });
     await context.addInitScript(() => localStorage.setItem('am.noInstallPrompt', '1'));
+    if (mobile) await context.addInitScript(() => {
+      window.profileOrientationLocks = [];
+      Object.defineProperty(screen.orientation, 'lock', { configurable: true, value: async kind => { window.profileOrientationLocks.push(kind); throw new DOMException('Unsupported in this browser', 'NotSupportedError'); } });
+    });
     const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message));
     await page.goto(url); await page.waitForFunction(() => document.querySelector('#loading-screen.done'));
     if (await page.$('.onboarding')) {
@@ -142,7 +146,10 @@ try {
   if (process.env.SHOT_DIR) await bob.screenshot({ path: join(process.env.SHOT_DIR, 'profile-page-desktop.png') });
 
   // Sign in on a third device: the real vault/sync flow restores the complete appearance.
-  await alice.evaluate(async () => { await AshtonkMania.Sync.push(); });
+  await alice.waitForFunction(async () => {
+    const A = AshtonkMania, kept = await A.Account.call('restore', A.Account.me()).catch(() => null);
+    return kept && JSON.stringify(kept.settings?.profile?.appearance) === JSON.stringify(A.ProfileManager.profile.appearance);
+  }, null, { polling: 400 });
   const charlie = await device('Charlie');
   await charlie.evaluate(async code => { await AshtonkMania.Account.link(code); await AshtonkMania.Sync.restore(); }, aliceCode);
   await charlie.waitForFunction(() => AshtonkMania.ProfileManager.profile.appearance?.style === 'aurora');
@@ -158,11 +165,18 @@ try {
   await mobile.getByRole('button', { name: 'Cancel', exact: true }).click();
   await mobile.waitForSelector('.pa-editor', { state: 'detached' });
   await mobile.setViewportSize({ width: 390, height: 844 });
+  await mobile.waitForSelector('.rot-prompt:not([hidden])');
+  assert.equal(await mobile.evaluate(() => Orientation.wanted()), 'landscape');
+  await mobile.setViewportSize({ width: 844, height: 390 });
+  await mobile.waitForSelector('.rot-prompt[hidden]', { state: 'attached' });
   await mobile.getByRole('button', { name: 'Customize profile', exact: true }).click();
   await matchingBanner(mobile);
-  // Rotation while the editor is open must update the crop with the actual profile.
-  await mobile.setViewportSize({ width: 844, height: 390 }); await matchingBanner(mobile);
+  // Unsupported orientation locks use the same sideways prompt as the game's other menus, including in the editor.
   await mobile.setViewportSize({ width: 390, height: 844 }); await matchingBanner(mobile);
+  await mobile.waitForSelector('.rot-prompt:not([hidden])');
+  await mobile.setViewportSize({ width: 844, height: 390 }); await matchingBanner(mobile);
+  await mobile.waitForSelector('.rot-prompt[hidden]', { state: 'attached' });
+  assert.equal(await mobile.evaluate(() => window.profileOrientationLocks.at(-1)), 'landscape');
   await mobile.getByRole('button', { name: 'Midnight profile style' }).click();
   assert.equal(await mobile.locator('.pa-preview-cover').evaluate(el => getComputedStyle(el, '::before').backgroundImage), 'none');
   await mobile.getByRole('button', { name: 'Midnight profile style' }).click();
@@ -177,6 +191,11 @@ try {
   await mobile.evaluate(pid => AshtonkMania.Screens.go('profile', { pid, name: 'Alice', force: true }), alicePid);
   await mobile.waitForFunction(() => !document.querySelector('.pf-customize'));
   await mobile.waitForSelector('.pf-community-tag');
+  assert.equal(await mobile.evaluate(() => Orientation.wanted()), 'landscape');
+  await mobile.setViewportSize({ width: 390, height: 844 });
+  await mobile.waitForSelector('.rot-prompt:not([hidden])');
+  await mobile.setViewportSize({ width: 844, height: 390 });
+  await mobile.waitForSelector('.rot-prompt[hidden]', { state: 'attached' });
   const profileFit = await mobile.locator('.pf-header').evaluate(el => { const header = el.getBoundingClientRect(), content = el.querySelector('.pf-top-in').getBoundingClientRect(); return content.bottom <= header.bottom + 1 && el.scrollWidth <= el.clientWidth + 1; });
   assert.equal(profileFit, true);
   console.log('PASS: appearance restore, mobile editor fit/readability, mobile save and remote profile layout');
@@ -213,6 +232,8 @@ try {
   await alice.waitForSelector('.pa-editor', { state: 'detached' });
   const chosen = await alice.evaluate(() => AshtonkMania.ProfileManager.profile.appearance);
   assert.equal(chosen.background, 'song'); assert.ok(chosen.song.hash); assert.ok(chosen.song.title); assert.ok(chosen.banner.startsWith('data:image/'));
+  await charlie.waitForFunction(expected => JSON.stringify(AshtonkMania.ProfileManager.profile.appearance) === JSON.stringify(expected), chosen);
+  console.log('PASS: custom colours, song artwork, bio and position automatically update an already-linked device');
   await bob.waitForFunction(pid => { AshtonkMania.Presence.send({ t: 'profile', pid }); return !!document.querySelector('.pf-header[data-profile-style=custom][data-background=song]'); }, alicePid, { polling: 400 });
   assert.equal(await bob.locator('.pf-cover').getAttribute('data-cover-kind'), 'image');
   assert.deepEqual(await bob.evaluate(() => AshtonkMania.ProfileScreen.remote.data.appearance.colors), { accent: '#79b8ff', surface: '#20212b' });
@@ -273,5 +294,19 @@ try {
   assert.deepEqual(reset.colors, { accent: '#ff66aa', surface: '#1b1b20' }); assert.equal(reset.style, 'custom');
   for (const key of ['background', 'banner', 'song', 'bio', 'position']) assert.deepEqual(reset[key], beforeReset[key]);
   console.log('PASS: colour reset matches Signature, updates pickers, respects Cancel, persists after save/reload and preserves banner');
+  // Use the same account on a phone: restore every profile setting, then edit there and receive it on desktop.
+  await charlie.waitForFunction(expected => JSON.stringify(AshtonkMania.ProfileManager.profile.appearance) === JSON.stringify(expected), reset);
+  await mobile.evaluate(async code => { await AshtonkMania.Account.link(code); await AshtonkMania.Sync.restore(); await AshtonkMania.Screens.go('profile', { force: true }); }, aliceCode);
+  assert.deepEqual(await mobile.evaluate(() => AshtonkMania.ProfileManager.profile.appearance), reset);
+  await mobile.getByRole('button', { name: 'Customize profile', exact: true }).click();
+  await mobile.getByLabel('Accent colour', { exact: true }).fill('#66ccee');
+  await mobile.getByLabel('Accent colour', { exact: true }).dispatchEvent('input');
+  await mobile.fill('#pa-bio', 'Updated on my phone.');
+  await mobile.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await mobile.waitForSelector('.pa-editor', { state: 'detached' });
+  const fromPhone = await mobile.evaluate(() => AshtonkMania.ProfileManager.profile.appearance);
+  await alice.waitForFunction(expected => JSON.stringify(AshtonkMania.ProfileManager.profile.appearance) === JSON.stringify(expected), fromPhone);
+  assert.equal(fromPhone.colors.accent, '#66ccee'); assert.equal(fromPhone.bio, 'Updated on my phone.');
+  console.log('PASS: full profile restore on mobile and automatic phone-to-desktop profile updates');
   assert.deepEqual(errors, []);
 } finally { await browser?.close(); await mf.dispose(); }

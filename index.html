@@ -24826,6 +24826,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8d', title: 'Your profile across devices', sections: [
+    { icon: 'brush', title: 'Profiles', items: ['Profiles and profile customization now follow the game’s landscape menus on mobile', 'Saved profile changes start syncing to your account immediately for your other devices'] },
+  ] },
   { id: '2026.11.8c', title: 'Cleaner profile customization', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Banner proportions now follow lazer’s expanded profile cover, with matching crops in the editor', 'A simpler profile editor with compact themes, a clear banner selector and fewer repeated controls'] },
   ] },
@@ -31705,11 +31708,11 @@ if (Mobile.touch) Keyboard.init();
  *  turned (a song waits for it, and one under way stops for a tap). */
 const Orientation = {
   el: null,
-  /** The menus are used sideways; a song as Settings → Mobile layout says; profiles and results either way up. */
+  /** Menus, including profiles, stay sideways; songs follow Mobile layout; results work either way up. */
   wanted() {
     const n = typeof Screens !== 'undefined' ? Screens.currentName : '';
     if (n === 'gameplay') { const m = typeof Settings !== 'undefined' ? Settings.get('gameplay.mobileLayout') : 'auto'; return m === 'portrait' ? 'portrait' : m === 'landscape' || m === 'expanded' ? 'landscape' : 'any'; }
-    return n === 'results' || n === 'profile' ? 'any' : 'landscape';
+    return n === 'results' ? 'any' : 'landscape';
   },
   /** Whether the prompt to turn the phone is up. */
   wrong() { return !!this.el && !this.el.hidden; },
@@ -33417,10 +33420,11 @@ const Sync = {
     Bus.on('settings:changed', k => { if (k !== '*' && this.local(k)) return; this.touch(k === '*' ? 'full' : k); this.later(); });
     for (const [ev, part] of [['skin:changed', 'skin'], ['collections:changed', 'cols'], ['favorites:changed', 'favs'], ['mapoffset:changed', 'offsets'], ['library:changed', 'sets']])
       Bus.on(ev, () => { this.touch(part); this.later(); });
-    // (your name and picture: only when one of them changed — the profile is saved for other things too)
+    // Profile edits go up immediately, including the complete appearance and uploaded banner.
+    // Score/stat saves leave these unchanged and do not upload the profile again.
     const prof = () => { const p = ProfileManager.profile || {}; return `${p.name}|${p.avatar}|${p.avatarSig || ''}|${JSON.stringify(p.appearance || {})}`; };
     this._prof = prof();
-    Bus.on('profile:changed', () => { const s = prof(); if (s === this._prof) return; this._prof = s; this.touch('profile'); this.later(2000); });
+    Bus.on('profile:changed', () => { const s = prof(); if (s === this._prof) return; this._prof = s; this.touch('profile'); this.later(0); });
     Bus.on('account:changed', () => { this.tidy(); this.later(); });
     Bus.on('scores:changed', () => this.later());
     // (back to the game after a while — a phone put down, another tab: what your other devices played since)
@@ -34061,7 +34065,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'd5de9cbc242e';
+const APP_BUILD = '496692c1bb12';
 
 const App = {
   lastReport: null,
