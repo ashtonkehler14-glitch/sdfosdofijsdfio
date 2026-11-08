@@ -14,7 +14,7 @@ Coming from Web-Osu-Mania? Export a backup there (Settings → Backup & Restore)
 
 ## Your profile
 
-Open your profile and choose **Customize profile**. Pick one of nine mania-themed styles, including Miku, Neru and Teto. Each changes the whole profile’s colour palette without changing its background. Choose a background source: **Best play background** (updates with your best performance), **Selected song background** (search your library), or **Uploaded banner** (PNG, JPEG or WebP, up to 10 MB). Adjust the background position and add a short bio. Preview before saving, or cancel to keep your current look. Your appearance is shared with other players and kept across devices signed in with your code. You can switch back to your best play’s background with any style.
+Open your profile and choose **Customize profile**. Pick one of nine mania-themed styles, including Miku, Neru and Teto. Each adds a subtle colour tint to the profile without changing its background. Miku, Neru and Teto themes also place the selected character over the banner. Choose a background source: **Best play background** (updates with your best performance), **Selected song background** (search your library), or **Uploaded banner** (PNG, JPEG or WebP, up to 10 MB). Adjust the background position and add a short bio. Preview before saving, or cancel to keep your current look. Your appearance is shared with other players and kept across devices signed in with your code. You can switch back to your best play’s background with any style.
 
 Admins can open a player in **/admin → Players → Community tags** to assign up to three named, coloured tags, or remove them. These badges are cosmetic: they never grant staff access. Admin roles remain separate.
 

@@ -5291,12 +5291,28 @@ html.lp-open #toasts { right: 380px; }
 /* Profiles use the same overlay palette and geometric artwork as the game's other menus. */
 [data-profile-style], .pa-editor { --pf-accent: #ff66aa; --pf-hue: 333; --pf-gradient: linear-gradient(115deg, #4c2a3b, #241b22);
   --pf-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='180'%3E%3Cg fill='white' opacity='.055'%3E%3Cpath d='M0 170 50 83l50 87zM150 90l40-70 40 70zM80 65l20-35 20 35z'/%3E%3C/g%3E%3C/svg%3E"); }
+/* A restrained tint on neutral menu surfaces; the character and accents carry the theme. */
+.ov[data-profile-style] {
+  --ob6: hsl(var(--o-h) 3% 10%); --ob5: hsl(var(--o-h) 4% 15%); --ob4: hsl(var(--o-h) 5% 20%); --ob3: hsl(var(--o-h) 6% 25%); --ob2: hsl(var(--o-h) 7% 30%);
+  --od6: hsl(var(--o-h) 5% 10%); --od5: hsl(var(--o-h) 6% 15%); --od4: hsl(var(--o-h) 7% 20%); --od3: hsl(var(--o-h) 8% 25%);
+  --oc2: hsl(var(--o-h) 15% 88%); --ohl: hsl(var(--o-h) 55% 72%);
+  --pf-soft-accent: color-mix(in srgb, var(--pf-accent) 60%, #d1cdd7);
+}
+.ov[data-profile-style] > .screen-body > .ov-head::before, .pa-editor[data-profile-style] > .ov-head::before {
+  background: var(--pf-pattern) repeat-x left bottom / auto 100%, linear-gradient(100deg, hsl(var(--o-h) 18% 30%), hsl(var(--o-h) 12% 22%) 55%, hsl(var(--o-h) 8% 17%));
+}
 .pf-header[data-profile-style] .pf-cover, .pa-preview-cover { background: var(--pf-pattern) repeat center / 240px, var(--pf-gradient); }
 .pf-header[data-profile-style] .pf-top { height: 270px; }
-.pf-header[data-profile-style] .pf-cover::after, .pa-preview-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent, hsl(var(--pf-hue) 20% 10% / .35) 40%, var(--od5)); }
-.pf-header[data-profile-style] .pf-avatar { border-radius: 8px; border: 2px solid var(--pf-accent); box-shadow: 0 4px 16px #0006; }
-.pf-header[data-profile-style] .pf-big b { color: var(--pf-accent); }
-.pf-header[data-profile-style] .avatar-mono, .pa-preview .avatar-mono { background: linear-gradient(135deg, hsl(var(--pf-hue) 60% 55%), hsl(var(--pf-hue) 50% 33%)); }
+/* Independent decoration: changing a character never replaces the banner image below it. */
+.pf-header[data-profile-style] .pf-cover::before, .pa-preview-cover::before {
+  content: ""; position: absolute; inset: 0 5% 0 auto; width: min(36%, 340px); pointer-events: none;
+  background: var(--pf-character-art, none) no-repeat center top / auto 160%;
+  filter: drop-shadow(0 3px 12px #0005);
+}
+.pf-header[data-profile-style] .pf-cover::after, .pa-preview-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent, hsl(var(--pf-hue) 6% 10% / .3) 40%, var(--od5)); }
+.pf-header[data-profile-style] .pf-avatar { border-radius: 8px; border: 2px solid var(--pf-soft-accent, var(--pf-accent)); box-shadow: 0 4px 16px #0006; }
+.pf-header[data-profile-style] .pf-big b { color: var(--pf-soft-accent); }
+.pf-header[data-profile-style] .avatar-mono, .pa-preview .avatar-mono { background: linear-gradient(135deg, hsl(var(--pf-hue) 28% 48%), hsl(var(--pf-hue) 22% 30%)); }
 .pf-header[data-profile-style] .pf-tags { flex-wrap: wrap; gap: 7px; }
 .pf-header[data-profile-style] .pf-bio { color: var(--oc2); font-size: .87rem; line-height: 1.5; margin: 10px 0 0; max-width: 540px; overflow-wrap: anywhere; white-space: pre-wrap; }
 .pf-customize { position: absolute; top: 20px; right: var(--pf-pad); z-index: 2; background: var(--od5); }
@@ -5314,14 +5330,14 @@ html.lp-open #toasts { right: 380px; }
 .pa-preview { position: relative; overflow: hidden; border-radius: 6px; background: var(--ob4); box-shadow: 0 4px 16px #0003; }
 .pa-preview-cover { position: absolute; inset: 0 0 79px; background-position: center; background-size: cover; }
 .pa-preview-inner { position: relative; display: flex; align-items: flex-end; gap: 16px; padding: 155px 22px 20px; min-height: 290px; }
-.pa-preview .avatar { border: 2px solid var(--pf-accent); border-radius: 6px; box-shadow: 0 4px 16px #0005; flex: none; }
+.pa-preview .avatar { border: 2px solid var(--pf-soft-accent, var(--pf-accent)); border-radius: 6px; box-shadow: 0 4px 16px #0005; flex: none; }
 .pa-preview-id { min-width: 0; padding-bottom: 3px; }
 .pa-preview h3 { margin: 0 0 8px; font-size: 1.45rem; font-weight: 600; overflow-wrap: anywhere; }
 .pa-preview-tags { display: flex; flex-wrap: wrap; gap: 5px; }
 .pa-preview-bio { line-height: 1.5; font-size: .8rem; color: var(--oc2); margin: 8px 0 0; overflow-wrap: anywhere; }
 .pa-preview-stats { position: relative; background: var(--ob4); display: flex; gap: 28px; padding: 16px 22px; border-top: 1px solid var(--line); }
 .pa-preview-stats span { display: block; color: var(--oc2); font-size: .7rem; margin-bottom: 5px; }
-.pa-preview-stats b { font-size: 1.25rem; font-weight: 300; color: var(--pf-accent); }
+.pa-preview-stats b { font-size: 1.25rem; font-weight: 300; color: var(--pf-soft-accent); }
 .pa-preview-caption { display: flex; align-items: center; gap: 8px; padding: 14px 0; font-size: .75rem; color: var(--muted); }
 .pa-preview-caption .i { width: 14px; height: 14px; }
 .pa-controls { min-width: 0; }

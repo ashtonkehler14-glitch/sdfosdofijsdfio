@@ -27,8 +27,9 @@ const ProfileAppearance = {
   paint(el, appearance) {
     const a = this.clean(appearance), p = this.presets.find(p => p.id === a.style);
     el.dataset.profileStyle = a.style; el.dataset.background = a.background; el.classList.add('ov'); el.style.setProperty('--o-h', p.hue);
+    el.style.setProperty('--pf-character-art', p.art ? `url("${Host.asset(p.art)}")` : 'none');
     el.style.setProperty('--pf-accent', p.accent); el.style.setProperty('--pf-hue', p.hue);
-    el.style.setProperty('--pf-gradient', `linear-gradient(115deg, hsl(${p.hue} 32% 23%), hsl(${p.hue} 24% 12%))`);
+    el.style.setProperty('--pf-gradient', `linear-gradient(115deg, hsl(${p.hue} 14% 20%), hsl(${p.hue} 8% 12%))`);
     return a;
   },
   /** One resolver for the actual profile and the preview. Ignore a stale image when the source changes. */

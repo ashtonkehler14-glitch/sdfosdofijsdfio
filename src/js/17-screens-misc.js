@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.7e', title: 'Softer profile themes and banner characters', sections: [
+    { icon: 'brush', title: 'Profiles', items: ['Profile themes use softer colours and more neutral menus', 'Miku, Teto and Neru appear over your banner when their theme is selected, keeping your song background or uploaded image underneath'] },
+  ] },
   { id: '2026.11.7d', title: 'Profile themes without changing your background', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Themes now colour the whole profile, including its menus, tabs and cards, while keeping your song background or uploaded banner', 'Miku and Teto have full character illustrations in the theme picker'] },
   ] },

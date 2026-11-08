@@ -146,6 +146,8 @@ try {
   await mobile.waitForSelector('.pa-editor', { state: 'detached' });
   await mobile.setViewportSize({ width: 390, height: 844 });
   await mobile.getByRole('button', { name: 'Customize profile', exact: true }).click();
+  await mobile.getByRole('button', { name: 'Miku profile style' }).click();
+  assert.ok((await mobile.locator('.pa-preview-cover').evaluate(el => getComputedStyle(el, '::before').backgroundImage)).includes('profile-art/miku.png'));
   await mobile.getByRole('button', { name: 'Midnight profile style' }).click();
   const overflow = await mobile.evaluate(() => { const p = document.querySelector('.pa-editor'), b = p.getBoundingClientRect(); return { x: b.x, right: b.right, bottom: b.bottom, width: innerWidth, height: innerHeight, panelWidth: b.width, scrollWidth: p.scrollWidth, clientWidth: p.clientWidth }; });
   assert.ok(overflow.x >= 0 && overflow.right <= overflow.width + 1 && overflow.bottom <= overflow.height + 1 && overflow.scrollWidth <= overflow.clientWidth + 1 && overflow.panelWidth >= overflow.width * .8, JSON.stringify(overflow));
@@ -173,6 +175,9 @@ try {
     assert.ok((await art.getAttribute('src')).includes(name === 'Neru' ? 'neru.png' : `profile-art/${name.toLowerCase()}.png`));
     await art.evaluate(async el => { await el.decode(); });
     assert.ok(await art.evaluate(el => el.naturalWidth > 256));
+    const overlay = await alice.locator('.pa-preview-cover').evaluate(el => { const css = getComputedStyle(el, '::before'); return { image: css.backgroundImage, events: css.pointerEvents }; });
+    assert.ok(overlay.image.includes(name === 'Neru' ? 'neru.png' : `profile-art/${name.toLowerCase()}.png`));
+    assert.equal(overlay.events, 'none');
   }
   assert.equal(await alice.getByRole('button', { name: 'Preset artwork', exact: true }).count(), 0);
   await alice.getByRole('button', { name: 'Neru profile style', exact: true }).click();
@@ -187,6 +192,7 @@ try {
   assert.equal(chosen.background, 'song'); assert.ok(chosen.song.hash); assert.ok(chosen.song.title); assert.ok(chosen.banner.startsWith('data:image/'));
   await bob.waitForFunction(pid => { AshtonkMania.Presence.send({ t: 'profile', pid }); return !!document.querySelector('.pf-header[data-profile-style=neru][data-background=song]'); }, alicePid, { polling: 400 });
   assert.equal(await bob.locator('.pf-cover').getAttribute('data-cover-kind'), 'image');
+  assert.ok((await bob.locator('.pf-cover').evaluate(el => getComputedStyle(el, '::before').backgroundImage)).includes('neru.png'));
   const songBefore = chosen.banner;
   await alice.getByRole('button', { name: 'Customize profile', exact: true }).click();
   await alice.getByRole('button', { name: 'Miku profile style', exact: true }).click();
@@ -198,6 +204,7 @@ try {
     const A = AshtonkMania, root = A.ProfileScreen.page.closest('.ov');
     return { theme: root.dataset.profileStyle, hue: getComputedStyle(root).getPropertyValue('--o-h').trim(), background: A.ProfileManager.profile.appearance.background, image: A.ProfileManager.profile.appearance.banner };
   });
+  assert.ok((await alice.locator('.pf-cover').evaluate(el => getComputedStyle(el, '::before').backgroundImage)).includes('profile-art/miku.png'));
   assert.equal(theme.theme, 'miku'); assert.equal(theme.hue, '176'); assert.equal(theme.background, 'song'); assert.equal(theme.image, songBefore);
   await alice.reload(); await alice.waitForFunction(() => document.querySelector('#loading-screen.done'));
   await alice.evaluate(() => { while (Overlays.top()) Overlays.top().close(); AshtonkMania.Screens.go('profile', { force: true }); });
