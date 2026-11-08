@@ -5423,7 +5423,8 @@ html.lp-open #toasts { right: 380px; }
   --oc2: #d2d0da;
 }
 .pf-header[data-profile-style] .pf-top { height: auto; overflow: visible; background: var(--od5); }
-.pf-header[data-profile-style] .pf-banner { height: 230px; position: relative; overflow: hidden; background: var(--pf-gradient); }
+/* osu!lazer TopHeaderContainer: expanded profile cover height is 250 layout units. */
+.pf-header[data-profile-style] .pf-banner { height: 250px; position: relative; overflow: hidden; background: var(--pf-gradient); }
 .pf-header[data-profile-style] .pf-cover::after, .pa-preview-cover::after { background: linear-gradient(90deg, #15151c20, #15151c08 55%, #15151c18), linear-gradient(0deg, #19191f70, transparent 40%); }
 .pf-header[data-profile-style] .pf-top-in { position: relative; bottom: auto; align-items: flex-start; gap: 24px; padding: 0 var(--pf-pad) 24px; min-height: 132px; }
 .pf-header[data-profile-style] .pf-avatar { position: relative; z-index: 1; width: 112px !important; height: 112px !important; margin-top: -32px; border: 5px solid var(--od5); border-radius: 12px; box-shadow: 0 6px 18px #0003; }
@@ -5479,7 +5480,6 @@ html.lp-open #toasts { right: 380px; }
 }
 @media (max-width: 700px) {
   .pf-header[data-profile-style] .pf-top { min-height: 0; padding-top: 0; }
-  .pf-header[data-profile-style] .pf-banner { height: 210px; }
   .pf-header[data-profile-style] .pf-top-in { padding: 0 18px 20px; grid-template-columns: 76px minmax(0, 1fr); gap: 0 14px; }
   .pf-header[data-profile-style] .pf-avatar { width: 76px !important; height: 76px !important; margin-top: -24px; border-width: 4px; }
   .pf-header[data-profile-style] .pf-id { padding-top: 14px; }

@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8b', title: 'Taller profile banners', sections: [
+    { icon: 'brush', title: 'Profiles', items: ['Profile banners now match lazer’s expanded cover height, with the same framing in the editor preview'] },
+  ] },
   { id: '2026.11.8a', title: 'Reset your profile colours', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Reset custom colours to Signature’s pink accent and dark background from the profile editor'] },
   ] },
