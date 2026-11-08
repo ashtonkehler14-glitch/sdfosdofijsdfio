@@ -5329,11 +5329,11 @@ html.lp-open #toasts { right: 380px; }
 .pa-wrap { transform: scale(var(--zoom, 1)); transform-origin: 0 0; width: 100vw; height: 100dvh; display: flex; align-items: center; justify-content: center; padding: 0; }
 .pa-editor { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden; color: var(--oc1); }
 .pa-editor > .ov-head { flex: none; }
-.pa-editor .ov-inner { max-width: 1440px; padding: 0 40px; }
+.pa-editor .ov-inner { max-width: 1200px; padding: 0 32px; }
 .pa-editor .ov-head::before { height: 58px; }
-.pa-body { width: 100%; max-width: 1440px; margin: 0 auto; display: grid; grid-template-columns: minmax(350px, .95fr) minmax(0, 1.05fr); gap: 38px; padding: 28px 40px 40px; overflow: auto; min-height: 0; flex: 1; align-items: start; }
+.pa-body { width: 100%; max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 40px; padding: 24px 32px 32px; overflow: auto; min-height: 0; flex: 1; align-items: start; }
 .pa-preview-side { position: sticky; top: 0; min-width: 0; }
-.pa-section-heading { margin: 0 0 16px; padding-bottom: 10px; font-size: .94rem; font-weight: 600; text-transform: lowercase; border-bottom: 2px solid var(--ohl); }
+.pa-section-heading { margin: 0 0 12px; font-size: .88rem; font-weight: 600; color: var(--oc1); }
 .pa-preview { position: relative; overflow: hidden; border-radius: 6px; background: var(--ob4); box-shadow: 0 4px 16px #0003; }
 .pa-preview-cover { position: absolute; inset: 0 0 79px; background-position: center; background-size: cover; }
 .pa-preview-inner { position: relative; display: flex; align-items: flex-end; gap: 16px; padding: 155px 22px 20px; min-height: 290px; }
@@ -5342,45 +5342,32 @@ html.lp-open #toasts { right: 380px; }
 .pa-preview h3 { margin: 0 0 8px; font-size: 1.45rem; font-weight: 600; overflow-wrap: anywhere; }
 .pa-preview-tags { display: flex; flex-wrap: wrap; gap: 5px; }
 .pa-preview-bio { line-height: 1.5; font-size: .8rem; color: var(--oc2); margin: 8px 0 0; overflow-wrap: anywhere; }
-.pa-preview-stats { position: relative; background: var(--ob4); display: flex; gap: 28px; padding: 16px 22px; border-top: 1px solid var(--line); }
-.pa-preview-stats span { display: block; color: var(--oc2); font-size: .7rem; margin-bottom: 5px; }
-.pa-preview-stats b { font-size: 1.25rem; font-weight: 300; color: var(--pf-soft-accent); }
-.pa-preview-caption { display: flex; align-items: center; gap: 8px; padding: 14px 0; font-size: .75rem; color: var(--muted); }
-.pa-preview-caption .i { width: 14px; height: 14px; }
+.pa-preview-caption { padding: 12px 0; font-size: .72rem; color: var(--muted); }
 .pa-controls { min-width: 0; }
-.pa-section + .pa-section { margin-top: 28px; }
+.pa-section + .pa-section { margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--line); }
 .pa-section > p, .pa-upload-box > p, .pa-best-hint, .pa-empty { margin: 8px 0 16px; color: var(--oc2); font-size: .8rem; line-height: 1.6; }
-.pa-presets { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pa-presets { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .pa-preset { position: relative; background: var(--ob4); text-align: left; border: 2px solid transparent; border-radius: 6px; padding: 0; overflow: hidden; cursor: pointer; color: var(--oc1); transition: background var(--t-fast), border-color var(--t-fast); min-width: 0; }
 .pa-preset:hover { background: var(--ob3); border-color: var(--tile-accent); }
 .pa-preset.selected { border-color: var(--tile-accent); }
-.pa-preset-art { position: relative; display: block; height: 90px; overflow: hidden; background: var(--pf-pattern), linear-gradient(115deg, hsl(var(--tile-hue) 40% 28%), hsl(var(--tile-hue) 28% 13%)); }
-.pa-preset-mark { position: absolute; left: 12px; top: 13px; font-size: 2.1rem; font-weight: 900; color: var(--tile-accent); opacity: .5; font-style: italic; line-height: 1; }
-.pa-preset-name { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; padding: 9px 10px; flex-wrap: wrap; }
-.pa-preset-name b { font-size: .75rem; }
-.pa-preset-name small { font-size: .6rem; color: var(--muted); }
-.pa-note-lanes { position: absolute; right: 9px; top: -8px; height: 100px; width: 68px; transform: skew(-12deg); background: repeating-linear-gradient(90deg, #0005 0 15px, #ffffff16 15px 17px); }
-.pa-note-lanes i { position: absolute; width: 13px; height: 7px; left: calc(var(--lane) * 17px + 1px); top: calc(19px + var(--lane) * 12px); background: var(--tile-accent); border-radius: 1px; box-shadow: 0 30px 0 #ffffff99; }
-.pa-preset[data-style="aurora"] .pa-note-lanes i { height: 26px; background: linear-gradient(var(--tile-accent), transparent); border-top: 6px solid var(--tile-accent); }
-.pa-preset[data-style="midnight"] .pa-note-lanes { transform: skew(-24deg); }
-.pa-preset[data-style="ember"] .pa-note-lanes i { box-shadow: 0 22px #fff, 0 44px var(--tile-accent); }
+.pa-preset-art { position: relative; display: block; height: 30px; overflow: hidden; background: linear-gradient(115deg, hsl(var(--tile-hue) 25% 23%), var(--tile-accent)); }
+.pa-preset-name { display: block; padding: 8px 4px; text-align: center; }
+.pa-preset-name b { font-size: .7rem; font-weight: 500; }
 .pa-preset-check { position: absolute; top: 5px; right: 5px; color: #171318; background: var(--tile-accent); width: 18px; height: 18px; border-radius: 50%; display: none; place-items: center; z-index: 1; }
 .pa-preset-check .i { width: 12px; height: 12px; }
 .pa-preset.selected .pa-preset-check { display: grid; }
-.pa-sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
-.pa-source { display: flex; gap: 10px; align-items: center; text-align: left; min-height: 46px; padding: 10px 12px; border: 0; border-radius: 6px; background: var(--ob4); color: var(--oc2); font-size: .78rem; cursor: pointer; }
+.pa-sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 6px; background: var(--ob6); margin-bottom: 12px; }
+.pa-source { display: flex; justify-content: center; gap: 8px; align-items: center; min-height: 36px; padding: 8px; border: 0; border-radius: 4px; background: transparent; color: var(--oc2); font-size: .78rem; cursor: pointer; }
 .pa-source:hover { background: var(--ob3); }
-.pa-source.selected { background: var(--ob3); color: var(--oc1); box-shadow: inset 3px 0 var(--ohl); }
+.pa-source.selected { background: var(--ob3); color: var(--oc1); box-shadow: inset 0 -2px var(--ohl); }
 .pa-source > .i { width: 16px; height: 16px; color: var(--ohl); flex: none; }
-.pa-source-check { margin-left: auto; visibility: hidden; }
-.pa-source.selected .pa-source-check { visibility: visible; }
-.pa-source-check .i { width: 13px; height: 13px; }
 .pa-section-title { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .pa-section-title > .pa-section-heading { flex: 1; }
 .pa-counter { font-size: .68rem; color: var(--muted); }
-.pa-bio { width: 100%; min-height: 90px; resize: vertical; font-size: .82rem; line-height: 1.6; }
-.pa-upload { display: flex; gap: 9px; margin: 12px 0 18px; flex-wrap: wrap; }
-.pa-position-row { padding: 14px !important; margin-top: 16px; background: var(--ob4); border-radius: 6px; }
+.pa-bio { width: 100%; min-height: 80px; resize: vertical; font-size: .82rem; line-height: 1.6; }
+.pa-upload { display: flex; align-items: center; gap: 12px; margin: 12px 0; flex-wrap: wrap; }
+.pa-upload > span { font-size: .7rem; color: var(--muted); }
+.pa-position-row { padding: 12px 0 !important; margin-top: 8px; }
 .pa-position-row label { font-size: .8rem; }
 .pa-position-row .slider { width: 100%; }
 .pa-position-row .fright { min-width: 45%; }
@@ -5395,8 +5382,9 @@ html.lp-open #toasts { right: 380px; }
 .pa-song b, .pa-song small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .pa-song b { font-size: .8rem; }
 .pa-song small { margin-top: 4px; color: var(--oc2); font-size: .7rem; }
-.pa-status { font-size: .8rem; color: var(--ohl); min-height: 1.5em; margin: 16px 0 0; }
-.pa-foot { border-top: 1px solid var(--line); padding: 16px max(40px, calc((100vw - 1360px) / 2)); display: flex; align-items: center; gap: 10px; background: var(--od5); flex: none; }
+.pa-status { font-size: .78rem; color: var(--ohl); margin: 12px 0 0; }
+.pa-status:empty { display: none; }
+.pa-foot { border-top: 1px solid var(--line); padding: 14px max(32px, calc((100vw - 1136px) / 2)); display: flex; align-items: center; gap: 10px; background: var(--od5); flex: none; }
 .pa-foot > span { margin-right: auto; font-size: .75rem; color: var(--muted); }
 .pa-editor .btn.primary { background: var(--ohl); color: var(--pf-button-text); }
 .pa-editor button:focus-visible, .pa-editor input:focus-visible, .pa-editor textarea:focus-visible { outline: 2px solid var(--ohl); outline-offset: 2px; }
@@ -5407,15 +5395,12 @@ html.lp-open #toasts { right: 380px; }
   .pa-preview-inner { padding-top: 95px; min-height: 220px; }
   .pa-editor .ov-inner { padding: 0 20px; }
   .pa-editor .ov-head::before { height: 28px; }
-  .pa-preset-name small { display: none; }
-  .pa-sources { grid-template-columns: minmax(0, 1fr); }
   .pa-foot { padding: 14px 20px; }
   .pa-foot > span { display: none; }
   .pa-foot .primary { margin-left: auto; }
-  .pa-preview-stats { gap: 25px; }
   .pa-preview h3 { font-size: 1.2rem; }
   .pa-preview .avatar { width: 64px !important; height: 64px !important; }
-  .pa-preset-art { height: 78px; }
+  .pa-preset-art { height: 28px; }
 }
 @media (max-width: 700px) {
   .pf-header[data-profile-style] .pf-top { height: auto !important; min-height: 330px; padding-top: 95px; }
@@ -5436,8 +5421,9 @@ html.lp-open #toasts { right: 380px; }
   --oc2: #d2d0da;
 }
 .pf-header[data-profile-style] .pf-top { height: auto; overflow: visible; background: var(--od5); }
-/* osu!lazer TopHeaderContainer: expanded profile cover height is 250 layout units. */
-.pf-header[data-profile-style] .pf-banner { height: 250px; position: relative; overflow: hidden; background: var(--pf-gradient); }
+/* lazer's 85%-wide profile overlay and 250-unit expanded cover at its 1366-wide reference layout.
+   Keep those proportions when this game's full-width profile or viewport changes size. */
+.pf-header[data-profile-style] .pf-banner { aspect-ratio: 1161.1 / 250; position: relative; overflow: hidden; background: var(--pf-gradient); }
 .pf-header[data-profile-style] .pf-cover::after, .pa-preview-cover::after { background: linear-gradient(90deg, #15151c20, #15151c08 55%, #15151c18), linear-gradient(0deg, #19191f70, transparent 40%); }
 .pf-header[data-profile-style] .pf-top-in { position: relative; bottom: auto; align-items: flex-start; gap: 24px; padding: 0 var(--pf-pad) 24px; min-height: 132px; }
 .pf-header[data-profile-style] .pf-avatar { position: relative; z-index: 1; width: 112px !important; height: 112px !important; margin-top: -32px; border: 5px solid var(--od5); border-radius: 12px; box-shadow: 0 6px 18px #0003; }
@@ -5473,18 +5459,13 @@ html.lp-open #toasts { right: 380px; }
 .ov[data-profile-style] .pf-sec > h2 { font-size: 1.2rem; margin-bottom: 18px; }
 .ov[data-profile-style] .pf-subsec > h3 { font-size: .85rem; }
 /* The preview uses the same banner/identity separation as the saved profile. */
-.pa-preview-banner { aspect-ratio: var(--pa-banner-aspect, 6 / 1); position: relative; overflow: hidden; }
+.pa-preview-banner { aspect-ratio: var(--pa-banner-aspect, 1161.1 / 250); position: relative; overflow: hidden; }
 .pa-preview-cover { inset: 0; }
 .pa-preview-inner { padding: 0 20px 20px; min-height: 118px; align-items: flex-start; background: var(--od5); }
 .pa-preview .avatar { position: relative; z-index: 1; margin-top: -24px; border: 4px solid var(--od5); border-radius: 10px; }
 .pa-preview-id { padding-top: 16px; }
 .pa-preview h3 { font-size: 1.25rem; margin-bottom: 9px; }
 .pa-preview-bio { font-size: .76rem; color: var(--oc2); }
-.pa-preview-stats { background: var(--ob4); gap: 0; padding: 16px 20px; }
-.pa-preview-stats > div { flex: 1; }
-.pa-preview-stats > div + div { border-left: 1px solid #ffffff0b; padding-left: 18px; }
-.pa-preview-stats b { font-size: 1.1rem; }
-.pa-preview-stats span { color: var(--muted); font-size: .65rem; }
 @media (max-width: 1100px) {
   .pf-header[data-profile-style] .pf-detail { gap: 18px; flex-wrap: wrap; }
   .pf-header[data-profile-style] .pf-detail-r { flex: 1; min-width: 380px; }
@@ -5509,7 +5490,7 @@ html.lp-open #toasts { right: 380px; }
   .pa-preview .avatar { margin-top: -20px; }
 }
 
-.pa-custom-colors { margin-top: 14px; padding: 16px; border-radius: 6px; background: var(--ob4); }
+.pa-custom-colors { margin-top: 14px; }
 .pa-color-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .pa-color-control { display: flex; align-items: center; gap: 12px; cursor: pointer; }
 .pa-color-control input { width: 48px; height: 44px; border: 1px solid var(--pf-line); padding: 3px; border-radius: 6px; background: var(--ob5); cursor: pointer; flex: none; }
@@ -5518,10 +5499,10 @@ html.lp-open #toasts { right: 380px; }
 .pa-custom-colors p { margin: 14px 0 0; font-size: .72rem; color: var(--muted); line-height: 1.5; }
 .pa-custom-colors > .btn { margin-top: 14px; }
 .pa-editor .pa-preset[data-style="custom"] .pa-preset-art { background: linear-gradient(120deg, var(--tile-custom-surface, #1b1b20), var(--tile-accent)); }
-.pa-editor .pa-preset[data-style="custom"] .pa-note-lanes { display: none; }
 .pf-header[data-profile-style] .pf-name { text-shadow: none; }
 .pf-header[data-profile-style] .pf-cover::after, .pa-preview-cover::after { background: linear-gradient(0deg, #00000018, transparent 40%); }
 @media (max-width: 700px) { .pa-color-fields { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 420px) { .pa-presets { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
 .ov[data-profile-style] .ov-tab.on { color: var(--oc1); }
 .ov[data-profile-style] .ov-icon { background: var(--ob4); color: var(--ohl); }
@@ -15453,11 +15434,9 @@ const ProfileAppearance = {
     const previewCover = h('div.pa-preview-cover'), previewBio = h('p.pa-preview-bio'), styleName = h('span.pa-style-name');
     const preview = h('div.pa-preview', h('div.pa-preview-banner', previewCover),
       h('div.pa-preview-inner', ProfileManager.avatarEl(84), h('div.pa-preview-id', h('h3', ProfileManager.profile.name),
-        h('div.pa-preview-tags', ...this.tags(ProfileScreen.ownTags), h('span.pf-tag', 'osu!mania')), previewBio)),
-      h('div.pa-preview-stats', h('div', h('span', 'Performance'), h('b', `${Math.round(stats.pp || 0).toLocaleString()}pp`)),
-        h('div', h('span', 'Accuracy'), h('b', `${((stats.avgAcc || 0) * 100).toFixed(2)}%`)), h('div', h('span', 'Level'), h('b', String(stats.level || 1)))));
+        h('div.pa-preview-tags', ...this.tags(ProfileScreen.ownTags), h('span.pf-tag', 'osu!mania')), previewBio)));
     // Use the real banner's aspect ratio: cover/position then produce the exact same crop at preview size.
-    const banner = document.querySelector('.pf-header .pf-banner');
+    const banner = ProfileScreen.el?.querySelector('.pf-banner') || document.querySelector('.pf-header .pf-banner');
     const matchBanner = () => {
       const rect = banner?.getBoundingClientRect();
       if (rect?.width > 0 && rect.height > 0) preview.style.setProperty('--pa-banner-aspect', `${rect.width} / ${rect.height}`);
@@ -15469,14 +15448,9 @@ const ProfileAppearance = {
     const position = h('input.slider', { id: 'pa-position', type: 'range', min: 0, max: 100, step: 1, value: draft.position, 'aria-label': 'Banner vertical position' });
     const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', hidden: true, 'aria-label': 'Upload profile banner' });
     const upload = h('button.btn.sm', { type: 'button', onclick: () => file.click() }, icon('upload'), 'Upload banner');
-    const remove = h('button.btn.sm', { type: 'button', onclick: () => {
-      if (saving) return; uploadSeq++; draft.banner = ''; draft.background = 'best'; draft.position = 50; position.value = 50; busy = false; save.disabled = false;
-      status.textContent = 'Best play background restored in preview. Save to apply.'; paint();
-    } }, icon('retry'), 'Use best play instead');
     const tiles = this.presets.map(p => h('button.pa-preset', { type: 'button', dataset: { style: p.id }, style: { '--tile-hue': p.hue, '--tile-accent': p.accent },
       'aria-label': p.name + ' profile style', onclick: () => { if (saving) return; draft.style = p.id; paint(); } },
-      h('span.pa-preset-art', h('span.pa-preset-mark', p.mark), h('span.pa-note-lanes', ...[0, 1, 2, 3].map(i => h('i', { style: { '--lane': i } }))), h('span.pa-preset-check', icon('check'))),
-      h('span.pa-preset-name', h('b', p.name), h('small', p.desc))));
+      h('span.pa-preset-art', h('span.pa-preset-check', icon('check'))), h('span.pa-preset-name', h('b', p.name))));
     const colors = h('div.pa-custom-colors'), colorInputs = {};
     const colorFields = [['accent', 'Accent colour'], ['surface', 'Background colour']].map(([key, label]) => {
       const input = h('input', { type: 'color', value: draft.colors[key], 'aria-label': label });
@@ -15485,20 +15459,22 @@ const ProfileAppearance = {
       input.addEventListener('input', () => { draft.colors[key] = input.value; value.textContent = input.value.toUpperCase(); paint(); });
       return h('label.pa-color-control', input, h('span', h('b', label), value));
     });
-    colors.append(h('div.pa-color-fields', ...colorFields), h('p', 'Text and accents adjust for readability. Your banner stays unchanged.'),
+    colors.append(h('div.pa-color-fields', ...colorFields),
       h('button.btn.sm', { type: 'button', onclick: () => {
         if (saving) return;
         draft.colors = this.defaultColors(); paint();
         status.textContent = 'Signature colours restored in preview. Save to apply.';
       } }, icon('retry'), 'Reset to default'));
     const sourceNames = { best: 'Best play background', song: 'Selected song background', upload: 'Uploaded banner' };
+    const sourceLabels = { best: 'Best play', song: 'Song', upload: 'Upload' };
     const sources = Object.entries(sourceNames).map(([value, label]) => h('button.pa-source', { type: 'button', dataset: { source: value }, 'aria-label': label,
-      onclick: () => { if (saving) return; uploadSeq++; busy = false; save.disabled = false; draft.background = value; status.textContent = ''; paint(); } }, icon({ best: 'trophy', song: 'music', upload: 'upload' }[value]), h('span', label), h('span.pa-source-check', icon('check'))));
+      onclick: () => { if (saving) return; uploadSeq++; busy = false; save.disabled = false; draft.background = value; status.textContent = ''; paint(); } }, icon({ best: 'trophy', song: 'music', upload: 'upload' }[value]), h('span', sourceLabels[value])));
     const search = h('input.input', { type: 'search', placeholder: 'Search your songs…', 'aria-label': 'Search profile background songs' });
     const songs = h('div.pa-song-list'), pickedSong = h('div.pa-picked-song');
     const songBox = h('div.pa-song-picker', pickedSong, search, songs);
-    const imageBox = h('div.pa-upload-box', h('p', 'PNG, JPEG or WebP · up to 10 MB.'), h('div.pa-upload', upload, remove, file));
-    const bestHint = h('p.pa-best-hint', best ? `Uses your best performance: ${best.title || (best._s && best._s.title) || 'your top play'}. Updates when you set a new best.` : 'Your best play’s background will appear here once you have a score. Until then, the theme’s colours are shown.');
+    const imageBox = h('div.pa-upload-box', h('div.pa-upload', upload, h('span', 'PNG, JPEG or WebP · up to 10 MB'), file));
+    const bestHint = h('p.pa-best-hint', best ? `Follows your best play: ${best.title || (best._s && best._s.title) || 'your top play'}.` : 'Uses your best play’s background once you have a score.');
+    const positionRow = h('div.set-row.form.frange.pa-position-row', h('div.fleft', h('label', { for: 'pa-position' }, 'Banner position')), h('div.fright', position));
     const drawSongs = () => {
       const query = search.value.trim().toLowerCase();
       const sets = BeatmapManager.sets.filter(s => !query || `${s.title} ${s.artist}`.toLowerCase().includes(query)).slice(0, 12);
@@ -15533,7 +15509,7 @@ const ProfileAppearance = {
       previewBio.textContent = draft.bio; previewBio.hidden = !draft.bio;
       styleName.textContent = `${this.presets.find(p => p.id === draft.style).name} · ${sourceNames[draft.background]}`;
       counter.textContent = `${bio.value.length} / 160`;
-      position.disabled = draft.background === 'upload' && !draft.banner; remove.disabled = !draft.banner;
+      positionRow.hidden = draft.background === 'upload' && !draft.banner || draft.background === 'best' && !best;
       songBox.hidden = draft.background !== 'song'; imageBox.hidden = draft.background !== 'upload'; bestHint.hidden = draft.background !== 'best';
       pickedSong.textContent = draft.song.title ? `Selected: ${draft.song.artist ? draft.song.artist + ' — ' : ''}${draft.song.title}` : 'Choose a song from your library.';
       for (const t of tiles) { if (t.dataset.style === 'custom') { t.style.setProperty('--tile-accent', draft.colors.accent); t.style.setProperty('--tile-custom-surface', draft.colors.surface); } const selected = t.dataset.style === draft.style; t.classList.toggle('selected', selected); t.setAttribute('aria-pressed', String(selected)); }
@@ -15544,7 +15520,7 @@ const ProfileAppearance = {
     file.addEventListener('change', async () => {
       const f = file.files[0]; file.value = ''; if (!f || saving) return;
       const seq = ++uploadSeq; busy = true; save.disabled = true; status.textContent = 'Preparing your banner…';
-      try { const banner = await this.packBanner(f); if (closed || seq !== uploadSeq) return; draft.banner = banner; draft.background = 'upload'; status.textContent = 'Banner ready. Adjust its position below.'; paint(); }
+      try { const banner = await this.packBanner(f); if (closed || seq !== uploadSeq) return; draft.banner = banner; draft.background = 'upload'; status.textContent = 'Banner ready.'; paint(); }
       catch (e) { if (!closed && seq === uploadSeq) status.textContent = e.message; }
       finally { if (!closed && seq === uploadSeq) { busy = false; save.disabled = false; } }
     });
@@ -15563,11 +15539,10 @@ const ProfileAppearance = {
     const close = h('button.icon-btn', { 'aria-label': 'Close profile editor', onclick: () => this.o.close() }, icon('x'));
     const panel = h('div.pa-editor.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Customize profile', style: { '--o-h': 333 } },
       overlayHeader('customize profile', { icon: 'brush', actions: [close] }),
-      h('div.pa-body', h('aside.pa-preview-side', h('h2.pa-section-heading', 'profile preview'), preview, h('div.pa-preview-caption', icon('brush'), styleName)),
-        h('div.pa-controls', h('section.pa-section', h('h2.pa-section-heading', 'theme'), h('p', 'Change the profile’s colours and mood. Your background stays the same.'), h('div.pa-presets', ...tiles), colors),
-          h('section.pa-section', h('h2.pa-section-heading', 'background'), h('div.pa-sources', ...sources), bestHint, songBox, imageBox,
-            h('div.set-row.form.frange.pa-position-row', h('div.fleft', h('label', { for: 'pa-position' }, 'Background position')), h('div.fright', position))),
-          h('section.pa-section', h('div.pa-section-title', h('label.pa-section-heading', { for: 'pa-bio' }, 'about you'), counter), bio), status)),
+      h('div.pa-body', h('aside.pa-preview-side', h('h2.pa-section-heading', 'Preview'), preview, h('div.pa-preview-caption', styleName)),
+        h('div.pa-controls', h('section.pa-section', h('h2.pa-section-heading', 'Theme'), h('div.pa-presets', ...tiles), colors),
+          h('section.pa-section', h('h2.pa-section-heading', 'Banner'), h('div.pa-sources', ...sources), bestHint, songBox, imageBox, positionRow),
+          h('section.pa-section', h('div.pa-section-title', h('label.pa-section-heading', { for: 'pa-bio' }, 'About you'), counter), bio), status)),
       h('div.pa-foot', h('span', 'Changes are only applied when you save.'), h('button.btn.ghost', { onclick: () => this.o.close() }, 'Cancel'), save));
     this.o = makeOverlay(panel, { cls: 'pa-wrap', onKey: e => {
       if (e.key !== 'Tab') return false;
@@ -24851,6 +24826,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8c', title: 'Cleaner profile customization', sections: [
+    { icon: 'brush', title: 'Profiles', items: ['Banner proportions now follow lazer’s expanded profile cover, with matching crops in the editor', 'A simpler profile editor with compact themes, a clear banner selector and fewer repeated controls'] },
+  ] },
   { id: '2026.11.8b', title: 'Taller profile banners', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Profile banners now match lazer’s expanded cover height, with the same framing in the editor preview'] },
   ] },
@@ -34083,7 +34061,7 @@ const Staff = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'fc1fa9c6d882';
+const APP_BUILD = 'd5de9cbc242e';
 
 const App = {
   lastReport: null,

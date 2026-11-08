@@ -109,11 +109,9 @@ const ProfileAppearance = {
     const previewCover = h('div.pa-preview-cover'), previewBio = h('p.pa-preview-bio'), styleName = h('span.pa-style-name');
     const preview = h('div.pa-preview', h('div.pa-preview-banner', previewCover),
       h('div.pa-preview-inner', ProfileManager.avatarEl(84), h('div.pa-preview-id', h('h3', ProfileManager.profile.name),
-        h('div.pa-preview-tags', ...this.tags(ProfileScreen.ownTags), h('span.pf-tag', 'osu!mania')), previewBio)),
-      h('div.pa-preview-stats', h('div', h('span', 'Performance'), h('b', `${Math.round(stats.pp || 0).toLocaleString()}pp`)),
-        h('div', h('span', 'Accuracy'), h('b', `${((stats.avgAcc || 0) * 100).toFixed(2)}%`)), h('div', h('span', 'Level'), h('b', String(stats.level || 1)))));
+        h('div.pa-preview-tags', ...this.tags(ProfileScreen.ownTags), h('span.pf-tag', 'osu!mania')), previewBio)));
     // Use the real banner's aspect ratio: cover/position then produce the exact same crop at preview size.
-    const banner = document.querySelector('.pf-header .pf-banner');
+    const banner = ProfileScreen.el?.querySelector('.pf-banner') || document.querySelector('.pf-header .pf-banner');
     const matchBanner = () => {
       const rect = banner?.getBoundingClientRect();
       if (rect?.width > 0 && rect.height > 0) preview.style.setProperty('--pa-banner-aspect', `${rect.width} / ${rect.height}`);
@@ -125,14 +123,9 @@ const ProfileAppearance = {
     const position = h('input.slider', { id: 'pa-position', type: 'range', min: 0, max: 100, step: 1, value: draft.position, 'aria-label': 'Banner vertical position' });
     const file = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', hidden: true, 'aria-label': 'Upload profile banner' });
     const upload = h('button.btn.sm', { type: 'button', onclick: () => file.click() }, icon('upload'), 'Upload banner');
-    const remove = h('button.btn.sm', { type: 'button', onclick: () => {
-      if (saving) return; uploadSeq++; draft.banner = ''; draft.background = 'best'; draft.position = 50; position.value = 50; busy = false; save.disabled = false;
-      status.textContent = 'Best play background restored in preview. Save to apply.'; paint();
-    } }, icon('retry'), 'Use best play instead');
     const tiles = this.presets.map(p => h('button.pa-preset', { type: 'button', dataset: { style: p.id }, style: { '--tile-hue': p.hue, '--tile-accent': p.accent },
       'aria-label': p.name + ' profile style', onclick: () => { if (saving) return; draft.style = p.id; paint(); } },
-      h('span.pa-preset-art', h('span.pa-preset-mark', p.mark), h('span.pa-note-lanes', ...[0, 1, 2, 3].map(i => h('i', { style: { '--lane': i } }))), h('span.pa-preset-check', icon('check'))),
-      h('span.pa-preset-name', h('b', p.name), h('small', p.desc))));
+      h('span.pa-preset-art', h('span.pa-preset-check', icon('check'))), h('span.pa-preset-name', h('b', p.name))));
     const colors = h('div.pa-custom-colors'), colorInputs = {};
     const colorFields = [['accent', 'Accent colour'], ['surface', 'Background colour']].map(([key, label]) => {
       const input = h('input', { type: 'color', value: draft.colors[key], 'aria-label': label });
@@ -141,20 +134,22 @@ const ProfileAppearance = {
       input.addEventListener('input', () => { draft.colors[key] = input.value; value.textContent = input.value.toUpperCase(); paint(); });
       return h('label.pa-color-control', input, h('span', h('b', label), value));
     });
-    colors.append(h('div.pa-color-fields', ...colorFields), h('p', 'Text and accents adjust for readability. Your banner stays unchanged.'),
+    colors.append(h('div.pa-color-fields', ...colorFields),
       h('button.btn.sm', { type: 'button', onclick: () => {
         if (saving) return;
         draft.colors = this.defaultColors(); paint();
         status.textContent = 'Signature colours restored in preview. Save to apply.';
       } }, icon('retry'), 'Reset to default'));
     const sourceNames = { best: 'Best play background', song: 'Selected song background', upload: 'Uploaded banner' };
+    const sourceLabels = { best: 'Best play', song: 'Song', upload: 'Upload' };
     const sources = Object.entries(sourceNames).map(([value, label]) => h('button.pa-source', { type: 'button', dataset: { source: value }, 'aria-label': label,
-      onclick: () => { if (saving) return; uploadSeq++; busy = false; save.disabled = false; draft.background = value; status.textContent = ''; paint(); } }, icon({ best: 'trophy', song: 'music', upload: 'upload' }[value]), h('span', label), h('span.pa-source-check', icon('check'))));
+      onclick: () => { if (saving) return; uploadSeq++; busy = false; save.disabled = false; draft.background = value; status.textContent = ''; paint(); } }, icon({ best: 'trophy', song: 'music', upload: 'upload' }[value]), h('span', sourceLabels[value])));
     const search = h('input.input', { type: 'search', placeholder: 'Search your songs…', 'aria-label': 'Search profile background songs' });
     const songs = h('div.pa-song-list'), pickedSong = h('div.pa-picked-song');
     const songBox = h('div.pa-song-picker', pickedSong, search, songs);
-    const imageBox = h('div.pa-upload-box', h('p', 'PNG, JPEG or WebP · up to 10 MB.'), h('div.pa-upload', upload, remove, file));
-    const bestHint = h('p.pa-best-hint', best ? `Uses your best performance: ${best.title || (best._s && best._s.title) || 'your top play'}. Updates when you set a new best.` : 'Your best play’s background will appear here once you have a score. Until then, the theme’s colours are shown.');
+    const imageBox = h('div.pa-upload-box', h('div.pa-upload', upload, h('span', 'PNG, JPEG or WebP · up to 10 MB'), file));
+    const bestHint = h('p.pa-best-hint', best ? `Follows your best play: ${best.title || (best._s && best._s.title) || 'your top play'}.` : 'Uses your best play’s background once you have a score.');
+    const positionRow = h('div.set-row.form.frange.pa-position-row', h('div.fleft', h('label', { for: 'pa-position' }, 'Banner position')), h('div.fright', position));
     const drawSongs = () => {
       const query = search.value.trim().toLowerCase();
       const sets = BeatmapManager.sets.filter(s => !query || `${s.title} ${s.artist}`.toLowerCase().includes(query)).slice(0, 12);
@@ -189,7 +184,7 @@ const ProfileAppearance = {
       previewBio.textContent = draft.bio; previewBio.hidden = !draft.bio;
       styleName.textContent = `${this.presets.find(p => p.id === draft.style).name} · ${sourceNames[draft.background]}`;
       counter.textContent = `${bio.value.length} / 160`;
-      position.disabled = draft.background === 'upload' && !draft.banner; remove.disabled = !draft.banner;
+      positionRow.hidden = draft.background === 'upload' && !draft.banner || draft.background === 'best' && !best;
       songBox.hidden = draft.background !== 'song'; imageBox.hidden = draft.background !== 'upload'; bestHint.hidden = draft.background !== 'best';
       pickedSong.textContent = draft.song.title ? `Selected: ${draft.song.artist ? draft.song.artist + ' — ' : ''}${draft.song.title}` : 'Choose a song from your library.';
       for (const t of tiles) { if (t.dataset.style === 'custom') { t.style.setProperty('--tile-accent', draft.colors.accent); t.style.setProperty('--tile-custom-surface', draft.colors.surface); } const selected = t.dataset.style === draft.style; t.classList.toggle('selected', selected); t.setAttribute('aria-pressed', String(selected)); }
@@ -200,7 +195,7 @@ const ProfileAppearance = {
     file.addEventListener('change', async () => {
       const f = file.files[0]; file.value = ''; if (!f || saving) return;
       const seq = ++uploadSeq; busy = true; save.disabled = true; status.textContent = 'Preparing your banner…';
-      try { const banner = await this.packBanner(f); if (closed || seq !== uploadSeq) return; draft.banner = banner; draft.background = 'upload'; status.textContent = 'Banner ready. Adjust its position below.'; paint(); }
+      try { const banner = await this.packBanner(f); if (closed || seq !== uploadSeq) return; draft.banner = banner; draft.background = 'upload'; status.textContent = 'Banner ready.'; paint(); }
       catch (e) { if (!closed && seq === uploadSeq) status.textContent = e.message; }
       finally { if (!closed && seq === uploadSeq) { busy = false; save.disabled = false; } }
     });
@@ -219,11 +214,10 @@ const ProfileAppearance = {
     const close = h('button.icon-btn', { 'aria-label': 'Close profile editor', onclick: () => this.o.close() }, icon('x'));
     const panel = h('div.pa-editor.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Customize profile', style: { '--o-h': 333 } },
       overlayHeader('customize profile', { icon: 'brush', actions: [close] }),
-      h('div.pa-body', h('aside.pa-preview-side', h('h2.pa-section-heading', 'profile preview'), preview, h('div.pa-preview-caption', icon('brush'), styleName)),
-        h('div.pa-controls', h('section.pa-section', h('h2.pa-section-heading', 'theme'), h('p', 'Change the profile’s colours and mood. Your background stays the same.'), h('div.pa-presets', ...tiles), colors),
-          h('section.pa-section', h('h2.pa-section-heading', 'background'), h('div.pa-sources', ...sources), bestHint, songBox, imageBox,
-            h('div.set-row.form.frange.pa-position-row', h('div.fleft', h('label', { for: 'pa-position' }, 'Background position')), h('div.fright', position))),
-          h('section.pa-section', h('div.pa-section-title', h('label.pa-section-heading', { for: 'pa-bio' }, 'about you'), counter), bio), status)),
+      h('div.pa-body', h('aside.pa-preview-side', h('h2.pa-section-heading', 'Preview'), preview, h('div.pa-preview-caption', styleName)),
+        h('div.pa-controls', h('section.pa-section', h('h2.pa-section-heading', 'Theme'), h('div.pa-presets', ...tiles), colors),
+          h('section.pa-section', h('h2.pa-section-heading', 'Banner'), h('div.pa-sources', ...sources), bestHint, songBox, imageBox, positionRow),
+          h('section.pa-section', h('div.pa-section-title', h('label.pa-section-heading', { for: 'pa-bio' }, 'About you'), counter), bio), status)),
       h('div.pa-foot', h('span', 'Changes are only applied when you save.'), h('button.btn.ghost', { onclick: () => this.o.close() }, 'Cancel'), save));
     this.o = makeOverlay(panel, { cls: 'pa-wrap', onKey: e => {
       if (e.key !== 'Tab') return false;

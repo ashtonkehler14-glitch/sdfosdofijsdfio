@@ -32,7 +32,7 @@ try {
   async function matchingBanner(page, sameImage = true) {
     await page.waitForFunction(() => {
       const a = document.querySelector('.pf-banner')?.getBoundingClientRect(), b = document.querySelector('.pa-preview-banner')?.getBoundingClientRect();
-      return a && b && Math.abs(a.width / a.height - b.width / b.height) < .015;
+      return a && b && Math.abs(a.width / a.height - 1161.1 / 250) < .015 && Math.abs(a.width / a.height - b.width / b.height) < .015;
     });
     if (sameImage) assert.equal(await page.evaluate(() => {
       const a = document.querySelector('.pf-cover'), b = document.querySelector('.pa-preview-cover');
