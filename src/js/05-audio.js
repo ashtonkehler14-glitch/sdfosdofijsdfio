@@ -245,7 +245,7 @@ const TimeStretch = {
       }
     }
     const res = AudioManager.ctx.createBuffer(chs, outLen, sr);
-    for (let c = 0; c < chs; c++) res.copyToChannel ? res.copyToChannel(out[c], 0) : res.getChannelData(c).set(out[c]);
+    for (let c = 0; c < chs; c++) res.copyToChannel ? res.copyToChannel(out[c], c) : res.getChannelData(c).set(out[c]);
     this.cache.set(ck, res);
     trimAudioCache(this.cache, 3, v => v);
     return res;
