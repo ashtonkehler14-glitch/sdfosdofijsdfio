@@ -235,7 +235,7 @@ const BeatmapManager = {
       }
     }
     Bus.emit('import:status', null);
-    if (report.sets.length) Bus.emit('library:changed');
+    if (report.sets.length) { Bus.emit('library:changed'); if (typeof BeatmapStatus !== 'undefined') BeatmapStatus.queueImported(report.sets); }
     return report;
   },
 
@@ -412,8 +412,7 @@ const BeatmapManager = {
     }
     const mapIds = new Set(existing ? existing.mapIds : []);
     for (const r of mapRecords) mapIds.add(r.id);
-    // (the same set imported again keeps what was found out about it online: its status — which decides whether its
-    // plays give pp — its genre and language, its dates, and the set it was found to be)
+    // Reimports keep the set's display metadata. Ranking eligibility belongs to each exact difficulty file.
     const known = {};
     if (existing) for (const k of BeatmapManager.KEPT) if (existing[k] != null) known[k] = existing[k];
     const onlineId = parseInt(md.BeatmapSetID || '-1', 10);

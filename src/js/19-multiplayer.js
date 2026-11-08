@@ -988,7 +988,7 @@ const Presence = {
   },
   /** Something that keeps you online while nobody's at the keyboard: a room, spectating or being watched, a song. */
   busy() {
-    return Multiplayer.inRoom() || (typeof AdminGameView !== 'undefined' && !!(AdminGameView.current || AdminGameView.available)) || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers)) ||
+    return Multiplayer.inRoom() || (typeof AdminGameView !== 'undefined' && !!AdminGameView.current) || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers)) ||
       (Screens.currentName === 'gameplay' && typeof GameplayScreen !== 'undefined' && GameplayScreen.s && GameplayScreen.s.running);
   },
   goAway() {

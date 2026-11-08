@@ -54,6 +54,8 @@ try {
     await page.evaluate(() => { document.querySelector('#dropdown-test').disabled = true; });
     await page.waitForFunction(() => document.querySelector('.game-select-trigger[aria-label="Test options"]').disabled);
     await page.evaluate(() => { document.querySelector('#dropdown-test')._gameDropdown.anchor.remove(); AshtonkMania.SettingsPanel.open(); });
+    await page.locator('.settings-panel .game-select-trigger').first().scrollIntoViewIfNeeded();
+    await page.waitForTimeout(250);
     await page.locator('.settings-panel .game-select-trigger').first().click();
     await page.locator('.game-select-menu').waitFor();
     if (process.env.SHOT_DIR) await page.screenshot({ path: join(process.env.SHOT_DIR, mobile ? 'dropdown-mobile.png' : 'dropdown-desktop.png') });

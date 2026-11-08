@@ -40,6 +40,7 @@ const App = {
     GameDropdowns.init();
     AdminGameView.init();
     SpectatorChat.init();
+    NeruMenuSecrets.init();
     Tooltip.init();
     UISounds.initHover();
     FallingText.init();

@@ -22,58 +22,45 @@ test('admin game view requires a server-authenticated admin; badges and forged i
   assert.equal(p.adminView.sessions.size, 0);
 });
 
-test('no signals before player acceptance; signalling stays inside the accepted pair', () => {
-  const { p, request } = setup();
-  const out = request(), session = out[0].msg.session;
-  assert.equal(out[1].to, 'p'); assert.equal(out[1].msg.name, 'a'); assert.equal(out[1].msg.role, 'Moderator');
+test('an admin joins directly without a player enable step; signals stay inside that authenticated pair', () => {
+  const { p, request } = setup(), out = request(), session = out[0].msg.session;
+  assert.equal(out.some(x => x.msg.t === 'adminViewRequest'), false);
+  assert.equal(out.find(x => x.to === 'p' && x.msg.t === 'adminViewReady').msg.name, 'a');
   const offer = { t: 'adminViewSignal', session, signal: { description: { type: 'offer', sdp: 'v=0' } } };
-  assert.deepEqual(p.message('p', offer), []);
-  assert.deepEqual(p.message('a', { t: 'adminViewAccept', session }), []);
-  assert.deepEqual(p.message('x', { t: 'adminViewAccept', session }), []);
-  assert.equal(p.message('p', { t: 'adminViewAccept', session }).length, 2);
   assert.deepEqual(p.message('x', offer), []);
   const relayed = p.message('p', { ...offer, to: 'x' });
-  assert.equal(relayed[0].to, 'a'); assert.equal(relayed[0].msg.signal.description.sdp, 'v=0');
+  assert.equal(relayed[0].to, 'a');
   assert.deepEqual(p.message('a', offer), [], 'watcher cannot send an offer');
   assert.equal(p.message('a', { ...offer, signal: { description: { type: 'answer', sdp: 'v=0' } } })[0].to, 'p');
   assert.deepEqual(p.message('a', { t: 'adminViewState', session, paused: true }), []);
   assert.equal(p.message('p', { t: 'adminViewState', session, paused: true })[0].msg.paused, true);
 });
 
-test('direct admin viewing requires prior player opt-in and preserves the notification choice', () => {
+test('direct viewing preserves the notification choice and never waits for player activation', () => {
   const { p, tick } = setup();
-  assert.equal(p.message('a', { t: 'adminViewRequest', to: 'p', direct: true })[0].msg.t, 'adminViewError');
-  assert.equal(p.adminView.sessions.size, 0);
-  p.message('p', { t: 'adminViewAvailability', enabled: true });
-  assert.equal(p.list().find(u => u.id === 'p').adminViewReady, true);
   for (const notify of [false, true]) {
     const out = p.message('a', { t: 'adminViewRequest', to: 'p', direct: true, notify });
-    assert.equal(out.some(x => x.msg.t === 'adminViewRequest'), false, 'no repeated player request');
+    assert.equal(out.some(x => x.msg.t === 'adminViewRequest'), false);
     const ready = out.find(x => x.to === 'p' && x.msg.t === 'adminViewReady');
     assert.equal(ready.msg.notify, notify);
-    p.message('p', { t: 'adminViewAvailability', enabled: false });
-    assert.equal(p.adminView.sessions.size, 0);
-    tick(15001); p.message('p', { t: 'adminViewAvailability', enabled: true });
+    p.message('p', { t: 'adminViewStop', session: ready.msg.session });
+    assert.equal(p.adminView.sessions.size, 0); tick(3001);
   }
 });
 
-test('ending an admin view keeps prior opt-in until the player explicitly stops sharing', () => {
+test('ending an admin view stops its app capture and removes the sharing indicator', () => {
   const { AdminGameView: A, __ctx } = load(['19q-admin-game-view.js']);
-  let stopped = 0, closed = 0;
-  __ctx.document = { querySelectorAll: () => [] }; __ctx.Presence = { send() {} };
-  const s = { host: true, standby: true, session: 's', track: { enabled: true }, label: {}, pause: {}, pc: { close: () => closed++ },
-    stream: { getTracks: () => [{ stop: () => stopped++ }] }, observer: { disconnect() {} }, bar: { remove() {} } };
-  A.current = A.available = s; A.stop();
-  assert.equal(A.current, null); assert.equal(A.available, s); assert.equal(stopped, 0); assert.equal(closed, 1);
-  A.disable(); assert.equal(A.available, null); assert.equal(stopped, 1);
+  let stopped = 0, closed = 0, removed = 0; __ctx.Presence = { send() {} };
+  const s = { host: true, session: 's', capture: { stop: () => stopped++ }, pc: { close: () => closed++ },
+    observer: { disconnect() {} }, bar: { remove: () => removed++ } };
+  A.current = s; A.stop();
+  assert.equal(A.current, null); assert.equal(stopped, 1); assert.equal(closed, 1); assert.equal(removed, 1);
 });
 
-test('relay configuration is sent only to the accepted pair, and malformed entries are ignored', () => {
+test('relay configuration is sent only to the authenticated pair, and malformed entries are ignored', () => {
   const { p, request } = setup();
   p.adminView.configure(JSON.stringify([{ urls: 'turns:relay.test:5349?transport=tcp', username: 'u', credential: 'test' }, { urls: 'https://not-an-ice-server.test' }]));
-  const out = request(), session = out[0].msg.session;
-  assert.equal(JSON.stringify(out).includes('credential'), false);
-  const ready = p.message('p', { t: 'adminViewAccept', session });
+  const ready = request().filter(x => x.msg.t === 'adminViewReady');
   assert.deepEqual(ready.map(x => x.to).sort(), ['a', 'p']);
   assert.equal(ready[0].msg.iceServers.length, 1); assert.equal(ready[0].msg.iceServers[0].username, 'u');
   p.adminView.configure('not json'); assert.equal(p.adminView.iceServers.length, 0);
@@ -102,7 +89,7 @@ test('requests expire and share slots/rate limits prevent repeated or overlappin
   const { p, open, request, tick } = setup(), session = open();
   assert.equal(request()[0].msg.t, 'adminViewError');
   assert.deepEqual(p.message('x', { t: 'adminViewStop', session }), []);
-  tick(90001); assert.equal(p.adminView.prune().length, 2); assert.equal(p.adminView.sessions.size, 0);
+  tick(30 * 60000 + 1); assert.equal(p.adminView.prune().length, 2); assert.equal(p.adminView.sessions.size, 0);
   const next = open(); p.message('p', { t: 'adminViewAccept', session: next });
   tick(30 * 60000 + 1); assert.equal(p.adminView.prune().length, 2);
 });
@@ -114,17 +101,17 @@ test('a cancelled viewer stops a pending request that arrives after its window c
   assert.equal(sent[0].t, 'adminViewStop'); assert.equal(sent[0].session, 'late');
 });
 
-test('sharing rejects another tab or a monitor before sending acceptance', async () => {
-  for (const displaySurface of ['monitor', 'browser']) {
-    const { AdminGameView: A, __ctx } = load(['19q-admin-game-view.js']);
-    let stopped = false; const sent = [];
-    const track = { stop: () => { stopped = true; }, getSettings: () => ({ displaySurface }), getCaptureHandle: () => ({ handle: 'another-tab', origin: 'https://game.test' }) };
-    __ctx.navigator = { mediaDevices: { getDisplayMedia: async () => ({ getTracks: () => [track], getVideoTracks: () => [track] }) } };
-    __ctx.location = { origin: 'https://game.test' }; __ctx.Presence = { send: m => sent.push(m) }; __ctx.Toast = { show() {} };
-    A.handle = 'this-game'; const s = A.current = { host: true, session: 's' };
-    await A.share(s);
-    assert.equal(stopped, true); assert.equal(A.current, null); assert.equal(sent.some(x => x.t === 'adminViewAccept'), false);
-  }
+test('the source uses app rendering without requesting browser screen/tab access', async () => {
+  const { AdminGameView: A, __ctx } = load(['19q-admin-game-view.js']);
+  let created = 0;
+  const capture = { stream: {}, track: { enabled: true }, setPaused() {}, stop() {} };
+  __ctx.GameViewCapture = { create: async () => { created++; return capture; } };
+  __ctx.navigator = { mediaDevices: { getDisplayMedia: () => assert.fail('No tab-sharing prompt may be used') } };
+  __ctx.document = { body: {}, querySelectorAll: () => [] }; __ctx.Presence = { send() {} };
+  __ctx.MutationObserver = class { observe() {} };
+  A.sharingBar = s => { s.label = {}; s.pause = {}; };
+  const s = A.current = { host: true, session: 's', name: 'Admin' };
+  await A.share(s); assert.equal(created, 1); assert.equal(s.capture, capture); assert.equal(s.stream, capture.stream);
 });
 
 test('account details pause the video track, and manual pause stays set when the panel closes', () => {

@@ -28,7 +28,7 @@ test('unlisted submissions and catch-up batches cannot create leaderboard/rankin
   const m = Object.create(Matchmaker.prototype); m.presence = new PresenceLogic();
   m.presence.join('s', { name: 'Player', pid: 'player001', key: 'key-player001-0123456789' });
   m.loadFriends = async () => {}; m.ensureBests = async () => {}; m.send = () => {};
-  m.state = { storage: { get: async () => assert.fail('unlisted maps must not load or write leaderboards') } };
+  m.state = { storage: { get: async () => assert.fail('unlisted maps must not load leaderboards'), put: async key => assert.ok(key.startsWith('bm:'), 'only the map identity proof is stored') } };
   const base = { pid: 'player001', key: 'key-player001-0123456789' }, hash = 'f'.repeat(64), r = { ...result, unlisted: true, rankStatus: 'missing', pp: 0 };
   const request = b => new Request('https://game.test/internal', { method: 'POST', body: JSON.stringify(b) });
   const one = await (await m.score(request({ ...base, hash, r }))).json();

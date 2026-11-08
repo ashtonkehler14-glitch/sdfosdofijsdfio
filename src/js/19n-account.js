@@ -55,7 +55,7 @@ const Account = {
     if (!c) throw new Error('A code is 16 letters and numbers, like K7QM-3XRA-9DPZ-W2HF. Check it and try again.');
     const was = this.linked() && !this.signedOut() ? this.me().pid : null;
     const d = await this.call('link', { code: c, ...this.me() });
-    return this.became(d, c, was);
+    return this.became(d, d.recovery ? '' : c, was);
   },
   /** For the game saved as an HTML file here: a one-time ticket that signs the file in as you the first time it's
    *  opened, within a day (Matchmaker.account) — with your code mixed with the server's pad, so the file shows it

@@ -1117,8 +1117,8 @@ const NeruEggs = {
   },
   /** A small Neru peeking up from the bottom edge of the screen for a moment, in `mood`'s pose — clicks go through her
    *  to whatever she's in front of (song select's Back button, say). `found`: her name searched for (a medal). */
-  peek(mood = 'list', { found = true, side = null, then = null } = {}) {
-    if (!neruAnim() || document.querySelector('.nc-peek') || this.onScreen()) return null;
+  peek(mood = 'list', { found = true, side = null, then = null, alongside = false } = {}) {
+    if (!neruAnim() || document.querySelector('.nc-peek') || (!alongside && this.onScreen())) return null;
     const el = NeruCameo.make(mood, 'nc-peek');
     if (!el) return null;
     if (side === 'right') el.classList.add('right');

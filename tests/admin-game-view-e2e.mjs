@@ -22,17 +22,18 @@ const mf = new Miniflare({
 let browser;
 try {
   const url = String(await mf.ready).replace(/\/$/, '');
-  browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required', '--enable-usermedia-screen-capturing', '--allow-http-screen-capture', '--auto-accept-this-tab-capture', '--auto-select-tab-capture-source-by-title=Player Game Capture'] });
+  browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
   const errors = [];
   async function device(name) {
-    const context = await browser.newContext({ viewport: { width: 1440, height: 960 } });
+    const mobile = process.env.SOURCE_MOBILE === '1' && name === 'Player';
+    const context = await browser.newContext({ viewport: mobile ? { width: 844, height: 390 } : { width: 1440, height: 960 }, isMobile: mobile, hasTouch: mobile });
     await context.addInitScript(() => localStorage.setItem('am.noInstallPrompt', '1'));
     const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message));
     await page.goto(url); await page.waitForFunction(() => document.querySelector('#loading-screen.done'));
     if (await page.$('.onboarding')) {
       if (await page.$('.setup-choice[data-id="new"]')) await page.click('.setup-choice[data-id="new"]');
       await page.fill('.onboarding .ob-name', name); await page.keyboard.press('Enter');
-      await page.waitForSelector('.setup-step-wom'); await page.evaluate(() => AshtonkMania.Onboarding.finish());
+      await page.waitForSelector('.setup-step-wom, .setup-step-mobile'); await page.evaluate(() => AshtonkMania.Onboarding.finish());
     }
     await page.waitForFunction(() => AshtonkMania.Presence.me && AshtonkMania.Account.code());
     await page.evaluate(() => { while (Overlays.top()) Overlays.top().close(); });
@@ -45,10 +46,10 @@ try {
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 32;
     const ctx = canvas.getContext('2d'); ctx.drawImage(video, 0, 0, 32, 32);
     const data = ctx.getImageData(0, 0, 32, 32).data;
-    let bright = 0; for (let i = 0; i < data.length; i += 4) if (data[i] + data[i + 1] + data[i + 2] > 50) bright++;
-    return bright > 100;
+    let bright = 0; for (let i = 0; i < data.length; i += 4) if (data[i] + data[i + 1] + data[i + 2] > 160) bright++;
+    return bright > 20;
   });
-  await player.evaluate(() => { document.title = 'Player Game Capture'; const get = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices); navigator.mediaDevices.getDisplayMedia = async opts => { window.captureCalls = (window.captureCalls || 0) + 1; try { const stream = await get(opts), track = stream.getVideoTracks()[0]; window.captureDiagnostic = { settings: track.getSettings(), capture: track.getCaptureHandle?.() }; return stream; } catch (e) { window.captureDiagnostic = { error: e.name, msg: e.message }; throw e; } }; });
+  await player.evaluate(() => { window.captureCalls = 0; navigator.mediaDevices.getDisplayMedia = async () => { window.captureCalls++; throw new Error('Tab capture must not be used'); }; });
   const pid = await admin.evaluate(() => AshtonkMania.Presence.pid());
   const login = await fetch(url + '/admin/api/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin': '1' }, body: JSON.stringify({ code }) });
   const cookie = login.headers.get('set-cookie').split(';')[0];
@@ -62,24 +63,20 @@ try {
     const items = AshtonkMania.UserPanels.menuItems({ ...u, online: true }), at = items.findIndex(i => i.label === 'Spectate');
     return at >= 0 && items[at + 1].label === 'Admin Spectate';
   }), true, 'Admin Spectate is immediately beside regular Spectate');
-  await player.evaluate(() => AshtonkMania.AdminGameView.enable());
-  await player.getByRole('button', { name: 'Enable and share game tab', exact: true }).click();
-  await player.waitForFunction(() => AshtonkMania.AdminGameView.available?.stream && !AshtonkMania.AdminGameView.current);
-  await admin.waitForFunction(() => AshtonkMania.Presence.players.some(u => u.name === 'Player' && u.adminViewReady));
   await admin.evaluate(() => AshtonkMania.AdminGameView.request(AshtonkMania.Presence.players.find(u => u.name === 'Player')));
   await admin.getByRole('button', { name: 'Spectate without extra notice', exact: true }).click();
   assert.equal(await player.getByRole('button', { name: 'Share game tab', exact: true }).count(), 0, 'No recurring approval request');
   try { await admin.waitForFunction(() => document.querySelector('.admin-view-video')?.videoWidth > 0, null, { timeout: 30000 }); }
-  catch (e) { for (const [label, pg] of [['player', player], ['admin', admin]]) console.error(label, JSON.stringify(await pg.evaluate(() => ({ capture: window.captureDiagnostic, messages: window.viewMessages, stops: window.viewStops, current: AshtonkMania.AdminGameView.current && { host: AshtonkMania.AdminGameView.current.host, session: AshtonkMania.AdminGameView.current.session, pc: AshtonkMania.AdminGameView.current.pc?.connectionState, ice: AshtonkMania.AdminGameView.current.pc?.iceConnectionState, handle: AshtonkMania.AdminGameView.handle }, toasts: document.querySelector('#toasts').textContent })), null, 2)); throw e; }
-  assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.track.getSettings().displaySurface), 'browser');
+  catch (e) { for (const [label, pg] of [['player', player], ['admin', admin]]) console.error(label, JSON.stringify(await pg.evaluate(() => ({ captureError: AshtonkMania.AdminGameView.current?.captureError, messages: window.viewMessages, stops: window.viewStops, current: AshtonkMania.AdminGameView.current && { host: AshtonkMania.AdminGameView.current.host, session: AshtonkMania.AdminGameView.current.session, pc: AshtonkMania.AdminGameView.current.pc?.connectionState, ice: AshtonkMania.AdminGameView.current.pc?.iceConnectionState, handle: AshtonkMania.AdminGameView.handle }, toasts: document.querySelector('#toasts').textContent })), null, 2)); throw e; }
+  assert.equal(await player.evaluate(() => !!AshtonkMania.AdminGameView.current.capture), true, 'The game renders its own UI without display capture');
   assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.pc.connectionState), 'connected');
   await visibleVideo();
   assert.equal(await admin.locator('.admin-view-video').evaluate(el => {
     const r = el.getBoundingClientRect(), css = getComputedStyle(el);
     return r.width >= innerWidth - 1 && r.height >= innerHeight - 1 && css.opacity === '1' && css.filter === 'none';
   }), true, 'Video fills the viewport without dimming');
-  assert.ok((await player.evaluate(() => AshtonkMania.AdminGameView.current.track.getSettings().width)) >= 1440, 'Capture retains the game viewport resolution');
-  assert.equal(await player.evaluate(() => window.captureCalls), 1);
+  assert.ok((await player.evaluate(() => AshtonkMania.AdminGameView.current.capture.canvas.width)) >= (await player.evaluate(() => innerWidth)), 'Capture retains the game viewport resolution');
+  assert.equal(await player.evaluate(() => window.captureCalls), 0);
 
   await player.evaluate(() => AshtonkMania.Screens.go('profile'));
   await player.getByRole('button', { name: 'Customize profile', exact: true }).click();
@@ -92,22 +89,40 @@ try {
   await player.evaluate(() => AshtonkMania.CodePanel.open());
   await admin.waitForFunction(() => AshtonkMania.AdminGameView.current?.remotePaused === true);
   assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.track.enabled), false);
+  await admin.waitForFunction(() => {
+    const v = document.querySelector('.admin-view-video'); if (!v?.videoWidth) return false;
+    const c = document.createElement('canvas'); c.width = c.height = 16; const ctx = c.getContext('2d'); ctx.drawImage(v, 0, 0, 16, 16);
+    return ctx.getImageData(0, 0, 16, 16).data.every((n, i) => i % 4 === 3 || n < 10);
+  });
   await player.evaluate(() => AshtonkMania.CodePanel.close());
   await admin.waitForFunction(() => AshtonkMania.AdminGameView.current?.remotePaused === false);
+  await player.waitForFunction(() => !!AshtonkMania.AdminGameView.current?.capture?.frame);
   await visibleVideo();
   if (process.env.SHOT_DIR) await admin.screenshot({ path: join(process.env.SHOT_DIR, 'admin-live-game-view.png') });
+  await player.evaluate(async () => {
+    while (Overlays.top()) Overlays.top().close();
+    const blob = await (await fetch('/tests/fixtures/test-set.osz')).blob();
+    await AshtonkMania.App.importFiles([new File([blob], 'test-set.osz')]);
+    while (Overlays.top()) Overlays.top().close();
+    const A = AshtonkMania, map = [...A.BeatmapManager.maps.values()].find(m => m.keys === 4 && !m.problems.length);
+    await A.Game.launch({ mapId: map.id, mods: ['NF'], mode: 'play' });
+  });
+  try { await player.waitForFunction(() => AshtonkMania.GameplayScreen.s?.running && AshtonkMania.AdminGameView.current?.capture?.frameMode?.startsWith('gameplay/true')); } catch (e) { console.error('Gameplay capture state:', JSON.stringify(await player.evaluate(() => ({ screen: Screens.currentName, running: GameplayScreen.s?.running, state: GameplayScreen.s && { finished: GameplayScreen.s.finished, failed: GameplayScreen.s.failed }, mode: AdminGameView.current?.capture?.frameMode, capturedAgo: performance.now() - (AdminGameView.current?.capture?.captured || 0), videos: [...document.querySelectorAll('video')].map(v => ({ state: v.readyState, paused: v.paused })), private: AdminGameView.privateOpen(), error: AdminGameView.current?.captureError, overlays: Overlays.stack.length, label: AdminGameView.current?.label?.textContent })))); throw e; }
+  await visibleVideo();
+  if (process.env.SHOT_DIR) await admin.screenshot({ path: join(process.env.SHOT_DIR, process.env.SOURCE_MOBILE ? 'admin-live-gameplay-mobile.png' : 'admin-live-gameplay.png') });
+  await player.evaluate(() => AshtonkMania.Screens.go('songselect'));
   await admin.getByRole('button', { name: 'Stop watching', exact: true }).click();
-  await player.waitForFunction(() => !AshtonkMania.AdminGameView.current && AshtonkMania.AdminGameView.available?.track.readyState === 'live');
+  await player.waitForFunction(() => !AshtonkMania.AdminGameView.current);
   // More than the server's short rejoin cooldown has elapsed during the checks above.
   await admin.evaluate(() => AshtonkMania.AdminGameView.request(AshtonkMania.Presence.players.find(u => u.name === 'Player')));
   await admin.getByRole('button', { name: 'Notify and spectate', exact: true }).click();
   await player.locator('#toasts').filter({ hasText: 'Admin spectating' }).waitFor();
   await visibleVideo();
-  assert.equal(await player.evaluate(() => window.captureCalls), 1, 'Rejoining reuses the player-enabled tab capture');
+  assert.equal(await player.evaluate(() => window.captureCalls), 0, 'Rejoining never asks the player to share a tab');
   await player.getByRole('button', { name: 'Stop sharing', exact: true }).click();
   await admin.waitForFunction(() => !AshtonkMania.AdminGameView.current);
   assert.equal(await player.locator('.admin-view-sharing').count(), 0);
-  console.log('PASS: native full-resolution fullscreen game-tab WebRTC, adjacent admin button, direct joins, notification choice, one capture across rejoins, pause/resume, account privacy and player stop');
+  console.log('PASS: automatic full-resolution fullscreen in-game WebRTC, adjacent admin button, direct joins, notification choice, zero browser prompts across rejoins, pause/resume, account privacy and player stop');
   for (const pg of [player, admin]) await pg.evaluate(async () => {
     while (Overlays.top()) Overlays.top().close();
     const blob = await (await fetch('/tests/fixtures/test-set.osz')).blob();

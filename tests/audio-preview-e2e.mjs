@@ -73,8 +73,33 @@ try {
     await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'home');
     assert.equal(await page.evaluate(() => AshtonkMania.Music.rate), 1);
     assert.equal(await page.evaluate(() => AshtonkMania.AudioManager.modGain.gain.value), 1);
+    // Autoplay can be disabled independently of the gameplay soundtrack and explicit player controls.
+    await page.evaluate(async () => { await AshtonkMania.Settings.set('audio.autoplay', false); await AshtonkMania.Settings.flush(); });
+    assert.equal(await page.evaluate(() => AshtonkMania.Music.playing), false);
+    await page.evaluate(async () => {
+      const A = AshtonkMania; await HomeScreen.startMenuMusic();
+      const m = [...A.BeatmapManager.maps.values()].find(m => m.keys === 4 && !m.problems.length);
+      await A.Screens.go('songselect', { mapId: m.id }); await A.SongSelect.preview(m);
+    });
+    await page.waitForTimeout(350);
+    assert.equal(await page.evaluate(() => AshtonkMania.Music.playing), false, 'Home and song selection stay quiet');
+    await page.evaluate(() => AshtonkMania.MenuMusic.toggle());
+    await page.waitForFunction(() => AshtonkMania.Music.playing);
+    assert.equal(await page.evaluate(() => AshtonkMania.Music.meta?.mapId === AshtonkMania.SongSelect.selectedId), true, 'Manual Play follows selected difficulty');
+    await page.evaluate(() => { AshtonkMania.Music.pause(); AshtonkMania.Music.onEnded?.(); });
+    assert.equal(await page.evaluate(() => AshtonkMania.Music.playing), false, 'Track end does not loop or advance with autoplay off');
+    await page.evaluate(() => AshtonkMania.MenuMusic.next());
+    await page.waitForFunction(() => AshtonkMania.Music.playing);
+    await page.evaluate(() => { const A = AshtonkMania; A.Game.launch({ mapId: A.SongSelect.selectedId, mods: ['NF'], mode: 'play' }); });
+    await page.waitForFunction(() => AshtonkMania.GameplayScreen.s?.running && AshtonkMania.Music.playing);
+    await page.evaluate(() => AshtonkMania.Settings.set('audio.autoplay', false));
+    assert.equal(await page.evaluate(() => AshtonkMania.Music.playing), true, 'Turning menu autoplay off during a song leaves gameplay audio playing');
+    await page.evaluate(async () => { await AshtonkMania.Screens.go('home'); await AshtonkMania.Settings.flush(); });
+    await page.reload(); await page.waitForFunction(() => document.querySelector('#loading-screen.done'));
+    assert.equal(await page.evaluate(() => AshtonkMania.Settings.get('audio.autoplay')), false);
+    assert.equal(await page.evaluate(() => AshtonkMania.Music.playing), false, 'The setting survives reload and keeps startup quiet');
     assert.deepEqual(errors, []);
-    console.log(`PASS: ${touch ? 'touch / decoded' : 'desktop / streamed'} previews match speed/pitch mods, retain position, follow track changes and gameplay, reset on exit`);
+    console.log(`PASS: ${touch ? 'touch / decoded' : 'desktop / streamed'} previews match speed/pitch mods, retain position, follow track changes and gameplay, reset on exit; autoplay off keeps menus/reloads quiet, allows Play/Next and preserves gameplay audio`);
     await context.close();
   }
 } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }

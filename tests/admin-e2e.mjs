@@ -41,7 +41,7 @@ const results = [];
 // (screenshots of the panel, with SHOT_DIR set)
 const shot = async (pg, n) => { if (process.env.SHOT_DIR) await pg.screenshot({ path: join(process.env.SHOT_DIR, n + '.png'), fullPage: true }); };
 const check = (name, ok, extra = '') => { results.push({ name, ok }); console.log(`${ok ? '✔' : '✖'} ${name}${extra ? '  — ' + extra : ''}`); };
-const browser = await chromium.launch({ args: ['--autoplay-policy=no-user-gesture-required'] });
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
 const errors = [];
 const post = (path, body, headers = {}) => fetch(url + path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body || {}) });
 

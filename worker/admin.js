@@ -97,10 +97,10 @@ export async function handleAdmin(request, env, url) {
 }
 
 const CSS = `
-:root { color-scheme: dark; --bg: #13101b; --panel: #1d1828; --panel2: #262036; --line: rgba(255,255,255,.08); --text: #ece8f6; --muted: #a49bb8;
-  --accent: #b366ff; --good: #99eb47; --bad: #ff5f7a; --warn: #ffc33d; }
+:root { color-scheme: dark; --bg: hsl(255 10% 15%); --panel: hsl(255 10% 20%); --panel2: hsl(255 10% 25%); --line: rgba(255,255,255,.08); --text: #ece8f6; --muted: #a49bb8;
+  --accent: #aa88ff; --good: #99eb47; --bad: #ff5f7a; --warn: #ffc33d; }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 "Torus", "Outfit", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: 0; border-radius: 8px; padding: 7px 13px; background: var(--panel2); color: var(--text); font-weight: 600; }
 button:hover { filter: brightness(1.15); }
@@ -180,6 +180,70 @@ a { color: #d6b3ff; } a.big { font-weight: 700; font-size: 15px; }
 .find { width: 200px; } @media (max-width: 860px) { .find { flex: 1; width: auto; } }
 td.quick { white-space: nowrap; text-align: right; } td.quick button + button { margin-left: 4px; }
 .note { padding: 8px 0; border-bottom: 1px solid var(--line); } .note .x { margin-top: 4px; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* The game's purple overlay palette, title bands, flat rows and pink action buttons. */
+:root { --pink: #ff66ab; --gold: #ffcc22; --text: #fff; --muted: #aaa5b5; }
+body { min-height: 100vh; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { border-radius: 4px; }
+button { min-height: 36px; padding: 8px 16px; transition: background .16s, color .16s; }
+button.primary { background: #bf4d80; } button.primary:hover { background: var(--pink); }
+button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+input, select, textarea { background: hsl(255 10% 10%); }
+input:focus, select:focus, textarea:focus { outline-color: #aa88ff80; }
+h1, h2 { font-weight: 400; } h2 { font-size: 18px; }
+h3 { color: #d9c2ff; font-size: 11px; letter-spacing: .08em; }
+.top { background: hsl(255 20% 10%); padding: 10px max(24px, calc((100vw - 1340px) / 2)); gap: 12px; border: 0; backdrop-filter: none; }
+.top .logo { flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--pink); border: 3px solid #fff; font-size: 13px; text-decoration: none; }
+.brand { flex: 1; line-height: 1.1; } .brand h1 { font-size: 18px; letter-spacing: .02em; } .brand small { color: var(--muted); font-size: 10px; letter-spacing: .15em; text-transform: uppercase; }
+.top .back-game { color: #d9c2ff; font-size: 12px; text-decoration: none; white-space: nowrap; }
+.hero { height: 150px; overflow: hidden; position: relative; background: linear-gradient(110deg, #553b86, #342b49 65%, #272332); }
+.hero::before { content: ''; position: absolute; inset: 0; opacity: .65; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='280' height='150'%3E%3Cg fill='none' stroke='%23fff' stroke-opacity='.09' stroke-width='2'%3E%3Cpath d='M-20 150L70 0l90 150zM160 150l65-110 65 110zM110 65l28-48 28 48z'/%3E%3C/g%3E%3C/svg%3E") repeat-x right bottom; }
+.hero-inner { position: relative; max-width: 1340px; padding: 30px 24px; margin: auto; height: 100%; display: flex; align-items: center; gap: 16px; }
+.hero-icon { width: 48px; height: 48px; border-radius: 50%; background: #ffffff0d; color: #d9c2ff; display: grid; place-items: center; font-size: 24px; }
+.hero h2 { font-size: 30px; text-transform: lowercase; margin: 0 0 2px; letter-spacing: .01em; }
+.hero p { margin: 0; color: #d9d2e7; font-size: 13px; max-width: 700px; }
+.nav-band { background: hsl(255 20% 20%); }
+.tabs { max-width: 1340px; margin: auto; padding: 0 24px; gap: 24px; scrollbar-width: none; }
+.tabs button { position: relative; border-radius: 0; padding: 16px 0; min-height: 52px; font-size: 13px; font-weight: 400; }
+.tabs button:hover { filter: none; color: #fff; }
+.tabs button.on { background: none; color: #fff; }
+.tabs button.on::after { content: ''; position: absolute; height: 4px; border-radius: 3px 3px 0 0; bottom: 0; left: 0; right: 0; background: var(--pink); }
+main { max-width: 1340px; padding: 28px 24px 64px; }
+.grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 2px; }
+.tile { border: 0; border-radius: 0; padding: 16px 20px; background: hsl(255 10% 18%); }
+.tile b { font-size: 29px; font-weight: 400; color: #e3d5ff; }
+.tile span { font-size: 11px; letter-spacing: .03em; }
+.card { border: 0; border-radius: 6px; padding: 22px; box-shadow: 0 2px 6px #0002; }
+.card > h2:first-child { padding-bottom: 12px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+.cols { gap: 20px; } .who { padding-bottom: 16px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.who > .av { width: 52px; height: 52px; border-radius: 5px; font-size: 23px; }
+.kv { gap: 9px 20px; font-size: 13px; } .actions { gap: 20px; }
+.actions > div { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
+th { text-transform: uppercase; font-size: 10px; letter-spacing: .07em; } td { padding: 11px 8px; font-size: 13px; }
+.todo, .ann { border-radius: 4px; } .pill { border-radius: 3px; }
+.line { padding: 10px 4px; } .empty { position: relative; min-height: 86px; display: flex; align-items: center; justify-content: center; gap: 16px; padding: 16px; }
+.empty::before { content: ''; width: 40px; height: 54px; flex: none; opacity: .75; background: url('/neru-huh.png') center top / contain no-repeat; }
+.empty.loading::before { background-image: url('/neru-phone.png'); }
+.danger-zone { border-left: 3px solid var(--bad); background: #33242f; }
+.center { background: radial-gradient(ellipse at 50% 20%, #51334c60, transparent 65%); }
+.login { position: relative; padding: 32px; border-top: 3px solid var(--pink); }
+.login h1 { font-size: 25px; text-transform: lowercase; } .login::before { content: ''; display: block; width: 70px; height: 80px; margin: -6px auto 18px; background: url('/neru-wink.png') center top / contain no-repeat; }
+.login input { font-size: 17px; } .msg { border-left: 4px solid var(--accent); border-radius: 4px; }
+.account-access .code-result { padding: 16px; background: hsl(255 10% 15%); border-left: 2px solid var(--gold); margin-top: 14px; }
+.account-access .code-value { width: 100%; font: 18px/1.5 ui-monospace, monospace; text-align: center; letter-spacing: .06em; padding: 12px 4px; }
+.account-access p { margin: 0 0 12px; } .account-access .small { margin-top: 10px; }
+.panel-neru { position: absolute; right: 32px; top: 10px; width: 110px; height: 145px; padding: 0; border: 0; background: none; transform-origin: center bottom; }
+.panel-neru img { width: 100%; height: 100%; object-fit: contain; object-position: center top; pointer-events: none; }
+.panel-neru:hover { filter: none; transform: rotate(-4deg); } .panel-neru.poked { animation: neru-bounce .55s ease; }
+.neru-spark { position: absolute; pointer-events: none; color: var(--gold); font-size: 22px; animation: neru-spark .8s ease-out forwards; }
+.neru-egg { position: fixed; bottom: -40px; right: 24px; width: 110px; height: 160px; z-index: 4; pointer-events: none; animation: neru-peek 3s ease both; }
+.neru-egg img { width: 100%; height: 100%; object-fit: contain; }
+@keyframes neru-bounce { 30% { transform: translateY(-12px) rotate(-8deg); } 65% { transform: rotate(5deg); } }
+@keyframes neru-spark { to { transform: translateY(-65px) rotate(50deg); opacity: 0; } }
+@keyframes neru-peek { 0%, 100% { transform: translateY(100%); } 20%, 80% { transform: translateY(0); } }
+@media (max-width: 900px) { .hero-inner { padding-right: 145px; } .grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } .tile { padding: 12px; } .top { flex-wrap: wrap; } .find { flex: 0 1 200px; } }
+@media (max-width: 700px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .top { padding: 10px 16px; } .top .find { order: 3; flex: 1 0 100%; } .hero { height: 132px; } .hero-inner { padding-left: 16px; gap: 12px; } .hero h2 { font-size: 26px; } .hero p { font-size: 12px; } .hero-icon { display: none; } .panel-neru { right: 12px; width: 90px; height: 125px; } .tabs { padding: 0 16px; gap: 24px; } main { padding: 20px 12px 48px; } .card { padding: 18px 14px; } .kv { gap: 8px 12px; } .row > input.grow { min-width: 100px; } .top .back-game { font-size: 11px; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } .neru-egg { display: none; } }
+
 `;
 
 const OFF = `<div class="center"><div class="card login"><h1>The admin panel is off</h1>
@@ -254,14 +318,35 @@ let ME = { owner: true };
 let lastQuery = '';
 const TABS = [['overview', 'Overview'], ['reports', 'Reports'], ['players', 'Players'], ['announce', 'Announcements'], ['chat', 'Chat'], ['boards', 'Leaderboards'], ['playlists', 'Playlists'], ['daily', 'Daily challenge'], ['log', 'Log']];
 let OPEN = 0; // (reports waiting: shown on their tab)
-const tabBtns = () => tabsEl.replaceChildren(...tabs().map(([k, l]) => h('button' + (k === tab ? '.on' : ''), { onclick: () => go(k) }, l, k === 'reports' && OPEN ? h('span.pill.bad', String(OPEN)) : null)));
+const tabBtns = () => tabsEl.replaceChildren(...tabs().map(([k, l]) => h('button' + (k === tab ? '.on' : ''), { onclick: () => go(k), 'aria-current': k === tab ? 'page' : null }, l, k === 'reports' && OPEN ? h('span.pill.bad', String(OPEN)) : null)));
 const tabs = () => ME.owner ? TABS : TABS.filter(([k]) => k !== 'daily' && k !== 'log');
 let tab = (location.hash.slice(1).split('/')[0]) || 'overview';
 const app = document.getElementById('app'), main = h('main'), tabsEl = h('div.tabs');
+const replaceMain = (...nodes) => main.replaceChildren(...nodes.filter(n => n != null && n !== false));
 // (a player found from any page: their name or id, Enter)
 const findBox = h('input.find', { placeholder: 'Find a player…', 'aria-label': 'Find a player' });
 findBox.addEventListener('keydown', e => { if (e.key === 'Enter' && findBox.value.trim()) { lastQuery = findBox.value.trim(); findBox.value = ''; findBox.blur(); go('players'); } });
-app.append(h('div.top', h('div.logo', 'A'), h('h1', 'Admin'), tabsEl, findBox, h('button.small', { onclick: async () => { await api('logout').catch(() => {}); location.reload(); } }, 'Sign out')), main);
+const TITLES = { overview: ['Overview', 'Everything happening in your game, in one place.', '◈', 'wink'], reports: ['Reports', 'Review what players have sent in.', '⚑', 'worried'], players: ['Players', 'Find a player, manage their profile and help them sign in.', '◉', 'point'], announce: ['Announcements', 'Share the latest news with everyone online.', '◇', 'cheer'], chat: ['Chat', 'Keep the lounge welcoming.', '☷', 'phone'], boards: ['Leaderboards', 'Look up a beatmap and review its scores.', '♜', 'cool'], playlists: ['Playlists', 'The community’s song collections.', '♫', 'dance'], daily: ['Daily challenge', 'Choose the next challenge.', '☆', 'sassy'], log: ['Log', 'A record of changes made to the game.', '☰', 'bored'] };
+const heroTitle = h('h2'), heroSub = h('p'), heroIcon = h('span.hero-icon', { 'aria-hidden': 'true' });
+const neruPic = h('img', { src: '/neru-wink.png', alt: '', draggable: false });
+const neru = h('button.panel-neru', { 'aria-label': 'Neru', title: 'Neru is keeping an eye on things' }, neruPic);
+let neruT, pokes = 0;
+neru.addEventListener('click', () => {
+  const faces = ['happy', 'wink', 'sassy', 'mock', 'cool'];
+  neruPic.src = '/neru-' + faces[pokes++ % faces.length] + '.png';
+  neru.classList.remove('poked'); void neru.offsetWidth; neru.classList.add('poked');
+  const star = h('span.neru-spark', { 'aria-hidden': 'true' }, '✦'); neru.append(star); setTimeout(() => star.remove(), 850);
+  clearTimeout(neruT); neruT = setTimeout(() => { neruPic.src = '/neru-' + (TITLES[tab] || TITLES.overview)[3] + '.png'; }, 2400);
+});
+let typedNeru = '', typedAt = 0;
+document.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.altKey || e.metaKey || e.target.closest('input, textarea, select, [contenteditable]') || e.key.length !== 1) return;
+  const now = Date.now(); typedNeru = (now - typedAt < 1200 ? typedNeru : '') + e.key.toLowerCase(); typedNeru = typedNeru.slice(-4); typedAt = now;
+  if (typedNeru === 'neru' && !document.querySelector('.neru-egg')) { const el = h('div.neru-egg', { 'aria-hidden': 'true' }, h('img', { src: '/neru-snicker.png', alt: '' })); document.body.append(el); setTimeout(() => el.remove(), 3100); }
+});
+app.append(h('header.top', h('a.logo', { href: '/', 'aria-label': 'Return to Ashtonk!mania' }, 'am'), h('div.brand', h('h1', 'ashtonk!mania'), h('small', 'administration')), findBox,
+  h('a.back-game', { href: '/' }, '← Back to game'), h('button.small', { onclick: async () => { await api('logout').catch(() => {}); location.reload(); } }, 'Sign out')),
+  h('div.hero', h('div.hero-inner', heroIcon, h('div', heroTitle, heroSub), neru)), h('nav.nav-band', { 'aria-label': 'Admin sections' }, tabsEl), main);
 // (the overview and the reports keep themselves up to date while the panel is in view — not while you're typing)
 setInterval(() => { if (document.hidden || (tab !== 'overview' && tab !== 'reports') || (document.activeElement && /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))) return; ({ overview, reports })[tab]().catch(() => {}); }, 20000);
 // (reasons admins give most, offered as they type one)
@@ -274,9 +359,11 @@ window.addEventListener('hashchange', () => { if (location.hash === shown) retur
 
 async function render() {
   shown = location.hash;
+  if (!TITLES[tab] || !tabs().some(([k]) => k === tab)) tab = 'overview';
+  const title = TITLES[tab]; heroTitle.textContent = title[0]; heroSub.textContent = title[1]; heroIcon.textContent = title[2]; neruPic.src = '/neru-' + title[3] + '.png';
   tabBtns();
-  main.replaceChildren(h('div.empty', 'Loading…'));
-  try { await ({ overview, reports, players, announce, chat, boards, playlists, daily, log })[tab](); } catch (e) { main.replaceChildren(h('div.card', h('p.bad', e.message))); }
+  replaceMain(h('div.empty.loading', 'Loading…'));
+  try { await ({ overview, reports, players, announce, chat, boards, playlists, daily, log })[tab](); } catch (e) { replaceMain(h('div.card', h('p.bad', e.message))); }
 }
 
 async function overview() {
@@ -286,7 +373,7 @@ async function overview() {
   // (what needs an admin now: reports waiting; and what everyone sees: the announcements up)
   const todo = [OPEN ? h('div.todo.bad', h('b', OPEN + ' report' + (OPEN === 1 ? '' : 's') + ' waiting'), h('span.muted', 'Players told the admins about someone.'), h('button.primary', { onclick: () => go('reports') }, 'Review')) : null,
     (d.anns || []).length ? h('div.todo', h('b', d.anns.length + ' announcement' + (d.anns.length === 1 ? '' : 's') + ' up'), h('span.muted', d.anns.map(a => a.title || a.text).join(' · ')), h('button', { onclick: () => go('announce') }, 'Manage')) : null].filter(Boolean);
-  main.replaceChildren(
+  replaceMain(
     h('div.card', h('div.row', h('span.muted', 'Signed in as'), ME.owner ? rolePill('Owner', '#ffcc22') : [h('b', ME.name || ME.pid), ME.role ? rolePill(ME.role.name, ME.role.colour) : null], h('span.grow'),
       h('button.small', { onclick: () => go('announce') }, 'Announce…'))),
     todo.length ? h('div.todos', todo) : null,
@@ -326,7 +413,7 @@ async function players() {
     h('td', p.online ? h('span.dot') : null, avatar(p.avatar, p.name), p.name || h('span.muted', p.pid), badges(p)), h('td.muted.small', what(p))))) : h('div.empty', 'None.'));
   const modList = (title, list, what) => h('div.card', h('h2', title + ' (' + list.length + ')'), list.length ? h('table', list.map(p => h('tr.click', { onclick: () => openPlayer(p.pid) },
     h('td', p.name || p.pid, badges(p)), h('td.muted.small', what(p))))) : h('div.empty', 'None.'));
-  main.replaceChildren(h('div.card', h('h2', 'Find a player'), h('div.row', q, h('button.primary', { onclick: search }, 'Search')), out),
+  replaceMain(h('div.card', h('h2', 'Find a player'), h('div.row', q, h('button.primary', { onclick: search }, 'Search')), out),
     h('div.cols', quick('Online and recently seen', lists.recent, p => p.online ? 'online' : ago(p.seen)), quick('Top players', lists.top, p => fmt(p.pp) + 'pp · ' + fmt(p.plays) + ' plays')),
     h('div.cols', modList('Banned', mod.bans, p => until(p.banned)), h('div', modList('Muted', mod.mutes, p => until(p.muted)), modList('Renamed', mod.names, p => 'shown as ' + p.named))));
   q.focus();
@@ -353,7 +440,7 @@ async function openPlayer(pid, inPlace) {
         p.reports.length ? h('div', h('h3', 'Reported ' + p.reports.length + ' time' + (p.reports.length === 1 ? '' : 's')), p.reports.map(r => h('div.line', h('span.t', ago(r.at)), h('span.n', REASONS[r.reason] || r.reason), h('span.x', (r.text || '') + ' — by ' + ((r.by && r.by.name) || '?') + (r.open ? ' (waiting)' : ''))))) : h('p.muted.small', 'Never reported.' + (p.reported ? '' : '')),
         p.reported ? h('p.muted.small', 'They\\'ve reported others ' + p.reported + ' time' + (p.reported === 1 ? '' : 's') + '.') : null,
         h('h3.mt', 'What the admins did'), p.history && p.history.length ? logTable(p.history) : h('div.empty', 'Nothing yet.'))];
-  main.replaceChildren(
+  replaceMain(
     h('div.row.mb', h('button.small', { onclick: () => go('players') }, '← Players')),
     h('div.cols',
       h('div.col', h('div.card', h('div.who', avatar(p.avatar, p.name).cloneNode(true), h('h2', p.name || p.pid, badges(p))), h('div.kv',
@@ -361,7 +448,7 @@ async function openPlayer(pid, inPlace) {
         h('span', 'Global rank'), h('div', p.rank ? '#' + fmt(p.rank) : '—'), h('span', 'pp'), h('div', fmt(p.pp)), h('span', 'Accuracy'), h('div', p.acc ? pct(p.acc) : '—'), h('span', 'Ranked plays'), h('div', fmt(p.plays)),
         h('span', 'First places'), h('div', fmt(p.firsts)), h('span', 'Friends'), h('div', fmt(p.friends)), h('span', 'Devices'), h('div', fmt(p.devices) + (p.code ? ' · has a code' : '')),
         h('span', 'Daily challenge'), h('div', p.daily ? p.daily.days + ' days played · best streak ' + (p.daily.best || 0) : '—'),
-        p.banned ? [h('span', 'Banned'), h('div.bad', until(p.banned))] : null, p.muted ? [h('span', 'Muted'), h('div.warn', until(p.muted))] : null)), ...side),
+        p.banned ? [h('span', 'Banned'), h('div.bad', until(p.banned))] : null, p.muted ? [h('span', 'Muted'), h('div.warn', until(p.muted))] : null)), playerCodeBox(p), ...side),
       h('div.card.actions', h('h2', 'Actions'), profileTagsBox(p, act),
         p.admin ? h('p.muted', 'This is the owner (the ADMIN_CODE player).') : !ME.owner && p.role ? h('p.muted', 'An admin: only the owner can act on them.') : [
           ME.owner ? roleBox(p, act) : null,
@@ -392,6 +479,32 @@ async function openPlayer(pid, inPlace) {
     h('div.card', h('h2', 'Best plays (' + p.bests.length + ')'), p.bests.length ? h('table', h('tr', h('th', 'Beatmap'), h('th', 'pp'), h('th', 'Score'), h('th', 'Accuracy'), h('th', 'Mods'), h('th', 'Set'), h('th')),
       p.bests.map(s => h('tr', h('td', s.artist + ' - ' + s.title, h('span.muted', ' [' + s.version + ']')), h('td', fmt(s.pp)), h('td', fmt(s.score)), h('td', pct(s.acc)), h('td.muted', s.mods.join(' ') || '—'), h('td.muted', ago(s.date)),
         h('td', h('button.small.danger', { onclick: act('removeScore', () => ({ key: s.key }), 'Score removed', 'Remove this score?') }, 'Remove'))))) : h('div.empty', 'No ranked plays.')));
+}
+
+/** A single-use sign-in code, not the player's unrecoverable permanent secret. Never kept in browser storage. */
+function playerCodeBox(p) {
+  if (p.admin || p.role || p.deleted || p.banned) return null;
+  const result = h('div.code-result', { hidden: true, 'data-private': true }), status = h('p.muted.small', { role: 'status' });
+  let timer;
+  const make = h('button.primary', { onclick: async () => {
+    make.disabled = true;
+    try {
+      const d = await api('playerCode', { pid: p.pid });
+      const formatted = d.code.replace(/(.{4})(?=.)/g, '$1-');
+      const value = h('input.code-value', { value: formatted, readonly: true, 'aria-label': 'Player sign-in code', autocomplete: 'off', spellcheck: 'false' });
+      status.textContent = 'One use · Expires ' + new Date(d.expires).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      result.hidden = false;
+      result.replaceChildren(value, status, h('div.row',
+        h('button', { onclick: async () => { try { await navigator.clipboard.writeText(formatted); say('Sign-in code copied'); } catch { value.focus(); value.select(); } } }, 'Copy code'),
+        h('button', { onclick: async () => { await run(() => api('playerCode', { pid: p.pid, revoke: true }), 'Sign-in code revoked'); clearTimeout(timer); result.replaceChildren(); result.hidden = true; } }, 'Revoke code')));
+      make.textContent = 'Generate another code';
+      clearTimeout(timer); timer = setTimeout(() => { result.replaceChildren(h('p.muted', 'This sign-in code has expired.')); }, Math.max(0, d.expires - Date.now()));
+    } catch (e) { say(e.message, true); }
+    finally { make.disabled = false; }
+  } }, 'Get sign-in code');
+  return h('div.card.account-access', h('h2', 'Player sign-in code'),
+    h('p.muted.small', 'A temporary code to sign in as this player through the game’s “Use a code” menu. Their current code and signed-in devices stay the same.'),
+    h('p.muted.small', 'Expires in 10 minutes, works once, and is shown only here. Generating another replaces the previous temporary code.'), make, result);
 }
 
 /** Cosmetic community tags, separate from the owner-only Admin role controls. */
@@ -449,7 +562,7 @@ async function chat() {
   const text = h('input.grow', { placeholder: 'A message for everyone online (a notification, and a line in #lobby)', maxlength: 300 });
   const announce = async () => { if (!text.value.trim()) return; await run(() => api('announce', { text: text.value }), 'Announced'); chat(); };
   text.addEventListener('keydown', e => { if (e.key === 'Enter') announce(); });
-  main.replaceChildren(
+  replaceMain(
     h('div.card', h('h2', 'Announce'), h('div.row', text, h('button.primary', { onclick: announce }, 'Send')), h('p.muted.small', 'A quick one, just now. For a banner that stays up, an event or maintenance: ', h('a', { href: '#announce' }, 'Announcements'), '.')),
     rulesCard,
     h('div.card', h('div.row', h('h2.grow', '#lobby (' + d.chat.length + ')'), h('button.small', { onclick: chat }, 'Refresh'), !ME.owner ? null : h('button.small.danger', { onclick: async () => { if (!confirm('Clear #lobby for everyone?')) return; await run(() => api('chatClear'), 'Cleared'); chat(); } }, 'Clear all')),
@@ -464,7 +577,7 @@ async function daily() {
   const id = h('input.grow', { placeholder: 'Beatmap id (the number after # in its osu! address)', inputmode: 'numeric' });
   const set = async () => { if (!id.value.trim()) return; if (m && d.scores && !confirm('Today\\'s ' + d.scores + ' scores are for the current beatmap: changing it starts its board over. Change it?')) return; await run(() => api('dailySet', { id: id.value.trim() }), 'Daily challenge set'); daily(); };
   id.addEventListener('keydown', e => { if (e.key === 'Enter') set(); });
-  main.replaceChildren(h('div.card', h('h2', 'Today (' + d.day + ')'),
+  replaceMain(h('div.card', h('h2', 'Today (' + d.day + ')'),
     m ? h('div.kv', h('span', 'Beatmap'), h('b', m.artist + ' - ' + m.title), h('span', 'Difficulty'), h('div', m.version + ' · ' + m.stars + '★ · ' + m.keys + 'K'), h('span', 'Mapper'), h('div', m.creator || '—'),
       h('span', 'osu!'), h('div', 'set ' + m.onlineSetId + ', beatmap ' + m.onlineId), h('span', 'Scores'), h('div', fmt(d.scores)), h('span', 'Ends'), h('div', when(d.endsAt)))
       : h('p.' + (d.error ? 'bad' : 'muted'), d.error || 'Not picked yet: the server picks one when the first player opens the daily challenge.'),
@@ -496,7 +609,7 @@ async function announce() {
     await run(() => api('announce', { text: text.value, title: title.value, kind, hours, popup: popup.checked, lobby: lobby.checked, minutes: kind === 'maint' ? Number(minutes.value) || 0 : 0 }), hours || popup.checked || kind === 'maint' ? 'Announced — it\\'s up in everyone\\'s game' : 'Announced');
     announce();
   };
-  main.replaceChildren(
+  replaceMain(
     h('div.cols',
       h('div.card', h('h2', 'New announcement'),
         h('h3', 'Style'), seg(STYLES, kind, v => { kind = v; paint(); }),
@@ -550,7 +663,7 @@ async function reports() {
       h('span.grow'),
       h('button.small', { onclick: done(r, 'dismissed') }, 'Dismiss'), h('button.small.primary', { onclick: done(r, 'done') }, 'Dealt with'))
       : h('p.muted.small', (r.how === 'dismissed' ? 'Dismissed' : 'Dealt with') + ' by ' + (r.closedBy || '?') + ', ' + ago(r.closedAt)));
-  main.replaceChildren(
+  replaceMain(
     h('div.row.mb', h('h2.grow', 'Reports'), seg([['open', 'Waiting (' + d.open + ')'], ['closed', 'Done']], repShow, v => { repShow = v; reports(); })),
     list.length ? h('div', list.map(card)) : h('div.card', h('div.empty', repShow === 'open' ? 'Nothing waiting — all clear.' : 'None dealt with yet.')));
 }
@@ -562,7 +675,7 @@ async function log() {
   const d = await api('log'), box = h('div'), f = h('input.filter', { placeholder: 'Filter: an action, a player, a reason…', 'aria-label': 'Filter the log' });
   const paint = () => { const t = f.value.trim().toLowerCase(), list = t ? d.log.filter(e => JSON.stringify(e).toLowerCase().includes(t)) : d.log; box.replaceChildren(list.length ? logTable(list) : h('div.empty', t ? 'Nothing matches.' : 'Nothing yet.')); };
   f.addEventListener('input', paint); paint();
-  main.replaceChildren(h('div.card', h('h2', 'Admin log (' + d.log.length + ')'), f, box));
+  replaceMain(h('div.card', h('h2', 'Admin log (' + d.log.length + ')'), f, box));
   f.focus();
 }
 // ── Leaderboards: a beatmap's board by its osu! beatmap id, to take a score off it (a cheated one, say)
@@ -581,14 +694,14 @@ async function boards() {
           h('td', h('button.small.danger', { onclick: async () => { if (!confirm('Take ' + (x.name || x.pid) + '\\'s score off this beatmap? It goes from their best plays too.')) return; await run(() => api('removeScore', { pid: x.pid, key: d.key }), 'Score removed'); show(); } }, 'Remove'))))) : h('div.empty', 'No scores.'));
   };
   id.addEventListener('keydown', e => { if (e.key === 'Enter') show(); });
-  main.replaceChildren(h('div.card', h('h2', 'Leaderboards'), h('p.muted.small', 'A beatmap\\'s board here, as players see it: take off a score that shouldn\\'t be there.'), h('div.row', id, h('button.primary', { onclick: show }, 'Show')), out));
+  replaceMain(h('div.card', h('h2', 'Leaderboards'), h('p.muted.small', 'A beatmap\\'s board here, as players see it: take off a score that shouldn\\'t be there.'), h('div.row', id, h('button.primary', { onclick: show }, 'Show')), out));
   id.focus();
   if (boardId) show();
 }
 
 async function playlists() {
   const d = await api('playlists');
-  main.replaceChildren(h('div.card', h('h2', 'Playlists (' + d.playlists.length + ')'), h('p.muted.small', 'The ones players have put up (ended ones are kept two weeks). Remove one with a name that isn\\'t OK.'),
+  replaceMain(h('div.card', h('h2', 'Playlists (' + d.playlists.length + ')'), h('p.muted.small', 'The ones players have put up (ended ones are kept two weeks). Remove one with a name that isn\\'t OK.'),
     d.playlists.length ? h('table', h('tr', h('th', 'Name'), h('th', 'Host'), h('th', 'Beatmaps'), h('th', 'Players'), h('th', 'Ends'), h('th')),
       d.playlists.map(pl => h('tr', h('td', pl.name, pl.open ? h('span.pill.good', 'open') : h('span.pill', 'ended')), h('td', pl.host ? h('a', { href: '#players/' + encodeURIComponent(pl.host.pid) }, pl.host.name || pl.host.pid) : '—'), h('td', fmt(pl.items)), h('td', fmt(pl.players)), h('td.muted', when(pl.ends)),
         h('td', ME.owner ? h('button.small.danger', { onclick: async () => { if (!confirm('Remove the playlist "' + pl.name + '"? Its scores go with it.')) return; await run(() => api('playlistDelete', { id: pl.id }), 'Playlist removed'); playlists(); } }, 'Remove') : null)))) : h('div.empty', 'No playlists.')));

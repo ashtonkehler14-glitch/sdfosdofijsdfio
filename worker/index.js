@@ -263,6 +263,11 @@ export async function beatmapInfo(id, env, fetchImpl = fetch) {
   return osuRequest(`beatmaps/${Math.floor(Number(id))}`, SEARCH_TTL, env, fetchImpl);
 }
 
+/** Exact set catalogue, including difficulty checksums, shared by explorer and legacy-score validation. */
+export async function beatmapSetInfo(id, env, fetchImpl = fetch) {
+  return (await listing('getBeatmap', `beatmapsets/${Math.floor(Number(id))}`, `beatmapSetId=${Math.floor(Number(id))}`, SET_TTL, env, fetchImpl)).data;
+}
+
 /** Web-Osu-Mania's /api/getBeatmaps: the explorer's parameters (only WOM's, sorted so equal searches share a cached
  *  answer) go to osu!'s beatmapsets/search, and its answer comes back as it is. */
 export async function handleGetBeatmaps(url, env, fetchImpl = fetch) {

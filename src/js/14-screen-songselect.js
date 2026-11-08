@@ -1022,6 +1022,7 @@ const SongSelect = {
   loopTrack(m) {
     this.syncPreviewAudio(m);
     Music.onEnded = () => {
+      if (Settings.get('audio.autoplay') === false) return;
       if (Screens.currentName === 'songselect' && Music.meta && Music.meta.setId === m.setId) Music.play(previewStart(m), { fadeIn: 600 });
       else if (Screens.currentName !== 'songselect' && Screens.currentName !== 'gameplay') MenuMusic.next();
     };
@@ -1084,9 +1085,9 @@ const SongSelect = {
     })().catch(e => { if (valid()) { this._audioSignature = null; console.warn('preview audio mods', e); } return false; });
     return this._audioReady;
   },
-  async preview(m) {
+  async preview(m, { manual = false } = {}) {
     this.showBackground(m);
-    if (!Settings.get('audio.previewAudio') || m.problems.length) return;
+    if ((!manual && (Settings.get('audio.autoplay') === false || !Settings.get('audio.previewAudio'))) || m.problems.length) return;
     // a token per request: if the selection changes while this one is loading, it's dropped (otherwise a
     // slower earlier request could start the new song at the old song's preview point)
     const tok = this._previewTok = {};

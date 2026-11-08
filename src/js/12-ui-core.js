@@ -918,7 +918,6 @@ const Toolbar = {
       { sep: true },
       { label: 'What\'s new', icon: 'sparkle', onClick: () => Screens.go('changelog') },
       { label: 'Settings', icon: 'gear', onClick: () => SettingsPanel.open() },
-      ...(navigator.mediaDevices?.getDisplayMedia ? [{ label: AdminGameView.available ? 'Disable admin viewing' : 'Enable admin viewing', icon: 'film', onClick: () => AdminGameView.enable() }] : []),
       // (playing as yourself on another device: your code)
       ...(!Multiplayer.available() ? [] : [{ sep: true }, Account.signedOut()
         ? { label: 'Play as yourself here (your code)', icon: 'lock', onClick: () => CodePanel.open({ use: true }) }

@@ -1897,6 +1897,7 @@ export class PresenceLogic {
       ...(Array.isArray(entry.counts) && entry.counts.length === 6 ? { counts: entry.counts } : {}), ...(Number.isFinite(entry.stars) ? { stars: entry.stars } : {}),
       title: String(r.title || '').slice(0, 120), artist: String(r.artist || '').slice(0, 120), version: String(r.version || '').slice(0, 120),
       // (its beatmap set on osu!: a profile shows that set's cover behind it, on a device without the beatmap)
+      ...(r.checksum ? { checksum: r.checksum, beatmapId: r.beatmapId, fileAudit: PROOF_VERSION } : {}),
       ...(r.beatmapSetId > 0 ? { sid: r.beatmapSetId } : b && b.sid ? { sid: b.sid } : {}),
       // (pp only comes from a ranked or approved beatmap — the score route asks osu! before it's judged: checked)
       ...(entry.pp > 0 ? { ok: true } : {}) };
@@ -2154,7 +2155,7 @@ export class PresenceLogic {
     const list = Object.values(rec.bests || {});
     if (!rec.rk) rec.rk = Object.entries(rec.bests || {}).filter(([, x]) => x && x.pp > 0).map(([k]) => k.slice(0, 10));
     const { pp, acc } = PresenceLogic.weigh(list, rec.rk.length), g = list.map(x => x.grade);
-    rec.v = { ...(rec.v || {}), pp: list.some(x => x.pp > 0) ? pp : 0, n: rec.rk.length, acc, ss: g.filter(x => x === 'SS' || x === 'XH').length, s: g.filter(x => x === 'S' || x === 'SH').length, a: g.filter(x => x === 'A').length };
+    rec.v = { ...(rec.v || {}), rscore: list.reduce((n, x) => n + (x.pp > 0 ? x.score || 0 : 0), 0), pp: list.some(x => x.pp > 0) ? pp : 0, n: rec.rk.length, acc, ss: g.filter(x => x === 'SS' || x === 'XH').length, s: g.filter(x => x === 'S' || x === 'SH').length, a: g.filter(x => x === 'A').length };
     PresenceLogic.settleRank(rec);
     return rec;
   }
@@ -2206,7 +2207,7 @@ export class PresenceLogic {
   static MAX_EV = 240000; // a play's inputs kept for late watchers (t, col, down — ~80,000 key events)
   // (lazer's user status: "Appear offline" keeps a player off the list — and out of reach for spectating and invites)
   // (`role`: an admin's, the owner's — their name and picture in Neru's colours wherever they show)
-  list() { return [...this.users.entries()].filter(([, u]) => u.vis !== 'offline').map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size, dnd: u.vis === 'dnd' || undefined, role: (u.pid && this.roleOf(u.pid)) || undefined, ...(u.adminViewReady ? { adminViewReady: true } : {}) })); }
+  list() { return [...this.users.entries()].filter(([, u]) => u.vis !== 'offline').map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size, dnd: u.vis === 'dnd' || undefined, role: (u.pid && this.roleOf(u.pid)) || undefined })); }
   join(id, msg) {
     // the same browser tab reconnecting replaces its old entry straight away (no ghost of yourself)
     const cid = str(msg && msg.cid, 40), gone = [], out = [];
@@ -2551,6 +2552,7 @@ const cleanStatus = s => ['menu', 'room', 'ranked', 'playing', 'watching'].inclu
  *  The same (single) instance also runs presence — who's online — for invites. */
 import { officialGet, osuApi, osuLoginState, osuStatus, beatmapListing, beatmapInfo, lookupExactBeatmap } from './index.js';
 import { sha256hex } from './sha256.js';
+import { resolveRankProof, PROOF_VERSION } from './beatmap-rank-proof.js';
 import { verifyPlay, acceptPlay, ModSystem, md5Hex } from './verify-bundle.js';
 /** A score kept from before its mods stopped counting (Difficulty Adjust and the others lazer doesn't rank): left out. */
 const rankedMods = x => !x || !Array.isArray(x.mods) || ModSystem.isRanked(x.mods.map(String));
@@ -2816,6 +2818,26 @@ export class Matchmaker {
         this.send(P.adminNoAvatar(pid, on)); log(on ? 'Took a picture down' : 'Allowed pictures again', who(pid));
         return json({ ok: true });
       }
+      case 'playerCode': {
+        if (!pid || !P.auth.has(pid) || P.deleted.has(pid)) return noPlayer();
+        if (P.isStaff(pid)) return json({ error: 'Sign-in codes cannot be issued for the owner or admins.' }, 403);
+        if (P.isBanned(pid)) return json({ error: 'Lift the ban before issuing a sign-in code.' }, 400);
+        if (!this.allowTry('recovery:' + actor, 20)) return json({ error: 'Too many codes. Try again in a few minutes.' }, 429);
+        const st = this.state.storage;
+        if (b.revoke === true) {
+          await st.transaction(async tx => { const old = await tx.get('rcp:' + pid); if (old) await tx.delete('rc:' + old); await tx.delete('rcp:' + pid); });
+          log('Revoked a sign-in code', who(pid));
+          return json({ ok: true });
+        }
+        const code = newPlayerCode(), hash = codeHash(code), expires = Date.now() + 10 * 60000;
+        await st.transaction(async tx => {
+          const old = await tx.get('rcp:' + pid); if (old) await tx.delete('rc:' + old);
+          await tx.put('rc:' + hash, { pid, actor, ch: P.codeOf.get(pid) || '', exp: expires });
+          await tx.put('rcp:' + pid, hash);
+        });
+        log('Issued a sign-in code', who(pid));
+        return json({ ok: true, code, expires });
+      }
       case 'revokeCode': {
         if (!pid) return noPlayer();
         const out = P.adminRevokeCode(pid);
@@ -3058,7 +3080,16 @@ export class Matchmaker {
       // (wrong codes are what's limited per address — 10 every 10 minutes; right ones, a class's returning players behind
       // one school address, have room for 100)
       if (this.triesOf('lw:' + ip) >= 10 || !this.allowTry('l:' + ip, 100)) { await settle(); return json({ error: 'Too many codes tried from here. Wait a few minutes and try again.' }, 429); }
-      const target = c ? P.codes.get(codeHash(c)) : null;
+      const recovery = c && !P.codes.has(codeHash(c)) ? await this.state.storage.transaction(async tx => {
+        const hash = codeHash(c), t = await tx.get('rc:' + hash);
+        if (!t) return null;
+        await tx.delete('rc:' + hash);
+        if (await tx.get('rcp:' + t.pid) === hash) await tx.delete('rcp:' + t.pid);
+        // Consumed atomically, including invalid/expired codes. A demotion or code rotation revokes it too.
+        return t.exp > Date.now() && P.auth.has(t.pid) && !P.deleted.has(t.pid) && !P.isBanned(t.pid) && !P.isStaff(t.pid) &&
+          (t.actor === 'owner' || P.roles.has(t.actor)) && (P.codeOf.get(t.pid) || '') === t.ch ? t : null;
+      }) : null;
+      const target = c ? P.codes.get(codeHash(c)) || recovery?.pid : null;
       if (!target) {
         this.allowTry('lw:' + ip, 1e9);
         // (wrong codes count against everyone too: spread over many addresses, guessing still gets nowhere)
@@ -3073,7 +3104,8 @@ export class Matchmaker {
       // (the player this device was is part of the code's player now: their own settings and skin aren't kept)
       if (r.merged && pid !== r.pid && this.env && this.env.VAULT) this.env.VAULT.get(this.env.VAULT.idFromName(pid)).fetch('https://vault/wipe', { method: 'POST' }).catch(() => {});
       await settle();
-      return json({ ok: true, pid: r.pid, key: newKey, name: r.name, merged: r.merged });
+      if (recovery) this.logAdmin({ what: 'Used a sign-in code', pid: r.pid, name: r.name });
+      return json({ ok: true, pid: r.pid, key: newKey, name: r.name, merged: r.merged, ...(recovery ? { recovery: true } : {}) });
     }
     if (what === 'logout') {
       if (mine) P.dropKey(pid, key);
@@ -3084,6 +3116,7 @@ export class Matchmaker {
       // (an HTML file saved with a sign-in in it, not opened yet: that's shut out too)
       const kept = await this.state.storage.list({ prefix: 'tk:' }).catch(() => new Map());
       for (const [k, v] of kept) if (v && (v.pid === pid || v.exp < Date.now())) await this.state.storage.delete(k).catch(() => {});
+      await this.state.storage.transaction(async tx => { const hash = await tx.get('rcp:' + pid); if (hash) await tx.delete('rc:' + hash); await tx.delete('rcp:' + pid); });
       const r = P.onlyKey(pid, key);
       this.send(r.out);
       setTimeout(() => this.closeGone(r.gone), 200); // (after they've been told)
@@ -3152,6 +3185,7 @@ export class Matchmaker {
     const key = String(body.hash || ''), r = body.r;
     if (!/^[a-f0-9]{64}$/.test(key)) return json({ error: 'Bad beatmap file.' }, 400);
     if (r.error) return json({ error: r.error }, 422);
+    await this.rememberMapProof(key, r);
     if (r.unlisted) return json({ ok: true, key, pp: 0, rankStatus: 'missing', unranked: true, reason: 'This beatmap is not in the beatmap explorer.' });
     // (a play sent again from before an admin took it off — the game catching up, one at a time — stays off)
     const gone = this.presence.removedAt(pid, key);
@@ -3181,6 +3215,7 @@ export class Matchmaker {
     for (const it of body.items.slice(0, 25)) {
       const key = String((it && it.hash) || ''), r = it && it.r;
       if (!r || typeof r !== 'object' || r.error || !/^[a-f0-9]{64}$/.test(key)) { results.push({ key, error: (r && r.error) || 'Bad beatmap file.' }); continue; }
+      await this.rememberMapProof(key, r);
       if (r.unlisted) { results.push({ key, ok: true, pp: 0, rankStatus: 'missing', unranked: true }); continue; }
       // (taken off by an admin: not back from the player's own game — a play made since is another matter)
       const gone = this.presence.removedAt(pid, key);
@@ -3269,7 +3304,7 @@ export class Matchmaker {
       for (const [pid, r] of this.presence.ranks) if (r.reset) { delete r.reset; this.presence.persistRank(pid, r); }
       this.presence.verifyTop = (pid, top, who) => { this.verifyTop(pid, top, who).catch(e => console.error('verifyTop', e)); };
       this.presence.verifyBests = pid => { this.verifyBests(pid).catch(e => console.error('verifyBests', e)); };
-      this.restoreRanks().catch(e => console.error('restoreRanks', e));
+      if (this.env?.TEST_ALL_RANKED !== '1') st.setAlarm(Date.now() + 2000).catch(() => {});
       // (records whose plays weren't loaded when the way totals are added up changed: worked out again, a few at a time)
       const rew = [...this.presence.ranks].filter(([, r]) => r.rew).map(([pid]) => pid);
       const revalue = async () => { for (const pid of rew.splice(0, 10)) { const r = this.presence.ranks.get(pid); if (!r) continue; await this.ensureBests(pid); delete r.rew; PresenceLogic.revalue(r); this.presence.persistRank(pid, r); } if (rew.length) setTimeout(() => revalue().catch(() => {}), 500); };
@@ -3308,6 +3343,7 @@ export class Matchmaker {
           const cur = P.firsts.get(top.pid) || {};
           if (cur[key]) continue;
           await this.ensureBests(top.pid);
+          if (this._mapProofs?.get(key)?.listed === false) continue;
           const b = P.ranks.get(top.pid) && P.ranks.get(top.pid).bests && P.ranks.get(top.pid).bests[key];
           cur[key] = { score: top.score, acc: top.acc, grade: top.grade, mods: top.mods || [], combo: top.combo, pp: top.pp, date: top.date, stars: top.stars,
             title: b ? b.title : '', artist: b ? b.artist : '', version: b ? b.version : '' };
@@ -3357,77 +3393,129 @@ export class Matchmaker {
     if (!r.bests) { r.bests = b && typeof b === 'object' ? b : {}; PresenceLogic.dropUnranked(r); }
     delete r._lazy;
   }
-  /** Players whose standing started over (or who never had one) and aren't online to re-report it: their standing
-   *  from the best plays their profile lists, counting only those on ranked beatmaps — the profile says so, or (shared
-   *  by an older game) the song is looked up on osu! by its artist, title and difficulty name. Once per player. */
-  /** Whether a play on a player's profile is on a ranked (or approved) beatmap — asked of osu! by the beatmap's id, else
-   *  its set's, else (shared by an older game) by its artist, title and difficulty name; what the game itself says
-   *  about it isn't taken on trust. Answers are kept (and osu!'s replies cached a week). null: not looked up this time. */
-  async rankedEntry(x, budget) {
-    const statusOf = this._statusOf || (this._statusOf = new Map());
-    const id = +x.onlineId > 0 ? `b${+x.onlineId}` : +x.onlineSetId > 0 ? `s${+x.onlineSetId}` : `${x.artist}|${x.title}|${x.version}|${x.creator || ''}`.toLowerCase();
-    if (!statusOf.has(id)) {
-      if (budget && budget.n-- <= 0) return null;
-      if (!x.title && !(+x.onlineId > 0) && !(+x.onlineSetId > 0)) return false;
-      let found = '';
-      try {
-        if (+x.onlineId > 0) { const b = await officialGet(`beatmaps/${+x.onlineId}`, this.env, fetch, 7 * 86400000); found = String((b && b.beatmapset && b.beatmapset.status) || (b && b.status) || ''); }
-        else if (+x.onlineSetId > 0) { const d = await officialGet(`beatmapsets/${+x.onlineSetId}`, this.env, fetch, 7 * 86400000); found = String((d && d.status) || ''); }
-        else {
-          const q = encodeURIComponent(`${x.artist || ''} ${x.title}`.trim().slice(0, 200));
-          const d = await officialGet(`beatmapsets/search?q=${q}&m=3&s=any`, this.env, fetch, 7 * 86400000);
-          const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
-          const sets = (d && d.beatmapsets) || [];
-          const hit = sets.find(b => same(b.title, x.title) && same(b.artist, x.artist) && (b.beatmaps || []).some(m => same(m.version, x.version)) && (!x.creator || same(b.creator, x.creator)))
-            || sets.find(b => same(b.title, x.title) && (b.beatmaps || []).some(m => same(m.version, x.version)));
-          found = hit ? String(hit.status || '') : '';
-        }
-      } catch (e) { if (!(e && e.status === 404)) return null; } // (osu! has no such beatmap: not ranked; anything else: asked again later)
-      statusOf.set(id, found);
-    }
-    const v = statusOf.get(id);
-    // (osu! had nothing to match it: not ranked — what the game itself says isn't taken on trust, or a made-up play
-    // would count)
-    return v === 'ranked' || v === 'approved';
+  /** Cache only server-made file proofs. Clients' IDs/checksums cannot mark a legacy score as verified. */
+  async rememberMapProof(key, r) {
+    if (this.env?.TEST_ALL_RANKED === '1' || !r || !r.rankStatus) return;
+    const proof = { version: PROOF_VERSION, listed: !r.unlisted, status: r.rankStatus, checksum: r.checksum || '',
+      beatmapId: r.beatmapId || 0, setId: r.beatmapSetId || 0, checked: Date.now() };
+    (this._mapProofs ||= new Map()).set(key, proof);
+    await this.state.storage.put('bm:' + key, proof);
   }
-  /** A player's best plays the server judged, each checked once against osu! (see rankedEntry): one on a beatmap that
-   *  isn't ranked or approved — judged before every play was checked first, or kept from an older game — stops counting
-   *  (0pp, and not in the bonus), so the total only ever adds up ranked plays. At most every ten minutes a player. */
-  async verifyBests(pid) {
+  async mapProof(key, hint, budget) {
+    if (this.env?.TEST_ALL_RANKED === '1') return { listed: true, status: 'ranked', version: PROOF_VERSION };
+    const cache = this._mapProofs ||= new Map();
+    let stored = cache.get(key);
+    if (!stored) stored = await this.state.storage.get('bm:' + key);
+    if (stored?.version === PROOF_VERSION && Date.now() - stored.checked < 7 * 86400000) { cache.set(key, stored); return stored; }
+    if (budget && budget.n-- <= 0) return null;
+    const work = this._proofWork ||= new Map();
+    if (work.has(key)) return work.get(key);
+    const started = Date.now();
+    const promise = resolveRankProof(key, hint, this.env, { stored }).then(async proof => {
+      const newer = cache.get(key); if (newer && newer !== stored && newer.checked >= started) return newer;
+      if (proof) { cache.set(key, proof); await this.state.storage.put('bm:' + key, proof); }
+      return proof;
+    }).finally(() => work.delete(key));
+    work.set(key, promise); return promise;
+  }
+  async rankedEntry(x, budget) {
+    const proof = await this.mapProof(String(x?.mapHash || x?.key || ''), x, budget);
+    return proof ? proof.listed && ['ranked', 'approved'].includes(proof.status) : null;
+  }
+  /** Clear the entire unlisted map board and first-place records; local histories are never touched. */
+  async dropUnlistedBoard(key) {
+    const P = this.presence;
+    P.boards.set(key, []);
+    await this.state.storage.delete('lb:' + key);
+    for (const [pid, firsts] of P.firsts) if (firsts && firsts[key]) P.setFirst(pid, key, null);
+    // Bonus credit can outlive the retained top 200 plays. Remove that map's credit from every affected player too.
+    for (const [pid, rec] of P.ranks) if (rec.rk?.includes(key.slice(0, 10)) || rec.bests?.[key]) {
+      await this.ensureBests(pid);
+      if (rec.bests) delete rec.bests[key];
+      if (rec.rk) rec.rk = rec.rk.filter(id => id !== key.slice(0, 10));
+      PresenceLogic.revalue(rec); if (P.persistRank) P.persistRank(pid, rec);
+    }
+  }
+  async verifyBests(pid, { force = false, budget = { n: 60 } } = {}) {
     if (!this._vb) this._vb = new Map();
-    if (Date.now() - (this._vb.get(pid) || 0) < 600000) return;
+    if (!force && Date.now() - (this._vb.get(pid) || 0) < 600000) return true;
     this._vb.set(pid, Date.now());
     await this.ensureBests(pid);
     const P = this.presence, rec = P.ranks.get(pid);
-    if (!rec || !rec.bests) return;
-    const todo = Object.entries(rec.bests).filter(([, b]) => b && b.pp > 0 && b.ok !== true);
-    if (!todo.length) return;
-    // (the beatmap's id on osu!, where its leaderboard has one)
-    const idOf = new Map();
-    for (const [bid, key] of P.boardIds) idOf.set(key, bid);
-    const budget = { n: 60 };
-    let changed = false;
-    for (const [key, b] of todo) {
-      const f = await this.rankedEntry({ onlineId: idOf.get(key) || 0, onlineSetId: b.sid || 0, artist: b.artist, title: b.title, version: b.version }, budget);
-      if (f === null) continue; // (not looked up this time: checked again later)
+    if (!rec || !rec.bests) return true;
+    const idOf = new Map(); for (const [bid, key] of P.boardIds) idOf.set(key, bid);
+    let changed = false, complete = true;
+    for (const [key, b] of Object.entries(rec.bests)) {
+      if (!b) continue;
+      const proof = await this.mapProof(key, { onlineId: b.beatmapId || idOf.get(key) || 0, onlineSetId: b.sid || 0, artist: b.artist, title: b.title, version: b.version }, budget);
+      if (!proof) { complete = false; continue; }
+      if (P.ranks.get(pid) !== rec || rec.bests[key] !== b) continue;
+      b.fileAudit = PROOF_VERSION;
+      if (!proof.listed) { delete rec.bests[key]; await this.dropUnlistedBoard(key); }
+      else if (!['ranked', 'approved'].includes(proof.status)) { b.pp = 0; b.ok = false; }
+      else b.ok = true;
+      if ((!proof.listed || !['ranked', 'approved'].includes(proof.status)) && Array.isArray(rec.rk)) rec.rk = rec.rk.filter(x => x !== key.slice(0, 10));
       changed = true;
-      if (f) b.ok = true;
-      else { b.pp = 0; b.ok = false; if (Array.isArray(rec.rk)) rec.rk = rec.rk.filter(x => x !== key.slice(0, 10)); }
     }
-    if (!changed) return;
-    PresenceLogic.revalue(rec);
-    if (P.persistRank) P.persistRank(pid, rec);
+    if (changed) { PresenceLogic.revalue(rec); if (P.persistRank) P.persistRank(pid, rec); }
+    return complete;
+  }
+  async alarm() { await this.loadFriends(); await this.auditStoredScores(); }
+  /** Resume a bounded, persisted audit across every stored player and board, including offline players. */
+  async auditStoredScores() {
+    if (this._auditing || this.env?.TEST_ALL_RANKED === '1') return;
+    this._auditing = true;
+    const st = this.state.storage, P = this.presence, marker = 'rank-file-audit-v1';
+    let delay = 1500, again = false;
+    try {
+      const state = await st.get(marker);
+      if (state === true) return;
+      if (!this._allBoardIds) {
+        let after;
+        do {
+          const ids = await st.list({ prefix: 'lbid:', limit: 256, ...(after ? { startAfter: after } : {}) });
+          for (const [k, v] of ids) if (typeof v === 'string') P.boardIds.set(Number(k.slice(5)), v);
+          after = ids.size === 256 ? [...ids.keys()].at(-1) : null;
+        } while (after);
+        this._allBoardIds = true;
+      }
+      const phase = state?.phase || 'ranks', prefix = phase === 'ranks' ? 'rk:' : 'lb:';
+      const page = await st.list({ prefix, limit: 5, ...(state?.cursor ? { startAfter: state.cursor } : {}) });
+      const budget = { n: 40 }, idOf = new Map(); for (const [id, key] of P.boardIds) idOf.set(key, id);
+      for (const [k] of page) {
+        let complete;
+        if (phase === 'ranks') {
+          const pid = k.slice(3);
+          complete = await this.verifyBests(pid, { force: true, budget });
+          let data = P.profiles.get(pid);
+          if (!data) data = await st.get('pf:' + pid);
+          complete = await this.verifyTop(pid, Array.isArray(data?.top) ? P.ownPlays(pid, data.top) : [], {}, { force: true, budget }) !== false && complete;
+        } else {
+          const key = k.slice(3), proof = await this.mapProof(key, { onlineId: idOf.get(key) || 0 }, budget);
+          complete = !!proof;
+          if (proof && !proof.listed) await this.dropUnlistedBoard(key);
+        }
+        if (!complete) { delay = 60000; again = true; return; }
+        await st.put(marker, { phase, cursor: k });
+      }
+      if (page.size < 5) {
+        if (phase === 'ranks') { await st.put(marker, { phase: 'boards' }); again = true; }
+        else await st.put(marker, true);
+      } else again = true;
+    } finally {
+      this._auditing = false;
+      if (again) await st.setAlarm(Date.now() + delay);
+    }
   }
   /** A player's profile plays, checked (see rankedEntry): their standing from the ones on ranked beatmaps. */
-  async verifyTop(pid, top, who = {}) {
+  async verifyTop(pid, top, who = {}, { force = false, budget = { n: 60 } } = {}) {
     if (!this._vt) this._vt = new Map();
     const last = this._vt.get(pid) || 0;
-    if (Date.now() - last < 30000) { this._vtNext = this._vtNext || new Map(); this._vtNext.set(pid, { top, who }); return; } // (at most every 30s each)
+    if (!force && Date.now() - last < 30000) { this._vtNext = this._vtNext || new Map(); this._vtNext.set(pid, { top, who }); return; } // (at most every 30s each)
     this._vt.set(pid, Date.now());
-    const budget = { n: 60 };
     const flags = await Promise.all(top.map(x => x && typeof x === 'object' ? this.rankedEntry(x, budget) : false));
     // (a lookup that couldn't be done now: their standing stays as it is, and it's tried again in a minute)
-    if (flags.some(f => f === null)) { this._vt.delete(pid); setTimeout(() => this.verifyTop(pid, top, who).catch(() => {}), 60000); return; }
+    if (flags.some(f => f === null)) { this._vt.delete(pid); if (!force) setTimeout(() => this.verifyTop(pid, top, who).catch(() => {}), 60000); return false; }
     const P = this.presence, rep = PresenceLogic.rankFromTop(top.filter((x, i) => flags[i] === true), () => true);
     let rec = P.ranks.get(pid);
     if (!rec && !rep) return;
@@ -3439,46 +3527,6 @@ export class Matchmaker {
     if (P.persistRank) P.persistRank(pid, rec);
     const next = this._vtNext && this._vtNext.get(pid);
     if (next) { this._vtNext.delete(pid); setTimeout(() => this.verifyTop(pid, next.top, next.who).catch(() => {}), 30000); }
-  }
-  /** Players who aren't online to send their profile: their standing from the best plays it lists, checked the same
-   *  way. Once per player for each change of the rules (rr2: only plays checked to be ranked, lazer's weighting). */
-  async restoreRanks() {
-    const st = this.state.storage, P = this.presence;
-    const budget = { n: 300 };
-    const ranked = x => this.rankedEntry(x, budget);
-    // (a few profiles at a time, a little apart, so it never holds the server up; once for each change of the rules)
-    const state = await st.get('rr4').catch(() => null);
-    if (state === true) return;
-    const opts = { prefix: 'pf:', limit: 20 };
-    if (typeof state === 'string') opts.startAfter = state;
-    const page = await st.list(opts);
-    let done = typeof state === 'string' ? state : null, deferred = false; // (done: the last profile fully dealt with)
-    for (const [k, data] of page) {
-      const pid = k.slice(3), rec = P.ranks.get(pid);
-      // (only the plays that are theirs: a copy of someone else's — an imported backup — is left out)
-      const mine = data && typeof data === 'object' && Array.isArray(data.top) ? P.ownPlays(pid, data.top.slice(0, 50)) : [];
-      if (mine.length || (rec && rec.rep && rec.rep.pp > 0)) {
-        const flags = await Promise.all(mine.map(x => x && typeof x === 'object' ? ranked(x) : false));
-        // (lookups used up or failing: this player's standing stays as it is, and they're checked again next round)
-        if (flags.some(f => f === null)) { deferred = true; break; }
-        const rep = PresenceLogic.rankFromTop(mine.filter((x, i) => flags[i] === true), () => true);
-        if (rec || (rep && P.keyHashes(pid).length)) { // (a player merged into another has no keys: not brought back)
-          const r = rec || { pid, name: String(data.name || 'Player').slice(0, 40), avatar: '', plays: Number(data.plays) || 0, bests: {}, pol: PresenceLogic.RANK_POLICY };
-          r.restored = true;
-          r.rep = rep || { pp: 0, acc: 0, ss: 0, s: 0, a: 0 };
-          r.okh = PresenceLogic.okIds(mine, flags);
-          PresenceLogic.settleRank(r);
-          P.ranks.set(pid, r);
-          if (P.persistRank) P.persistRank(pid, r);
-        }
-      }
-      done = k;
-    }
-    if (done) await st.put('rr4', done);
-    // (this round's osu! lookups used up: carry on in a minute with a fresh allowance — not at the next restart)
-    if (deferred) { setTimeout(() => this.restoreRanks().catch(e => console.error('restoreRanks', e)), 60000); return; }
-    if (page.size < 20) { st.put('rr4', true).catch(() => {}); return; }
-    setTimeout(() => this.restoreRanks().catch(e => console.error('restoreRanks', e)), 1500);
   }
   closeGone(ids, code = 4001, why = 'replaced') { for (const id of ids || []) { const ws = this.socks.get(id); this.socks.delete(id); if (ws) { try { ws.close(code, why); } catch { /* closed */ } } } }
   send(out) {

@@ -1006,7 +1006,7 @@ const ExplorerScreen = {
   stopPreview() {
     if (this.audio) { this.audio.pause(); this.audio = null; }
     this.previewId = null;
-    if (this._resumeMusic && Music.loaded && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 300 });
+    if (Settings.get('audio.autoplay') !== false && this._resumeMusic && Music.loaded && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 300 });
     this._resumeMusic = false;
   },
 };
@@ -1018,6 +1018,22 @@ const ExplorerScreen = {
  *  found nothing, the next week. */
 const BeatmapStatus = {
   busy: false, DAY: 86400000,
+  /** Verify newly imported difficulties first, without delaying installation or interrupting a song. */
+  queueImported(sets) {
+    const queue = this._importQueue ||= new Set();
+    for (const set of sets) for (const m of set.maps || []) if (this.mapDue(m)) queue.add(m.id);
+    if (this._importing || !queue.size) return;
+    this._importing = true;
+    (async () => {
+      while (queue.size && navigator.onLine) {
+        while (Screens.currentName === 'gameplay') await sleep(5000);
+        const id = queue.values().next().value; queue.delete(id);
+        const m = BeatmapManager.maps.get(id); if (m) await this.checkMap(m);
+        await sleep(700);
+      }
+      Rankings.report(); Verified.catchUp();
+    })().catch(e => console.warn('imported map verification', e)).finally(() => { this._importing = false; });
+  },
   mapDue(m, now = Date.now()) { return !m.rankChecked || now - m.rankChecked > (m.rankError ? 60000 : 7 * this.DAY); },
   async keepMapStatus(m, status) {
     if (!m || BeatmapManager.maps.get(m.id) !== m) return;
@@ -1046,6 +1062,8 @@ const BeatmapStatus = {
         if (!res.ok) throw Object.assign(new Error('Beatmap status unavailable'), { status: res.status });
         const found = await res.json();
         if (!(found.beatmapId > 0)) { await this.keepMapStatus(m, 'missing'); return; }
+        m.onlineId = found.beatmapId;
+        if (set && !(set.onlineId > 0) && found.setId > 0) { set.onlineId = found.setId; await DB.put('sets', { ...set, maps: undefined }); }
         await this.keepMapStatus(m, String(found.status || 'unknown').toLowerCase());
       } catch (e) {
         if (BeatmapManager.maps.get(m.id) === m) { m.rankChecked = Date.now(); m.rankError = true; await DB.put('maps', m).catch(() => {}); }

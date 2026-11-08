@@ -935,13 +935,17 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
-  { id: '2026.11.8f', title: 'Cleaner menus and sharper admin spectating', sections: [
+  { id: '2026.11.8g', title: 'Music on your terms', sections: [
+    { icon: 'music', title: 'Audio', items: ['Turn off Autoplay menu music and previews in Settings → Audio to keep menus quiet; Play and Next still work, and gameplay music is unchanged'] },
+    { icon: 'trophy', title: 'Rankings', items: ['Imported songs are checked against the explorer: unchanged ranked or approved difficulties can earn ranked scores', 'Existing scores from difficulties that cannot be verified are removed from rankings and beatmap leaderboards; local scores stay saved'] },
+    { icon: 'heart', title: 'Neru', items: ['More little Neru surprises while exploring the menus'] },
+  ] },
+  { id: '2026.11.8f', title: 'Cleaner menus and ranked scores', sections: [
     { icon: 'brush', title: 'Menus', items: ['Dropdowns now match the game’s menus, with keyboard navigation and touch-friendly choices'] },
-    { icon: 'film', title: 'Admin spectating', items: ['Admin Spectate sits beside Spectate and opens a sharper, full-screen game view', 'Enable admin viewing once from your user menu to let admins join without repeated requests; you can still pause or stop sharing', 'Admins choose whether to send an extra notification before joining'] },
     { icon: 'trophy', title: 'Scores', items: ['Imported difficulties missing from the beatmap explorer stay playable and save local scores, without entering rankings or earning ranked pp'] },
   ] },
-  { id: '2026.11.8e', title: 'Spectator chat and live game views', sections: [
-    { icon: 'film', title: 'Spectating', items: ['Admins can request a live view of your game tab to follow menus and gameplay', 'Sharing starts only after you accept; pause or stop at any time from the sharing bar', 'Retrying a song keeps spectators in gameplay instead of returning them to the song card', 'A lounge-style spectator chat is shared by the player and everyone watching, with a chat button on both sides'] },
+  { id: '2026.11.8e', title: 'Spectator chat and retries', sections: [
+    { icon: 'film', title: 'Spectating', items: ['Retrying a song keeps spectators in gameplay instead of returning them to the song card', 'A lounge-style spectator chat is shared by the player and everyone watching, with a chat button on both sides'] },
   ] },
   { id: '2026.11.8d', title: 'Your profile across devices', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Profiles and profile customization now follow the game’s landscape menus on mobile', 'Saved profile changes start syncing to your account immediately for your other devices'] },
@@ -972,7 +976,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Profiles', items: ['The profile editor now matches the game’s menus, with a full profile preview', 'Choose your best play’s background, a song from your library, preset artwork or an upload — and switch back whenever you like', 'Miku, Neru and Teto presets, alongside refreshed mania-themed styles'] },
   ] },
   { id: '2026.11.7b', title: 'Make your profile yours', sections: [
-    { icon: 'brush', title: 'Profiles', items: ['Upload a profile banner and adjust its position, or choose from six coordinated styles', 'Add a short bio and preview your profile before saving — your look follows you across devices', 'Admins can award custom community tags that appear on profiles without giving admin access'] },
+    { icon: 'brush', title: 'Profiles', items: ['Upload a profile banner and adjust its position, or choose from six coordinated styles', 'Add a short bio and preview your profile before saving — your look follows you across devices'] },
   ] },
   { id: '2026.11.7', title: 'Note appearance and audio fixes', sections: [
     { icon: 'brush', title: 'Note appearance', items: ['Adjust note height independently of column width, and choose note border colour and thickness in Settings → Gameplay → Playfield', 'Negative Percy values extend visible hold tails to help with skins that cut them short; release timing stays the same'] },
@@ -1001,7 +1005,7 @@ const CHANGELOG = [
   { id: '2026.10.29b', title: 'Ranked Play, spectating and Neru', sections: [
     { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length', 'Your cards show only your own star rating', 'No song plays behind the Ranked Play lounge and matches'] },
     { icon: 'film', title: 'Spectating', items: ['Skips happen only when the player you\'re watching skips', 'Their pause and fail menus show, with what they\'re choosing'] },
-    { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'The Neru role gets a gold, Neru-style profile and Ranked look', 'The Teto role gets a red, Teto-style one', 'Clicked over and over by a Teto or Miku fan, she gets angry half the time — otherwise a thought or a photo', 'On a phone, she no longer stands over the other scores on the results screen'] },
+    { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Clicked over and over by a Teto or Miku fan, she gets angry half the time — otherwise a thought or a photo', 'On a phone, she no longer stands over the other scores on the results screen'] },
     { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly and at a good speed, even on slow computers', 'Scrolling waits for pictures to load instead of racing past them', 'The beatmap listing and the menus run much more smoothly on slow computers', 'Scroll speed is set on the screen before each song (and F3 / F4)'] },
     { icon: 'sparkle', title: 'More like lazer', items: ['The toolbar\'s changelog button opens the whole changelog as a page, as in lazer'] },
     { icon: 'user', title: 'Fixes', items: ['A second tab (or the installed app) no longer leaves you a guest and yourself at once — which stopped some players joining multiplayer', 'Players with their own profile picture can get into rooms again (MP-RT)', 'Multiplayer works on school Chromebooks and networks that block its connection — it goes over normal web requests instead', 'Leftovers from an old player id are cleared before connecting', 'When multiplayer can\'t connect, an error code says exactly why — Copy details puts it all in a message'] },

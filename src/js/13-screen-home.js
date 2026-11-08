@@ -759,8 +759,8 @@ const HomeScreen = {
     const seq = Music._seq, url = await BeatmapManager.bgURL(map) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(map.setId));
     if (seq !== Music._seq) return; // (left already for a screen that started its own song, with its own background)
     Background.set(url);
-    if (Music.meta && Music.loaded && (Music.playing || MenuMusic.paused)) { Music.onEnded = () => MenuMusic.next(); return; }
-    await MenuMusic.play(map);
+    if (Music.meta && Music.loaded && (Music.playing || MenuMusic.paused)) { Music.onEnded = () => MenuMusic.autoNext(); return; }
+    if (Settings.get('audio.autoplay') !== false) await MenuMusic.play(map);
   },
 };
 
@@ -971,12 +971,13 @@ const MenuMusic = {
       if (!blob) throw new Error('missing audio');
       if (!await Music.open(blob, `${map.setId}/${map.audioFile}`, { setId: map.setId, mapId: map.id, timing: null }) || tok !== this._tok) return;
       Music.play(fromPreview ? previewStart(map) : 0, { fadeIn: 600 });
-      Music.onEnded = () => this.next();
+      Music.onEnded = () => this.autoNext();
       this.paused = false;
       this.setCurrent(map);
       beatTiming(map).then(timing => { if (tok === this._tok && Music.meta && Music.meta.mapId === map.id) Music.meta.timing = timing; });
     } catch (e) { console.warn('menu music', e); }
   },
+  autoNext() { if (Settings.get('audio.autoplay') !== false) this.next(); },
   setCurrent(map) { this.current = map; Toolbar.setNowPlaying(map); Bus.emit('music:changed', map); },
   /** Ranked Play — its lounge and the match screen — has no song playing behind it, only the match's own (a card's
    *  preview, the round's song): the menu's song fades out there and waits, and goes on where it was once you're out
@@ -987,11 +988,13 @@ const MenuMusic = {
     if (on) {
       this._hushedPlaying = Music.playing;
       if (Music.playing) { const pos = Music.time; Music.stop(300); Music.pausedPos = pos; }
-    } else if (resume && this._hushedPlaying && Music.loaded && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 400 });
+    } else if (Settings.get('audio.autoplay') !== false && resume && this._hushedPlaying && Music.loaded && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 400 });
     Bus.emit('music:changed', this.current);
   },
   toggle() {
     if (this._hushed) return; // (Ranked Play: no music)
+    const selected = Screens.currentName === 'songselect' && BeatmapManager.maps.get(SongSelect.selectedId);
+    if (!Music.playing && selected && !selected.problems.length && (!Music.loaded || Music.meta?.mapId !== selected.id)) { SongSelect.preview(selected, { manual: true }); return; }
     // nothing loaded yet (preview audio off, or the first track never started): play starts one
     if (!Music.loaded && !Music.playing) {
       const sel = Screens.currentName === 'songselect' && BeatmapManager.maps.get(SongSelect.selectedId);
@@ -1006,7 +1009,7 @@ const MenuMusic = {
   async go(map, fromPreview) {
     if (!map) return;
     Settings.set('last.map', map.id);
-    if (Screens.currentName === 'songselect') { SongSelect.select(map.id); return; }
+    if (Screens.currentName === 'songselect') { SongSelect.select(map.id); if (Settings.get('audio.autoplay') === false || !Settings.get('audio.previewAudio')) SongSelect.preview(map, { manual: true }); return; }
     Background.set(await BeatmapManager.bgURL(map));
     this.play(map, { fromPreview });
   },
@@ -1059,9 +1062,24 @@ const MenuMusic = {
     const cur = this.current;
     if (!cur || BeatmapManager.maps.has(cur.id) || Screens.currentName === 'gameplay') return;
     this.history = this.history.filter(id => BeatmapManager.maps.has(id));
-    if (this.playable().length) { if (Screens.currentName !== 'songselect') this.next(); return; }
+    if (this.playable().length && Settings.get('audio.autoplay') !== false) { if (Screens.currentName !== 'songselect') this.next(); return; }
     this._tok = {}; Music.unload(); this.current = null; this.paused = false; Background.set(null);
     Toolbar.setNowPlaying(null); Bus.emit('music:changed', null);
   },
 };
 Bus.on('library:changed', () => MenuMusic.removed());
+
+// Turning autoplay off is immediate, including previews still loading. Explicit music controls remain available.
+Bus.on('settings:changed', k => {
+  if (k !== 'audio.autoplay' && k !== '*') return;
+  if (Settings.get('audio.autoplay') === false) {
+    MenuMusic._tok = {}; SongSelect._previewTok = {}; clearTimeout(SongSelect._previewT);
+    if (Screens.currentName !== 'gameplay') {
+      if (Music.playing) Music.pause(); MenuMusic.paused = true;
+      if (typeof ExplorerScreen !== 'undefined') { ExplorerScreen._resumeMusic = false; ExplorerScreen.stopPreview(); }
+      Bus.emit('music:changed', MenuMusic.current);
+    }
+  } else if (Screens.currentName === 'songselect') {
+    const m = BeatmapManager.maps.get(SongSelect.selectedId); if (m) SongSelect.schedulePreview(m);
+  } else if (Screens.currentName === 'home' && !Music.playing) HomeScreen.startMenuMusic();
+});

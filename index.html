@@ -9180,6 +9180,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Audio', g: 'Volume', k: 'audio.effects', l: 'Effect', t: 'range', d: 0.7, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Audio', g: 'Volume', k: 'audio.ui', l: 'Interface sounds', t: 'range', d: 0.6, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Audio', g: 'Offset', k: 'audio.offset', l: 'Audio offset', t: 'range', d: 0, min: -300, max: 300, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Positive if you hit late (notes will arrive later).', calibrate: true },
+  { s: 'Audio', g: 'Playback', k: 'audio.autoplay', l: 'Autoplay menu music and previews', t: 'bool', d: true, hint: 'Start songs automatically in menus and song select. Turn off to play music only when you choose Play; gameplay music is unchanged.' },
   { x: 1, s: 'Audio', g: 'Playback', k: 'audio.preservePitch', l: 'Preserve pitch for DT / HT / practice speed', t: 'bool', d: true },
   { x: 1, s: 'Audio', g: 'Playback', k: 'audio.previewAudio', l: 'Song select preview', t: 'bool', d: true },
   { x: 1, s: 'Audio', g: 'Playback', k: 'audio.uiSounds', l: 'Play interface sounds', t: 'bool', d: true },
@@ -9645,7 +9646,7 @@ const BeatmapManager = {
       }
     }
     Bus.emit('import:status', null);
-    if (report.sets.length) Bus.emit('library:changed');
+    if (report.sets.length) { Bus.emit('library:changed'); if (typeof BeatmapStatus !== 'undefined') BeatmapStatus.queueImported(report.sets); }
     return report;
   },
 
@@ -9822,8 +9823,7 @@ const BeatmapManager = {
     }
     const mapIds = new Set(existing ? existing.mapIds : []);
     for (const r of mapRecords) mapIds.add(r.id);
-    // (the same set imported again keeps what was found out about it online: its status — which decides whether its
-    // plays give pp — its genre and language, its dates, and the set it was found to be)
+    // Reimports keep the set's display metadata. Ranking eligibility belongs to each exact difficulty file.
     const known = {};
     if (existing) for (const k of BeatmapManager.KEPT) if (existing[k] != null) known[k] = existing[k];
     const onlineId = parseInt(md.BeatmapSetID || '-1', 10);
@@ -14612,7 +14612,6 @@ const Toolbar = {
       { sep: true },
       { label: 'What\'s new', icon: 'sparkle', onClick: () => Screens.go('changelog') },
       { label: 'Settings', icon: 'gear', onClick: () => SettingsPanel.open() },
-      ...(navigator.mediaDevices?.getDisplayMedia ? [{ label: AdminGameView.available ? 'Disable admin viewing' : 'Enable admin viewing', icon: 'film', onClick: () => AdminGameView.enable() }] : []),
       // (playing as yourself on another device: your code)
       ...(!Multiplayer.available() ? [] : [{ sep: true }, Account.signedOut()
         ? { label: 'Play as yourself here (your code)', icon: 'lock', onClick: () => CodePanel.open({ use: true }) }
@@ -16495,8 +16494,8 @@ const HomeScreen = {
     const seq = Music._seq, url = await BeatmapManager.bgURL(map) || await BeatmapManager.thumbURL(BeatmapManager.setById.get(map.setId));
     if (seq !== Music._seq) return; // (left already for a screen that started its own song, with its own background)
     Background.set(url);
-    if (Music.meta && Music.loaded && (Music.playing || MenuMusic.paused)) { Music.onEnded = () => MenuMusic.next(); return; }
-    await MenuMusic.play(map);
+    if (Music.meta && Music.loaded && (Music.playing || MenuMusic.paused)) { Music.onEnded = () => MenuMusic.autoNext(); return; }
+    if (Settings.get('audio.autoplay') !== false) await MenuMusic.play(map);
   },
 };
 
@@ -16707,12 +16706,13 @@ const MenuMusic = {
       if (!blob) throw new Error('missing audio');
       if (!await Music.open(blob, `${map.setId}/${map.audioFile}`, { setId: map.setId, mapId: map.id, timing: null }) || tok !== this._tok) return;
       Music.play(fromPreview ? previewStart(map) : 0, { fadeIn: 600 });
-      Music.onEnded = () => this.next();
+      Music.onEnded = () => this.autoNext();
       this.paused = false;
       this.setCurrent(map);
       beatTiming(map).then(timing => { if (tok === this._tok && Music.meta && Music.meta.mapId === map.id) Music.meta.timing = timing; });
     } catch (e) { console.warn('menu music', e); }
   },
+  autoNext() { if (Settings.get('audio.autoplay') !== false) this.next(); },
   setCurrent(map) { this.current = map; Toolbar.setNowPlaying(map); Bus.emit('music:changed', map); },
   /** Ranked Play — its lounge and the match screen — has no song playing behind it, only the match's own (a card's
    *  preview, the round's song): the menu's song fades out there and waits, and goes on where it was once you're out
@@ -16723,11 +16723,13 @@ const MenuMusic = {
     if (on) {
       this._hushedPlaying = Music.playing;
       if (Music.playing) { const pos = Music.time; Music.stop(300); Music.pausedPos = pos; }
-    } else if (resume && this._hushedPlaying && Music.loaded && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 400 });
+    } else if (Settings.get('audio.autoplay') !== false && resume && this._hushedPlaying && Music.loaded && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 400 });
     Bus.emit('music:changed', this.current);
   },
   toggle() {
     if (this._hushed) return; // (Ranked Play: no music)
+    const selected = Screens.currentName === 'songselect' && BeatmapManager.maps.get(SongSelect.selectedId);
+    if (!Music.playing && selected && !selected.problems.length && (!Music.loaded || Music.meta?.mapId !== selected.id)) { SongSelect.preview(selected, { manual: true }); return; }
     // nothing loaded yet (preview audio off, or the first track never started): play starts one
     if (!Music.loaded && !Music.playing) {
       const sel = Screens.currentName === 'songselect' && BeatmapManager.maps.get(SongSelect.selectedId);
@@ -16742,7 +16744,7 @@ const MenuMusic = {
   async go(map, fromPreview) {
     if (!map) return;
     Settings.set('last.map', map.id);
-    if (Screens.currentName === 'songselect') { SongSelect.select(map.id); return; }
+    if (Screens.currentName === 'songselect') { SongSelect.select(map.id); if (Settings.get('audio.autoplay') === false || !Settings.get('audio.previewAudio')) SongSelect.preview(map, { manual: true }); return; }
     Background.set(await BeatmapManager.bgURL(map));
     this.play(map, { fromPreview });
   },
@@ -16795,12 +16797,27 @@ const MenuMusic = {
     const cur = this.current;
     if (!cur || BeatmapManager.maps.has(cur.id) || Screens.currentName === 'gameplay') return;
     this.history = this.history.filter(id => BeatmapManager.maps.has(id));
-    if (this.playable().length) { if (Screens.currentName !== 'songselect') this.next(); return; }
+    if (this.playable().length && Settings.get('audio.autoplay') !== false) { if (Screens.currentName !== 'songselect') this.next(); return; }
     this._tok = {}; Music.unload(); this.current = null; this.paused = false; Background.set(null);
     Toolbar.setNowPlaying(null); Bus.emit('music:changed', null);
   },
 };
 Bus.on('library:changed', () => MenuMusic.removed());
+
+// Turning autoplay off is immediate, including previews still loading. Explicit music controls remain available.
+Bus.on('settings:changed', k => {
+  if (k !== 'audio.autoplay' && k !== '*') return;
+  if (Settings.get('audio.autoplay') === false) {
+    MenuMusic._tok = {}; SongSelect._previewTok = {}; clearTimeout(SongSelect._previewT);
+    if (Screens.currentName !== 'gameplay') {
+      if (Music.playing) Music.pause(); MenuMusic.paused = true;
+      if (typeof ExplorerScreen !== 'undefined') { ExplorerScreen._resumeMusic = false; ExplorerScreen.stopPreview(); }
+      Bus.emit('music:changed', MenuMusic.current);
+    }
+  } else if (Screens.currentName === 'songselect') {
+    const m = BeatmapManager.maps.get(SongSelect.selectedId); if (m) SongSelect.schedulePreview(m);
+  } else if (Screens.currentName === 'home' && !Music.playing) HomeScreen.startMenuMusic();
+});
 
 /* ===== 13b-neru.js ===== */
 /* Neru on the main menu: a picture of Neru standing in the bottom-left corner. It shows the image chosen in
@@ -17922,8 +17939,8 @@ const NeruEggs = {
   },
   /** A small Neru peeking up from the bottom edge of the screen for a moment, in `mood`'s pose — clicks go through her
    *  to whatever she's in front of (song select's Back button, say). `found`: her name searched for (a medal). */
-  peek(mood = 'list', { found = true, side = null, then = null } = {}) {
-    if (!neruAnim() || document.querySelector('.nc-peek') || this.onScreen()) return null;
+  peek(mood = 'list', { found = true, side = null, then = null, alongside = false } = {}) {
+    if (!neruAnim() || document.querySelector('.nc-peek') || (!alongside && this.onScreen())) return null;
     const el = NeruCameo.make(mood, 'nc-peek');
     if (!el) return null;
     if (side === 'right') el.classList.add('right');
@@ -18848,6 +18865,40 @@ const NeruEggs = {
   fishLater(el) {
     if (!el) return;
     setTimeout(() => { if (el.isConnected && el._pose) el._pose('fishing'); }, this.FISH_MS);
+  },
+};
+
+/* ===== 13c-neru-menu-secrets.js ===== */
+/* Small menu easter eggs shared by every screen, without interrupting play or text entry. */
+const NeruMenuSecrets = {
+  visited: new Set(), typed: '', at: 0,
+  init() {
+    Bus.on('screen:changed', name => {
+      if (['gameplay', 'home', 'loading', 'results', 'spectator'].includes(name)) return;
+      this.visited.add(name);
+      if (this.visited.size === 5 && !this.toured) {
+        this.toured = true;
+        setTimeout(() => { if (Screens.currentName === name) this.show('secret'); }, 800);
+      }
+    });
+    document.addEventListener('keydown', e => {
+      if (e.ctrlKey || e.altKey || e.metaKey || e.repeat || e.key.length !== 1 || Screens.currentName === 'gameplay' ||
+        e.target.closest?.('input, textarea, select, [contenteditable], [role=combobox]')) { this.typed = ''; return; }
+      const now = performance.now();
+      this.typed = ((now - this.at < 1200 ? this.typed : '') + e.key.toLowerCase()).slice(-4); this.at = now;
+      if (this.typed === 'neru') { this.typed = ''; this.show('secret'); }
+    });
+  },
+  show(mood) {
+    if (!NeruMascot.on() || !neruAnim() || Screens.currentName === 'gameplay' || document.querySelector('.login-panel, .setup') || Overlays.top()) return;
+    if (Screens.currentName === 'home' && NeruMascot.el && !NeruMascot.el.hidden) {
+      NeruMascot.hop(); return;
+    }
+    const cameo = [...(Screens.current?.el?.querySelectorAll('.neru-cameo:not(.nc-peek)') || [])].find(n => {
+      const r = n.getBoundingClientRect(); return r.width && r.bottom > 0 && r.top < innerHeight;
+    });
+    if (cameo) { cameo.click(); NeruCameo.burst(cameo); }
+    else NeruEggs.peek(mood, { found: false, side: 'right', alongside: true });
   },
 };
 
@@ -19876,6 +19927,7 @@ const SongSelect = {
   loopTrack(m) {
     this.syncPreviewAudio(m);
     Music.onEnded = () => {
+      if (Settings.get('audio.autoplay') === false) return;
       if (Screens.currentName === 'songselect' && Music.meta && Music.meta.setId === m.setId) Music.play(previewStart(m), { fadeIn: 600 });
       else if (Screens.currentName !== 'songselect' && Screens.currentName !== 'gameplay') MenuMusic.next();
     };
@@ -19938,9 +19990,9 @@ const SongSelect = {
     })().catch(e => { if (valid()) { this._audioSignature = null; console.warn('preview audio mods', e); } return false; });
     return this._audioReady;
   },
-  async preview(m) {
+  async preview(m, { manual = false } = {}) {
     this.showBackground(m);
-    if (!Settings.get('audio.previewAudio') || m.problems.length) return;
+    if ((!manual && (Settings.get('audio.autoplay') === false || !Settings.get('audio.previewAudio'))) || m.problems.length) return;
     // a token per request: if the selection changes while this one is loading, it's dropped (otherwise a
     // slower earlier request could start the new song at the old song's preview point)
     const tok = this._previewTok = {};
@@ -25009,13 +25061,17 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
-  { id: '2026.11.8f', title: 'Cleaner menus and sharper admin spectating', sections: [
+  { id: '2026.11.8g', title: 'Music on your terms', sections: [
+    { icon: 'music', title: 'Audio', items: ['Turn off Autoplay menu music and previews in Settings → Audio to keep menus quiet; Play and Next still work, and gameplay music is unchanged'] },
+    { icon: 'trophy', title: 'Rankings', items: ['Imported songs are checked against the explorer: unchanged ranked or approved difficulties can earn ranked scores', 'Existing scores from difficulties that cannot be verified are removed from rankings and beatmap leaderboards; local scores stay saved'] },
+    { icon: 'heart', title: 'Neru', items: ['More little Neru surprises while exploring the menus'] },
+  ] },
+  { id: '2026.11.8f', title: 'Cleaner menus and ranked scores', sections: [
     { icon: 'brush', title: 'Menus', items: ['Dropdowns now match the game’s menus, with keyboard navigation and touch-friendly choices'] },
-    { icon: 'film', title: 'Admin spectating', items: ['Admin Spectate sits beside Spectate and opens a sharper, full-screen game view', 'Enable admin viewing once from your user menu to let admins join without repeated requests; you can still pause or stop sharing', 'Admins choose whether to send an extra notification before joining'] },
     { icon: 'trophy', title: 'Scores', items: ['Imported difficulties missing from the beatmap explorer stay playable and save local scores, without entering rankings or earning ranked pp'] },
   ] },
-  { id: '2026.11.8e', title: 'Spectator chat and live game views', sections: [
-    { icon: 'film', title: 'Spectating', items: ['Admins can request a live view of your game tab to follow menus and gameplay', 'Sharing starts only after you accept; pause or stop at any time from the sharing bar', 'Retrying a song keeps spectators in gameplay instead of returning them to the song card', 'A lounge-style spectator chat is shared by the player and everyone watching, with a chat button on both sides'] },
+  { id: '2026.11.8e', title: 'Spectator chat and retries', sections: [
+    { icon: 'film', title: 'Spectating', items: ['Retrying a song keeps spectators in gameplay instead of returning them to the song card', 'A lounge-style spectator chat is shared by the player and everyone watching, with a chat button on both sides'] },
   ] },
   { id: '2026.11.8d', title: 'Your profile across devices', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Profiles and profile customization now follow the game’s landscape menus on mobile', 'Saved profile changes start syncing to your account immediately for your other devices'] },
@@ -25046,7 +25102,7 @@ const CHANGELOG = [
     { icon: 'brush', title: 'Profiles', items: ['The profile editor now matches the game’s menus, with a full profile preview', 'Choose your best play’s background, a song from your library, preset artwork or an upload — and switch back whenever you like', 'Miku, Neru and Teto presets, alongside refreshed mania-themed styles'] },
   ] },
   { id: '2026.11.7b', title: 'Make your profile yours', sections: [
-    { icon: 'brush', title: 'Profiles', items: ['Upload a profile banner and adjust its position, or choose from six coordinated styles', 'Add a short bio and preview your profile before saving — your look follows you across devices', 'Admins can award custom community tags that appear on profiles without giving admin access'] },
+    { icon: 'brush', title: 'Profiles', items: ['Upload a profile banner and adjust its position, or choose from six coordinated styles', 'Add a short bio and preview your profile before saving — your look follows you across devices'] },
   ] },
   { id: '2026.11.7', title: 'Note appearance and audio fixes', sections: [
     { icon: 'brush', title: 'Note appearance', items: ['Adjust note height independently of column width, and choose note border colour and thickness in Settings → Gameplay → Playfield', 'Negative Percy values extend visible hold tails to help with skins that cut them short; release timing stays the same'] },
@@ -25075,7 +25131,7 @@ const CHANGELOG = [
   { id: '2026.10.29b', title: 'Ranked Play, spectating and Neru', sections: [
     { icon: 'trophy', title: 'Ranked Play', items: ['Each player gets their own difficulty of the song, near the star rating they chose — both the same length', 'Your cards show only your own star rating', 'No song plays behind the Ranked Play lounge and matches'] },
     { icon: 'film', title: 'Spectating', items: ['Skips happen only when the player you\'re watching skips', 'Their pause and fail menus show, with what they\'re choosing'] },
-    { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'The Neru role gets a gold, Neru-style profile and Ranked look', 'The Teto role gets a red, Teto-style one', 'Clicked over and over by a Teto or Miku fan, she gets angry half the time — otherwise a thought or a photo', 'On a phone, she no longer stands over the other scores on the results screen'] },
+    { icon: 'heart', title: 'Neru', items: ['Neru keeps her animations in Performance mode', 'The crown on her picture sits where it should again', 'Clicked over and over by a Teto or Miku fan, she gets angry half the time — otherwise a thought or a photo', 'On a phone, she no longer stands over the other scores on the results screen'] },
     { icon: 'sparkle', title: 'Smoother', items: ['Menus pulse no faster than a steady beat on very fast songs', 'Lists scroll smoothly and at a good speed, even on slow computers', 'Scrolling waits for pictures to load instead of racing past them', 'The beatmap listing and the menus run much more smoothly on slow computers', 'Scroll speed is set on the screen before each song (and F3 / F4)'] },
     { icon: 'sparkle', title: 'More like lazer', items: ['The toolbar\'s changelog button opens the whole changelog as a page, as in lazer'] },
     { icon: 'user', title: 'Fixes', items: ['A second tab (or the installed app) no longer leaves you a guest and yourself at once — which stopped some players joining multiplayer', 'Players with their own profile picture can get into rooms again (MP-RT)', 'Multiplayer works on school Chromebooks and networks that block its connection — it goes over normal web requests instead', 'Leftovers from an old player id are cleared before connecting', 'When multiplayer can\'t connect, an error code says exactly why — Copy details puts it all in a message'] },
@@ -26287,7 +26343,7 @@ const ExplorerScreen = {
   stopPreview() {
     if (this.audio) { this.audio.pause(); this.audio = null; }
     this.previewId = null;
-    if (this._resumeMusic && Music.loaded && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 300 });
+    if (Settings.get('audio.autoplay') !== false && this._resumeMusic && Music.loaded && !Music.playing) Music.play(Music.pausedPos, { fadeIn: 300 });
     this._resumeMusic = false;
   },
 };
@@ -26299,6 +26355,22 @@ const ExplorerScreen = {
  *  found nothing, the next week. */
 const BeatmapStatus = {
   busy: false, DAY: 86400000,
+  /** Verify newly imported difficulties first, without delaying installation or interrupting a song. */
+  queueImported(sets) {
+    const queue = this._importQueue ||= new Set();
+    for (const set of sets) for (const m of set.maps || []) if (this.mapDue(m)) queue.add(m.id);
+    if (this._importing || !queue.size) return;
+    this._importing = true;
+    (async () => {
+      while (queue.size && navigator.onLine) {
+        while (Screens.currentName === 'gameplay') await sleep(5000);
+        const id = queue.values().next().value; queue.delete(id);
+        const m = BeatmapManager.maps.get(id); if (m) await this.checkMap(m);
+        await sleep(700);
+      }
+      Rankings.report(); Verified.catchUp();
+    })().catch(e => console.warn('imported map verification', e)).finally(() => { this._importing = false; });
+  },
   mapDue(m, now = Date.now()) { return !m.rankChecked || now - m.rankChecked > (m.rankError ? 60000 : 7 * this.DAY); },
   async keepMapStatus(m, status) {
     if (!m || BeatmapManager.maps.get(m.id) !== m) return;
@@ -26327,6 +26399,8 @@ const BeatmapStatus = {
         if (!res.ok) throw Object.assign(new Error('Beatmap status unavailable'), { status: res.status });
         const found = await res.json();
         if (!(found.beatmapId > 0)) { await this.keepMapStatus(m, 'missing'); return; }
+        m.onlineId = found.beatmapId;
+        if (set && !(set.onlineId > 0) && found.setId > 0) { set.onlineId = found.setId; await DB.put('sets', { ...set, maps: undefined }); }
         await this.keepMapStatus(m, String(found.status || 'unknown').toLowerCase());
       } catch (e) {
         if (BeatmapManager.maps.get(m.id) === m) { m.rankChecked = Date.now(); m.rankError = true; await DB.put('maps', m).catch(() => {}); }
@@ -28839,7 +28913,7 @@ const Presence = {
   },
   /** Something that keeps you online while nobody's at the keyboard: a room, spectating or being watched, a song. */
   busy() {
-    return Multiplayer.inRoom() || (typeof AdminGameView !== 'undefined' && !!(AdminGameView.current || AdminGameView.available)) || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers)) ||
+    return Multiplayer.inRoom() || (typeof AdminGameView !== 'undefined' && !!AdminGameView.current) || (typeof Spectate !== 'undefined' && (Spectate.target || Spectate.host.watchers)) ||
       (Screens.currentName === 'gameplay' && typeof GameplayScreen !== 'undefined' && GameplayScreen.s && GameplayScreen.s.running);
   },
   goAway() {
@@ -33415,7 +33489,7 @@ const Account = {
     if (!c) throw new Error('A code is 16 letters and numbers, like K7QM-3XRA-9DPZ-W2HF. Check it and try again.');
     const was = this.linked() && !this.signedOut() ? this.me().pid : null;
     const d = await this.call('link', { code: c, ...this.me() });
-    return this.became(d, c, was);
+    return this.became(d, d.recovery ? '' : c, was);
   },
   /** For the game saved as an HTML file here: a one-time ticket that signs the file in as you the first time it's
    *  opened, within a day (Matchmaker.account) — with your code mixed with the server's pad, so the file shows it
@@ -34310,16 +34384,13 @@ const Staff = {
 };
 
 /* ===== 19q-admin-game-view.js ===== */
-/* Admin game view: a player-approved game-tab video, separate from replay-based gameplay spectating.
- * Only video is shared. No keyboard events, DOM, account codes or remote-control channel are transmitted. */
+/* Admin game view renders only this app's menus and gameplay. No browser display capture or remote control. */
 const AdminGameView = {
-  current: null, available: null,
+  current: null,
   init() {
-    this.handle = 'ashtonkmania-' + clientId();
-    try { navigator.mediaDevices?.setCaptureHandleConfig?.({ exposeOrigin: true, handle: this.handle, permittedOrigins: [location.origin] }); } catch { /* not supported */ }
-    Bus.on('presence:changed', () => { if (!Presence.ws) { this.disable(); this.stop('The online connection closed.'); } });
+    Bus.on('presence:changed', () => { if (!Presence.ws) this.stop('The online connection closed.'); });
     Bus.on('presence:admin', () => { if (this.current && !this.current.host && !Presence.isAdmin) this.stop('Admin access ended.'); });
-    window.addEventListener('pagehide', () => { this.disable(); this.stop(); });
+    window.addEventListener('pagehide', () => this.stop());
   },
   send(t, extra = {}) { const s = this.current; if (s?.session) Presence.send({ t, session: s.session, ...extra }); },
   request(u) {
@@ -34336,39 +34407,26 @@ const AdminGameView = {
     s.timer = setTimeout(() => { if (this.current === s) this.stop('The request timed out.'); }, 95000);
     Presence.send({ t: 'adminViewRequest', to: u.id, direct: true, notify });
   },
-  enable() {
-    if (this.available) { this.disable(); return; }
-    if (this.current) { Toast.err('Game view already open', 'Close the current view first.'); return; }
-    if (!Presence.ws || Presence.ws.readyState !== 1) { Toast.err('You’re offline', 'Connect to the online service before enabling admin viewing.'); return; }
-    if (!navigator.mediaDevices?.getDisplayMedia || typeof RTCPeerConnection === 'undefined') { Toast.err('Admin viewing unavailable', 'Use desktop Chrome or Edge to share this game tab.'); return; }
-    const s = this.current = { host: true, name: 'admins', standby: true };
-    const { o } = Dialog.popup('Enable admin viewing', 'Share this game tab for this session. Admins can join without another request until you stop sharing or close the tab. Account-code panels remain hidden.',
-      [{ label: 'Enable and share game tab', cls: 'ok', onClick: () => this.share(s) }, { label: 'Cancel', cls: 'cancel', cancel: true }],
-      { icon: 'film', onClose: () => { if (this.current === s && !s.accepting) this.stop(); } });
-    s.dialog = o;
-  },
-  disable() {
-    const s = this.available;
-    if (!s) return;
-    this.available = null;
-    if (this.current === s) this.stop();
-    else { s.observer?.disconnect(); s.stream?.getTracks().forEach(t => t.stop()); s.bar?.remove(); }
-    Presence.send({ t: 'adminViewAvailability', enabled: false });
-  },
   viewer(s) {
     s.video = h('video.admin-view-video', { autoplay: true, muted: true, playsinline: true, 'aria-label': 'Live player game view' });
-    s.status = h('span', { role: 'status', 'aria-live': 'polite' }, 'Connecting to the player’s game tab…');
+    s.status = h('span', { role: 'status', 'aria-live': 'polite' }, 'Connecting to the player’s game…');
     const panel = h('div.admin-view-panel.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Admin game view' },
-      h('div.admin-view-heading', h('b', s.name), h('span', 'Live game tab · View only')),
+      h('div.admin-view-heading', h('b', s.name), h('span', 'Live game · View only')),
       h('div.admin-view-stage', s.video), h('div.admin-view-footer', s.status, h('button.btn', { onclick: () => this.stop() }, 'Stop watching')));
     s.overlay = makeOverlay(panel, { cls: 'admin-view-wrap', backdrop: false, onClose: () => { if (this.current === s) this.stop(); } });
     document.body.append(s.overlay.el);
   },
   on(m) {
-    if (m.t === 'adminViewRequest') { this.invited(m); return; }
-    if (m.t === 'adminViewReady' && m.host && !this.current && this.available) {
-      const source = this.available; source.session = m.session; source.name = m.name || 'Admin'; source.pc = null; source.signals = Promise.resolve(); this.current = source;
+    if (m.t === 'adminViewReady' && m.host) {
+      if (this.current || typeof RTCPeerConnection === 'undefined') { Presence.send({ t: 'adminViewStop', session: m.session }); return; }
+      const source = this.current = { host: true, session: m.session, name: m.name || 'Admin' };
       if (m.notify) Toast.show('Admin spectating', `${source.name} is viewing your game.`);
+      this.share(source).then(() => {
+        if (this.current !== source) return;
+        source.timer = setTimeout(() => { if (this.current === source) this.stop('The 30-minute game view ended.'); }, 30 * 60000);
+        return this.ready(source, m.iceServers);
+      }).catch(e => { if (this.current === source) this.stop(e.message || 'The game view could not connect.'); });
+      return;
     }
     const s = this.current;
     if (!s && m.t === 'adminViewPending') { Presence.send({ t: 'adminViewStop', session: m.session }); return; }
@@ -34386,66 +34444,34 @@ const AdminGameView = {
       s.signals = (s.signals || Promise.resolve()).then(() => this.signal(s, m.signal)).catch(() => { if (this.current === s) this.stop('The game view could not connect.'); });
     }
   },
-  invited(m) {
-    if (this.current || !navigator.mediaDevices?.getDisplayMedia || typeof RTCPeerConnection === 'undefined') {
-      Presence.send({ t: 'adminViewStop', session: m.session });
-      if (!this.current) Toast.show('Game-view request', 'An admin requested a game-tab share. This browser does not support it.');
-      return;
-    }
-    const s = this.current = { host: true, name: m.name, session: m.session };
-    s.timer = setTimeout(() => { if (this.current === s) this.stop('The request timed out.'); }, 90000);
-    const { o } = Dialog.popup('Admin game-view request',
-      h('div', h('p', `${m.name} (${m.role}) would like to see your game tab, including menus and gameplay.`),
-        h('p', 'Choose this game tab in the browser’s sharing picker. You can pause or stop sharing at any time.')),
-      [{ label: 'Share game tab', cls: 'ok', onClick: () => this.share(s) }, { label: 'Decline', cls: 'cancel', cancel: true }],
-      { icon: 'film', onClose: () => { if (this.current === s && !s.accepting) this.stop(); } });
-    s.dialog = o;
+  privateOpen() {
+    return [...document.querySelectorAll('.login-panel, .setup-step-account, input[type=password], [data-private]')].some(el => el.getClientRects().length);
   },
   async share(s) {
-    if (this.current !== s || s.accepting) return;
-    s.accepting = true;
-    let stream;
-    try {
-      stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { displaySurface: 'browser', cursor: 'always', frameRate: { ideal: 30, max: 60 }, width: { ideal: 1920, max: 2560 }, height: { ideal: 1080, max: 1440 } },
-        audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude', monitorTypeSurfaces: 'exclude',
-      });
-      if (this.current !== s) { stream.getTracks().forEach(t => t.stop()); return; }
-      const track = stream.getVideoTracks()[0], capture = track?.getCaptureHandle?.();
-      // Never accept an entire display, another tab, or a window. The game identifies its own captured tab.
-      if (!track || track.getSettings().displaySurface !== 'browser' || capture?.handle !== this.handle || capture.origin !== location.origin) {
-        stream.getTracks().forEach(t => t.stop()); this.stop('Select this game tab to share it. Other tabs and windows are not shared.'); return;
-      }
-      s.stream = stream; s.track = track;
-      try { track.contentHint = 'detail'; } catch { /* optional capture hint */ }
-      track.addEventListener('ended', () => { if (this.available === s) this.disable(); else if (this.current === s) this.stop('Screen sharing stopped.'); });
-      track.addEventListener('capturehandlechange', () => {
-        if (track.getCaptureHandle?.()?.handle !== this.handle) { if (this.available === s) this.disable(); else if (this.current === s) this.stop('The shared tab changed.'); }
-      });
-      this.sharingBar(s);
-      s.observer = new MutationObserver(() => this.protect(s));
-      s.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
-      this.protect(s);
-      if (s.standby) { this.available = s; this.current = null; this.protect(s); Presence.send({ t: 'adminViewAvailability', enabled: true }); }
-      else this.send('adminViewAccept');
-    } catch (e) {
-      stream?.getTracks().forEach(t => t.stop());
-      if (this.current === s) this.stop(e?.name === 'NotAllowedError' ? 'Game-tab sharing was cancelled.' : 'Game-tab sharing is unavailable in this browser.');
-    }
+    if (this.current !== s) return;
+    const capture = await GameViewCapture.create(s, () => this.current === s, () => this.privateOpen());
+    if (!capture) return;
+    if (this.current !== s) { capture.stop(); return; }
+    s.capture = capture; s.stream = capture.stream; s.track = capture.track;
+    try { s.track.contentHint = 'detail'; } catch { /* optional hint */ }
+    this.sharingBar(s);
+    s.observer = new MutationObserver(() => this.protect(s));
+    s.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+    this.protect(s);
   },
   sharingBar(s) {
     s.label = h('span', `Sharing your game with ${s.name}`);
     s.pause = h('button.btn.sm', { onclick: () => { s.paused = !s.paused; this.protect(s); } }, 'Pause sharing');
     s.bar = h('div.admin-view-sharing', { role: 'status' }, icon('film'), s.label, s.pause,
-      h('button.btn.sm', { onclick: () => this.available === s ? this.disable() : this.stop() }, 'Stop sharing'));
+      h('button.btn.sm', { onclick: () => this.stop() }, 'Stop sharing'));
     document.body.append(s.bar);
   },
   protect(s) {
-    if (this.current !== s && this.available !== s || !s.track) return;
-    const privatePanel = [...document.querySelectorAll('.login-panel, .setup-step-account, input[type=password], [data-private]')].some(el => el.getClientRects().length);
+    if (this.current !== s || !s.track) return;
+    const privatePanel = this.privateOpen();
     const paused = !!s.paused || privatePanel;
-    s.track.enabled = !paused;
-    const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : s.standby && !s.session ? 'Admin viewing enabled · This tab only' : `Sharing your game with ${s.name}`;
+    s.capture?.setPaused(paused); s.track.enabled = !paused;
+    const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : `Sharing your game with ${s.name}`;
     const button = s.paused ? 'Resume sharing' : 'Pause sharing';
     if (s.label.textContent !== label) s.label.textContent = label;
     if (s.pause.textContent !== button) s.pause.textContent = button;
@@ -34455,7 +34481,7 @@ const AdminGameView = {
   },
   async ready(s, iceServers = []) {
     if (this.current !== s || s.pc) return;
-    if (s.host && !s.stream) { this.stop('The game tab was not shared.'); return; }
+    if (s.host && !s.stream) { this.stop('The game view could not start.'); return; }
     const pc = s.pc = new RTCPeerConnection({ iceServers: iceServers.length ? iceServers : [{ urls: 'stun:stun.cloudflare.com:3478' }] });
     s.ice = [];
     pc.onicecandidate = e => { if (this.current === s && e.candidate) this.send('adminViewSignal', { signal: { candidate: e.candidate.toJSON() } }); };
@@ -34479,7 +34505,7 @@ const AdminGameView = {
       this.send('adminViewSignal', { signal: { description: { type: pc.localDescription.type, sdp: pc.localDescription.sdp } } });
       s.sentPaused = null; this.protect(s);
     } else {
-      s.status.textContent = 'Connecting to the shared game tab…';
+      s.status.textContent = 'Connecting to the player’s game…';
       pc.ontrack = e => { if (this.current === s) { s.video.srcObject = e.streams[0] || new MediaStream([e.track]); s.video.play().catch(() => {}); this.status(s); } };
     }
   },
@@ -34507,11 +34533,102 @@ const AdminGameView = {
     this.current = null;
     for (const t of [s.timer, s.connecting, s.disconnected]) clearTimeout(t);
     s.pc?.close();
-    if (this.available === s) { s.pc = null; s.session = null; s.sentPaused = null; this.protect(s); if (reason) Toast.show('Admin view ended', reason); return; }
-    s.observer?.disconnect(); s.stream?.getTracks().forEach(t => t.stop());
+    s.observer?.disconnect(); if (s.capture) s.capture.stop(); else s.stream?.getTracks().forEach(t => t.stop());
     if (s.video) { s.video.pause(); s.video.srcObject = null; }
     s.bar?.remove(); s.dialog?.close(); s.overlay?.close();
     if (reason) Toast.show('Game view ended', reason);
+  },
+};
+
+/* ===== 19qa-game-capture.js ===== */
+/* Render this app's own UI to a video canvas. No display/tab capture, remote DOM or browser permission is used. */
+const GameViewCapture = {
+  load() {
+    if (window.modernScreenshot) return Promise.resolve(window.modernScreenshot);
+    if (!this.loading) this.loading = new Promise((resolve, reject) => {
+      const script = document.createElement('script'); script.src = Host.asset('vendor/modern-screenshot.js');
+      const timer = setTimeout(() => { script.remove(); this.loading = null; reject(new Error('The game view renderer timed out. Please try again.')); }, 12000);
+      script.onload = () => { clearTimeout(timer); resolve(window.modernScreenshot); };
+      script.onerror = () => { clearTimeout(timer); script.remove(); this.loading = null; reject(new Error('The game view renderer could not load.')); };
+      document.head.append(script);
+    });
+    return this.loading;
+  },
+  async create(owner, valid, isPrivate) {
+    const renderer = await this.load();
+    if (!valid()) return null;
+    const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', { alpha: false });
+    if (!canvas.captureStream || !ctx) throw new Error('This browser cannot stream the game view.');
+    const s = { canvas, paused: false, epoch: 0, frame: null, dirty: true, stopped: false, cursor: null };
+    const size = () => {
+      const scale = Math.min(devicePixelRatio || 1, 1920 / innerWidth, 1440 / innerHeight);
+      canvas.width = Math.round(innerWidth * scale); canvas.height = Math.round(innerHeight * scale);
+      s.scale = scale; s.width = innerWidth; s.height = innerHeight; s.frame = null; s.dirty = true;
+    };
+    size();
+    const mask = () => { ctx.fillStyle = '#18171c'; ctx.fillRect(0, 0, canvas.width, canvas.height); };
+    mask();
+    const stream = s.stream = canvas.captureStream(30), track = s.track = stream.getVideoTracks()[0];
+    const running = () => Screens.currentName === 'gameplay' && GameplayScreen.s?.running;
+    const mode = () => `${Screens.currentName}/${!!running()}/${Overlays.stack.length}`;
+    const paint = () => {
+      if (s.stopped || !valid()) return;
+      s.animation = requestAnimationFrame(paint);
+      if (performance.now() - (s.painted || 0) < 30) return;
+      s.painted = performance.now();
+      if (s.paused || isPrivate()) { mask(); return; }
+      if (s.frame) ctx.drawImage(s.frame, 0, 0, canvas.width, canvas.height);
+      else mask();
+      // Gameplay's own canvas stays fluid; UI snapshots supply the menus and HUD around it.
+      const live = running() && !Overlays.top() && !GameplayScreen.pauseEl?.classList.contains('on') && GameplayScreen.renderer?.canvas;
+      const source = live || (running() && !Overlays.top() && GameplayScreen.s?.renderer?.canvas);
+      if (source && s.frame && s.frameMode === mode()) {
+        const r = source.getBoundingClientRect();
+        if (r.width && r.height) try { ctx.drawImage(source, r.left * s.scale, r.top * s.scale, r.width * s.scale, r.height * s.scale); } catch { /* detached renderer */ }
+      }
+      if (s.cursor) {
+        const { x, y } = s.cursor; ctx.save(); ctx.translate(x * s.scale, y * s.scale); ctx.scale(s.scale, s.scale);
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 20); ctx.lineTo(6, 14); ctx.lineTo(12, 23); ctx.lineTo(16, 20); ctx.lineTo(10, 12); ctx.lineTo(19, 12); ctx.closePath();
+        ctx.fillStyle = '#fff'; ctx.strokeStyle = '#18171c'; ctx.lineWidth = 2; ctx.fill(); ctx.stroke(); ctx.restore();
+      }
+    };
+    const refresh = async () => {
+      if (s.stopped || !valid()) return;
+      const start = performance.now(), epoch = s.epoch, view = mode(), active = !!running();
+      try {
+        if (!s.paused && !isPrivate() && (s.dirty || !s.frame || start - (s.captured || 0) > 1000)) {
+          s.dirty = false;
+          const image = await renderer.domToCanvas(document.body, {
+            width: s.width, height: s.height, scale: s.scale, backgroundColor: '#18171c', timeout: 3000,
+            filter: node => !(node.nodeType === 1 && (['SCRIPT', 'IFRAME', 'AUDIO'].includes(node.tagName) || node.tagName === 'VIDEO' && node.readyState < 2 ||
+              node.matches('.admin-view-sharing, .admin-view-wrap, .lz-cursor, [data-admin-view-ignore]') ||
+              node.closest('.login-panel, .setup-step-account, input[type=password], [data-private]') ||
+              active && node.tagName === 'CANVAS' && (node === GameplayScreen.renderer?.canvas || node === GameplayScreen.s?.renderer?.canvas))),
+          });
+          if (!s.stopped && valid() && !s.paused && !isPrivate() && s.epoch === epoch && mode() === view && s.width === innerWidth && s.height === innerHeight) {
+            s.frame = image; s.frameMode = view; s.captured = performance.now();
+          }
+        }
+      } catch (e) {
+        if (valid()) owner.captureError = e.message || 'The game view could not render.';
+        if (!s.stopped && !s.frame && valid()) { owner.captureError = e.message || 'The game view could not render.'; if ((s.failures = (s.failures || 0) + 1) >= 3) AdminGameView.stop('The game view could not render. Please try again.'); }
+      } finally {
+        if (!s.stopped && valid()) s.timer = setTimeout(refresh, Math.max(active ? 850 : 170, 250 - (performance.now() - start)));
+      }
+    };
+    const pointer = e => { s.cursor = { x: e.clientX, y: e.clientY }; };
+    const resize = () => { s.epoch++; size(); mask(); };
+    const observer = new MutationObserver(records => { if (records.some(r => !r.target.closest?.('.admin-view-sharing, .admin-view-wrap'))) s.dirty = true; });
+    observer.observe(document.getElementById('app'), { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'value', 'src'] });
+    document.addEventListener('pointermove', pointer, { passive: true }); window.addEventListener('resize', resize);
+    s.setPaused = paused => { if (paused !== s.paused) { s.paused = paused; s.epoch++; s.frame = null; s.dirty = true; mask(); } };
+    s.stop = () => {
+      s.stopped = true; clearTimeout(s.timer); cancelAnimationFrame(s.animation); observer.disconnect();
+      document.removeEventListener('pointermove', pointer); window.removeEventListener('resize', resize);
+      stream.getTracks().forEach(t => t.stop()); canvas.width = canvas.height = 0; s.frame = null;
+    };
+    paint(); refresh();
+    return s;
   },
 };
 
@@ -34608,7 +34725,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'cc299243afe0';
+const APP_BUILD = '5625e0e9ce47';
 
 const App = {
   lastReport: null,
@@ -34644,6 +34761,7 @@ const App = {
     GameDropdowns.init();
     AdminGameView.init();
     SpectatorChat.init();
+    NeruMenuSecrets.init();
     Tooltip.init();
     UISounds.initHover();
     FallingText.init();

@@ -122,6 +122,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Audio', g: 'Volume', k: 'audio.effects', l: 'Effect', t: 'range', d: 0.7, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Audio', g: 'Volume', k: 'audio.ui', l: 'Interface sounds', t: 'range', d: 0.6, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Audio', g: 'Offset', k: 'audio.offset', l: 'Audio offset', t: 'range', d: 0, min: -300, max: 300, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}ms`, hint: 'Positive if you hit late (notes will arrive later).', calibrate: true },
+  { s: 'Audio', g: 'Playback', k: 'audio.autoplay', l: 'Autoplay menu music and previews', t: 'bool', d: true, hint: 'Start songs automatically in menus and song select. Turn off to play music only when you choose Play; gameplay music is unchanged.' },
   { x: 1, s: 'Audio', g: 'Playback', k: 'audio.preservePitch', l: 'Preserve pitch for DT / HT / practice speed', t: 'bool', d: true },
   { x: 1, s: 'Audio', g: 'Playback', k: 'audio.previewAudio', l: 'Song select preview', t: 'bool', d: true },
   { x: 1, s: 'Audio', g: 'Playback', k: 'audio.uiSounds', l: 'Play interface sounds', t: 'bool', d: true },

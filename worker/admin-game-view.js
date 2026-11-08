@@ -1,4 +1,4 @@
-// Ephemeral signalling for a player-approved, read-only game-tab share. Video never passes through this service.
+// Ephemeral signalling for an authenticated admin’s read-only game view. Video never passes through this service.
 export class AdminGameView {
   constructor(presence) { this.p = presence; this.sessions = new Map(); this.asked = new Map(); this.iceServers = []; }
   configure(value) {
@@ -27,38 +27,24 @@ export class AdminGameView {
     const u = this.p.users.get(id), now = this.p.now();
     const error = msg => [{ to: id, msg: { t: 'adminViewError', msg } }];
     if (!u) return [];
-    if (m.t === 'adminViewAvailability') {
-      u.adminViewReady = m.enabled === true;
-      return [...(!u.adminViewReady ? this.leave(id) : []), this.p.broadcast()];
-    }
     if (m.t === 'adminViewRequest') {
       if (!this.p.isStaff(u.pid)) return error('Only admins can request a game view.');
       const player = this.p.users.get(m.to);
       if (!player?.pid || player.vis === 'offline' || m.to === id || player.pid === u.pid) return error('That player is not available.');
-      if (m.direct === true && !player.adminViewReady) return error('That player has not enabled admin viewing from their user menu.');
-      if (this.asked.has(id) && now - this.asked.get(id) < (player.adminViewReady ? 3000 : 15000)) return error('Please wait before starting another game view.');
+      if (this.asked.has(id) && now - this.asked.get(id) < 3000) return error('Please wait before starting another game view.');
       if ([...this.sessions.values()].some(s => [s.admin, s.player].includes(id) || [s.admin, s.player].includes(m.to))) return error('A game-view request or share is already open.');
       const session = crypto.randomUUID();
       this.sessions.set(session, { admin: id, player: m.to, accepted: false, expires: now + 90000, count: 0, window: now });
       this.asked.set(id, now);
-      if (player.adminViewReady) {
-        const s = this.sessions.get(session); s.accepted = true; s.expires = now + 30 * 60000;
-        return [{ to: id, msg: { t: 'adminViewPending', session, name: player.name } },
-          { to: id, msg: { t: 'adminViewReady', session, host: false, iceServers: this.iceServers } },
-          { to: m.to, msg: { t: 'adminViewReady', session, host: true, name: u.name, notify: m.notify === true, iceServers: this.iceServers } }];
-      }
+      const s = this.sessions.get(session); s.accepted = true; s.expires = now + 30 * 60000;
       return [{ to: id, msg: { t: 'adminViewPending', session, name: player.name } },
-        { to: m.to, msg: { t: 'adminViewRequest', session, name: u.name, role: this.p.roleOf(u.pid)?.name || 'Admin' } }];
+        { to: id, msg: { t: 'adminViewReady', session, host: false, iceServers: this.iceServers } },
+        { to: m.to, msg: { t: 'adminViewReady', session, host: true, name: u.name, notify: m.notify === true, iceServers: this.iceServers } }];
     }
     const s = this.sessions.get(m.session);
     if (!s || id !== s.admin && id !== s.player) return [];
     if (now >= s.expires || !this.p.isStaff(this.p.users.get(s.admin)?.pid)) return this.end(m.session, 'The game-view session ended.');
     if (m.t === 'adminViewStop') return this.end(m.session, s.accepted ? 'Sharing stopped.' : 'The request was declined or cancelled.');
-    if (m.t === 'adminViewAccept') {
-      if (id !== s.player || s.accepted) return [];
-      s.accepted = true; s.expires = now + 30 * 60000;
-      return [{ to: s.admin, msg: { t: 'adminViewReady', session: m.session, host: false, iceServers: this.iceServers } }, { to: s.player, msg: { t: 'adminViewReady', session: m.session, host: true, iceServers: this.iceServers } }];
-    }
     if (!s.accepted) return [];
     const to = id === s.admin ? s.player : s.admin;
     if (m.t === 'adminViewState' && id === s.player) return [{ to, msg: { t: 'adminViewState', session: m.session, paused: m.paused === true } }];
