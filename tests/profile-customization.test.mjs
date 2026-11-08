@@ -76,8 +76,10 @@ test('older devices keep an existing profile appearance while merging scores', (
 
 test('existing appearances migrate without losing their background, and best play is independent of style', () => {
   assert.equal(cleanProfileAppearance({ banner }).background, 'upload');
-  assert.equal(cleanProfileAppearance({ style: 'aurora' }).background, 'preset');
+  assert.equal(cleanProfileAppearance({ style: 'aurora' }).background, 'best');
   assert.equal(cleanProfileAppearance({}).background, 'best');
+  assert.equal(cleanProfileAppearance({ background: 'preset', banner }).background, 'upload');
+  assert.equal(cleanProfileAppearance({ background: 'preset', style: 'teto' }).background, 'best');
   assert.equal(cleanProfileAppearance({ style: 'miku', banner, background: 'best' }).background, 'best');
   assert.equal(cleanProfileAppearance({ background: 'song', song: { sid: '123', hash: 'not-a-map' } }).song.sid, 0);
 });

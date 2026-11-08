@@ -65,7 +65,7 @@ export function cleanProfileAppearance(a) {
   const banner = typeof a.banner === 'string' && a.banner.length <= 48000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '';
   const song = a.song && typeof a.song === 'object' ? a.song : {};
   return { style, banner,
-    background: ['best', 'song', 'preset', 'upload'].includes(a.background) ? a.background : banner ? 'upload' : style === 'signature' ? 'best' : 'preset',
+    background: ['best', 'song', 'upload'].includes(a.background) ? a.background : banner ? 'upload' : 'best',
     song: { hash: typeof song.hash === 'string' && /^[a-f0-9]{32,64}$/i.test(song.hash) ? song.hash : '',
       sid: Number.isSafeInteger(song.sid) && song.sid > 0 && song.sid <= 2147483647 ? song.sid : 0,
       title: typeof song.title === 'string' ? song.title.trim().slice(0, 100) : '', artist: typeof song.artist === 'string' ? song.artist.trim().slice(0, 80) : '' },

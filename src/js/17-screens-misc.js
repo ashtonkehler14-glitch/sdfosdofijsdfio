@@ -560,6 +560,7 @@ const ProfileScreen = {
     // a strip with play count / time and the level badge, then the detail area: performance and accuracy, rank
     // counts as rank pills, the stat list; then a section tab bar and the sections themselves.
     const appearance = ProfileAppearance.clean(d.appearance), cover = h('div.pf-cover');
+    const profileMenu = page.closest('.ov'); if (profileMenu) ProfileAppearance.paint(profileMenu, appearance);
     cover.style.backgroundPosition = `center ${appearance.position}%`;
     // Both the editor and the public profile resolve the same explicit background source.
     this.coverPlay = topPlays[0] || (d.recent && d.recent[0]) || null;
@@ -934,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.7d', title: 'Profile themes without changing your background', sections: [
+    { icon: 'brush', title: 'Profiles', items: ['Themes now colour the whole profile, including its menus, tabs and cards, while keeping your song background or uploaded banner', 'Miku and Teto have full character illustrations in the theme picker'] },
+  ] },
   { id: '2026.11.7c', title: 'Profiles, in the game’s style', sections: [
     { icon: 'brush', title: 'Profiles', items: ['The profile editor now matches the game’s menus, with a full profile preview', 'Choose your best play’s background, a song from your library, preset artwork or an upload — and switch back whenever you like', 'Miku, Neru and Teto presets, alongside refreshed mania-themed styles'] },
   ] },

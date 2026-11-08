@@ -5289,16 +5289,14 @@ html.lp-open #toasts { right: 380px; }
 .rep-check { display: flex; align-items: center; gap: 8px; font-size: .84rem; color: var(--text-2); }
 
 /* Profiles use the same overlay palette and geometric artwork as the game's other menus. */
-[data-profile-style], .pa-editor { --pf-accent: #ff66aa; --pf-hue: 333; --pf-gradient: linear-gradient(115deg, #4c2a3b, #241b22); --pf-art: none;
+[data-profile-style], .pa-editor { --pf-accent: #ff66aa; --pf-hue: 333; --pf-gradient: linear-gradient(115deg, #4c2a3b, #241b22);
   --pf-pattern: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='180'%3E%3Cg fill='white' opacity='.055'%3E%3Cpath d='M0 170 50 83l50 87zM150 90l40-70 40 70zM80 65l20-35 20 35z'/%3E%3C/g%3E%3C/svg%3E"); }
 .pf-header[data-profile-style] .pf-cover, .pa-preview-cover { background: var(--pf-pattern) repeat center / 240px, var(--pf-gradient); }
 .pf-header[data-profile-style] .pf-top { height: 270px; }
-.pf-header[data-profile-style] .pf-cover::before, .pa-preview-cover::before { content: ""; position: absolute; inset: 0 0 0 auto; width: min(55%, 320px); background: var(--pf-art) no-repeat right center / auto 100%; mask-image: linear-gradient(90deg, transparent, #000 65%); }
-[data-profile-style="neru"] .pf-cover::before, [data-profile-style="neru"] .pa-preview-cover::before { background-size: auto 145%; background-position: right top; }
-.pf-cover[data-cover-kind="image"]::before, .pa-preview-cover[data-cover-kind="image"]::before { display: none; }
 .pf-header[data-profile-style] .pf-cover::after, .pa-preview-cover::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent, hsl(var(--pf-hue) 20% 10% / .35) 40%, var(--od5)); }
 .pf-header[data-profile-style] .pf-avatar { border-radius: 8px; border: 2px solid var(--pf-accent); box-shadow: 0 4px 16px #0006; }
 .pf-header[data-profile-style] .pf-big b { color: var(--pf-accent); }
+.pf-header[data-profile-style] .avatar-mono, .pa-preview .avatar-mono { background: linear-gradient(135deg, hsl(var(--pf-hue) 60% 55%), hsl(var(--pf-hue) 50% 33%)); }
 .pf-header[data-profile-style] .pf-tags { flex-wrap: wrap; gap: 7px; }
 .pf-header[data-profile-style] .pf-bio { color: var(--oc2); font-size: .87rem; line-height: 1.5; margin: 10px 0 0; max-width: 540px; overflow-wrap: anywhere; white-space: pre-wrap; }
 .pf-customize { position: absolute; top: 20px; right: var(--pf-pad); z-index: 2; background: var(--od5); }
@@ -5333,12 +5331,12 @@ html.lp-open #toasts { right: 380px; }
 .pa-preset { position: relative; background: var(--ob4); text-align: left; border: 2px solid transparent; border-radius: 6px; padding: 0; overflow: hidden; cursor: pointer; color: #fff; transition: background var(--t-fast), border-color var(--t-fast); min-width: 0; }
 .pa-preset:hover { background: var(--ob3); border-color: var(--tile-accent); }
 .pa-preset.selected { border-color: var(--tile-accent); }
-.pa-preset-art { position: relative; display: block; height: 76px; overflow: hidden; background: var(--pf-pattern), linear-gradient(115deg, hsl(var(--tile-hue) 40% 28%), hsl(var(--tile-hue) 28% 13%)); }
+.pa-preset-art { position: relative; display: block; height: 90px; overflow: hidden; background: var(--pf-pattern), linear-gradient(115deg, hsl(var(--tile-hue) 40% 28%), hsl(var(--tile-hue) 28% 13%)); }
 .pa-preset-mark { position: absolute; left: 12px; top: 13px; font-size: 2.1rem; font-weight: 900; color: var(--tile-accent); opacity: .5; font-style: italic; line-height: 1; }
 .pa-preset-name { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; padding: 9px 10px; flex-wrap: wrap; }
 .pa-preset-name b { font-size: .75rem; }
 .pa-preset-name small { font-size: .6rem; color: var(--muted); }
-.pa-character { position: absolute; height: 115%; right: -5px; top: -5px; width: auto; mask-image: linear-gradient(90deg, transparent, #000 30%); }
+.pa-character { position: absolute; height: 250%; right: -12px; top: -4px; width: auto; mask-image: linear-gradient(90deg, transparent, #000 30%); }
 .pa-note-lanes { position: absolute; right: 9px; top: -8px; height: 100px; width: 68px; transform: skew(-12deg); background: repeating-linear-gradient(90deg, #0005 0 15px, #ffffff16 15px 17px); }
 .pa-note-lanes i { position: absolute; width: 13px; height: 7px; left: calc(var(--lane) * 17px + 1px); top: calc(19px + var(--lane) * 12px); background: var(--tile-accent); border-radius: 1px; box-shadow: 0 30px 0 #ffffff99; }
 .pa-preset[data-style="aurora"] .pa-note-lanes i { height: 26px; background: linear-gradient(var(--tile-accent), transparent); border-top: 6px solid var(--tile-accent); }
@@ -5349,7 +5347,7 @@ html.lp-open #toasts { right: 380px; }
 .pa-preset-check { position: absolute; top: 5px; right: 5px; color: #171318; background: var(--tile-accent); width: 18px; height: 18px; border-radius: 50%; display: none; place-items: center; z-index: 1; }
 .pa-preset-check .i { width: 12px; height: 12px; }
 .pa-preset.selected .pa-preset-check { display: grid; }
-.pa-sources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
+.pa-sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 16px; }
 .pa-source { display: flex; gap: 10px; align-items: center; text-align: left; min-height: 46px; padding: 10px 12px; border: 0; border-radius: 6px; background: var(--ob4); color: var(--oc2); font-size: .78rem; cursor: pointer; }
 .pa-source:hover { background: var(--ob3); }
 .pa-source.selected { background: var(--ob3); color: #fff; box-shadow: inset 3px 0 var(--ohl); }
@@ -5390,13 +5388,14 @@ html.lp-open #toasts { right: 380px; }
   .pa-editor .ov-inner { padding: 0 20px; }
   .pa-editor .ov-head::before { height: 28px; }
   .pa-preset-name small { display: none; }
+  .pa-sources { grid-template-columns: minmax(0, 1fr); }
   .pa-foot { padding: 14px 20px; }
   .pa-foot > span { display: none; }
   .pa-foot .primary { margin-left: auto; }
   .pa-preview-stats { gap: 25px; }
   .pa-preview h3 { font-size: 1.2rem; }
   .pa-preview .avatar { width: 64px !important; height: 64px !important; }
-  .pa-preset-art { height: 66px; }
+  .pa-preset-art { height: 78px; }
 }
 @media (max-width: 700px) {
   .pf-header[data-profile-style] .pf-top { height: auto !important; min-height: 330px; padding-top: 95px; }

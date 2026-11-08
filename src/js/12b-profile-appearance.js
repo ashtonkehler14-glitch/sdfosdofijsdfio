@@ -7,9 +7,9 @@ const ProfileAppearance = {
     { id: 'ember', name: 'Ember', desc: 'Keep the combo', accent: '#ffad70', hue: 24, mark: 'FC' },
     { id: 'sakura', name: 'Sakura', desc: 'Full bloom', accent: '#ff9bcc', hue: 320, mark: 'SS' },
     { id: 'glacier', name: 'Glacier', desc: 'Perfect timing', accent: '#80d5ff', hue: 200, mark: 'MAX' },
-    { id: 'miku', name: 'Miku', desc: 'Hatsune Miku', accent: '#39c5bb', hue: 176, character: 'miku', mark: '01' },
-    { id: 'neru', name: 'Neru', desc: 'Akita Neru', accent: '#ffcf3a', hue: 45, character: 'neru', mark: '02' },
-    { id: 'teto', name: 'Teto', desc: 'Kasane Teto', accent: '#ff4d6a', hue: 350, character: 'teto', mark: '04' },
+    { id: 'miku', name: 'Miku', desc: 'Hatsune Miku', accent: '#39c5bb', hue: 176, character: 'miku', art: 'profile-art/miku.png', mark: '01' },
+    { id: 'neru', name: 'Neru', desc: 'Akita Neru', accent: '#ffcf3a', hue: 45, character: 'neru', art: 'neru.png', mark: '02' },
+    { id: 'teto', name: 'Teto', desc: 'Kasane Teto', accent: '#ff4d6a', hue: 350, character: 'teto', art: 'profile-art/teto.png', mark: '04' },
   ],
   clean(a) {
     a = a && typeof a === 'object' ? a : {};
@@ -17,7 +17,7 @@ const ProfileAppearance = {
     const banner = typeof a.banner === 'string' && a.banner.length <= 48000 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(a.banner) ? a.banner : '';
     const song = a.song && typeof a.song === 'object' ? a.song : {};
     return { style, banner,
-      background: ['best', 'song', 'preset', 'upload'].includes(a.background) ? a.background : banner ? 'upload' : style === 'signature' ? 'best' : 'preset',
+      background: ['best', 'song', 'upload'].includes(a.background) ? a.background : banner ? 'upload' : 'best',
       song: { hash: typeof song.hash === 'string' && /^[a-f0-9]{32,64}$/i.test(song.hash) ? song.hash : '',
         sid: Number.isSafeInteger(song.sid) && song.sid > 0 && song.sid <= 2147483647 ? song.sid : 0,
         title: typeof song.title === 'string' ? song.title.trim().slice(0, 100) : '', artist: typeof song.artist === 'string' ? song.artist.trim().slice(0, 80) : '' },
@@ -29,7 +29,6 @@ const ProfileAppearance = {
     el.dataset.profileStyle = a.style; el.dataset.background = a.background; el.classList.add('ov'); el.style.setProperty('--o-h', p.hue);
     el.style.setProperty('--pf-accent', p.accent); el.style.setProperty('--pf-hue', p.hue);
     el.style.setProperty('--pf-gradient', `linear-gradient(115deg, hsl(${p.hue} 32% 23%), hsl(${p.hue} 24% 12%))`);
-    el.style.setProperty('--pf-art', p.character ? `url("${p.character === 'neru' ? Host.asset('neru.png') : AvatarPresets.url(p.character)}")` : 'none');
     return a;
   },
   /** One resolver for the actual profile and the preview. Ignore a stale image when the source changes. */
@@ -38,7 +37,6 @@ const ProfileAppearance = {
     el._profileCoverToken = token; el.dataset.coverKind = 'preset'; el.style.backgroundImage = ''; el.style.backgroundSize = ''; el.style.backgroundRepeat = '';
     el.style.backgroundPosition = `center ${a.position}%`;
     const put = url => { if (url && el._profileCoverToken === token) { el.style.backgroundImage = `url("${url}")`; el.style.backgroundSize = 'cover'; el.style.backgroundRepeat = 'no-repeat'; el.dataset.coverKind = 'image'; } };
-    if (a.background === 'preset') return;
     if (a.background === 'upload') { put(a.banner); return; }
     if (a.background === 'song') {
       // The compact snapshot makes locally imported song artwork visible on other devices too.
@@ -100,17 +98,17 @@ const ProfileAppearance = {
       status.textContent = 'Best play background restored in preview. Save to apply.'; paint();
     } }, icon('retry'), 'Use best play instead');
     const tiles = this.presets.map(p => h('button.pa-preset', { type: 'button', dataset: { style: p.id }, style: { '--tile-hue': p.hue, '--tile-accent': p.accent },
-      'aria-label': p.name + ' profile style', onclick: () => { if (saving) return; uploadSeq++; busy = false; save.disabled = false; draft.style = p.id; draft.background = 'preset'; status.textContent = ''; paint(); } },
-      h('span.pa-preset-art', h('span.pa-preset-mark', p.mark), p.character ? h('img.pa-character', { src: AvatarPresets.url(p.character), alt: '' }) : h('span.pa-note-lanes', ...[0, 1, 2, 3].map(i => h('i', { style: { '--lane': i } }))), h('span.pa-preset-check', icon('check'))),
+      'aria-label': p.name + ' profile style', onclick: () => { if (saving) return; draft.style = p.id; paint(); } },
+      h('span.pa-preset-art', h('span.pa-preset-mark', p.mark), p.character ? h('img.pa-character', { src: Host.asset(p.art), alt: '' }) : h('span.pa-note-lanes', ...[0, 1, 2, 3].map(i => h('i', { style: { '--lane': i } }))), h('span.pa-preset-check', icon('check'))),
       h('span.pa-preset-name', h('b', p.name), h('small', p.desc))));
-    const sourceNames = { best: 'Best play background', song: 'Selected song background', preset: 'Preset artwork', upload: 'Uploaded banner' };
+    const sourceNames = { best: 'Best play background', song: 'Selected song background', upload: 'Uploaded banner' };
     const sources = Object.entries(sourceNames).map(([value, label]) => h('button.pa-source', { type: 'button', dataset: { source: value }, 'aria-label': label,
-      onclick: () => { if (saving) return; uploadSeq++; busy = false; save.disabled = false; draft.background = value; status.textContent = ''; paint(); } }, icon({ best: 'trophy', song: 'music', preset: 'brush', upload: 'upload' }[value]), h('span', label), h('span.pa-source-check', icon('check'))));
+      onclick: () => { if (saving) return; uploadSeq++; busy = false; save.disabled = false; draft.background = value; status.textContent = ''; paint(); } }, icon({ best: 'trophy', song: 'music', upload: 'upload' }[value]), h('span', label), h('span.pa-source-check', icon('check'))));
     const search = h('input.input', { type: 'search', placeholder: 'Search your songs…', 'aria-label': 'Search profile background songs' });
     const songs = h('div.pa-song-list'), pickedSong = h('div.pa-picked-song');
     const songBox = h('div.pa-song-picker', pickedSong, search, songs);
     const imageBox = h('div.pa-upload-box', h('p', 'PNG, JPEG or WebP · up to 10 MB.'), h('div.pa-upload', upload, remove, file));
-    const bestHint = h('p.pa-best-hint', best ? `Uses your best performance: ${best.title || (best._s && best._s.title) || 'your top play'}. Updates when you set a new best.` : 'Your best play’s background will appear here once you have a score. Until then, your preset artwork is shown.');
+    const bestHint = h('p.pa-best-hint', best ? `Uses your best performance: ${best.title || (best._s && best._s.title) || 'your top play'}. Updates when you set a new best.` : 'Your best play’s background will appear here once you have a score. Until then, the theme’s colours are shown.');
     const drawSongs = () => {
       const query = search.value.trim().toLowerCase();
       const sets = BeatmapManager.sets.filter(s => !query || `${s.title} ${s.artist}`.toLowerCase().includes(query)).slice(0, 12);
@@ -139,11 +137,11 @@ const ProfileAppearance = {
     };
     search.addEventListener('input', drawSongs);
     const paint = () => {
-      this.paint(preview, draft); this.cover(previewCover, draft, { best });
+      this.paint(panel, draft); this.paint(preview, draft); this.cover(previewCover, draft, { best });
       previewBio.textContent = draft.bio; previewBio.hidden = !draft.bio;
       styleName.textContent = `${this.presets.find(p => p.id === draft.style).name} · ${sourceNames[draft.background]}`;
       counter.textContent = `${bio.value.length} / 160`;
-      position.disabled = draft.background === 'preset'; remove.disabled = !draft.banner;
+      position.disabled = draft.background === 'upload' && !draft.banner; remove.disabled = !draft.banner;
       songBox.hidden = draft.background !== 'song'; imageBox.hidden = draft.background !== 'upload'; bestHint.hidden = draft.background !== 'best';
       pickedSong.textContent = draft.song.title ? `Selected: ${draft.song.artist ? draft.song.artist + ' — ' : ''}${draft.song.title}` : 'Choose a song from your library.';
       for (const t of tiles) { const selected = t.dataset.style === draft.style; t.classList.toggle('selected', selected); t.setAttribute('aria-pressed', String(selected)); }
@@ -174,7 +172,7 @@ const ProfileAppearance = {
     const panel = h('div.pa-editor.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Customize profile', style: { '--o-h': 333 } },
       overlayHeader('customize profile', { icon: 'brush', actions: [close] }),
       h('div.pa-body', h('aside.pa-preview-side', h('h2.pa-section-heading', 'profile preview'), preview, h('div.pa-preview-caption', icon('brush'), styleName)),
-        h('div.pa-controls', h('section.pa-section', h('h2.pa-section-heading', 'style'), h('p', 'Choose a complete look, then pick the background below.'), h('div.pa-presets', ...tiles)),
+        h('div.pa-controls', h('section.pa-section', h('h2.pa-section-heading', 'theme'), h('p', 'Change the profile’s colours and mood. Your background stays the same.'), h('div.pa-presets', ...tiles)),
           h('section.pa-section', h('h2.pa-section-heading', 'background'), h('div.pa-sources', ...sources), bestHint, songBox, imageBox,
             h('div.set-row.form.frange.pa-position-row', h('div.fleft', h('label', { for: 'pa-position' }, 'Background position')), h('div.fright', position))),
           h('section.pa-section', h('div.pa-section-title', h('label.pa-section-heading', { for: 'pa-bio' }, 'about you'), counter), bio), status)),

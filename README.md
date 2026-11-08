@@ -14,7 +14,7 @@ Coming from Web-Osu-Mania? Export a backup there (Settings → Backup & Restore)
 
 ## Your profile
 
-Open your profile and choose **Customize profile**. Pick one of nine mania-themed styles, including Miku, Neru and Teto, and choose a background source: **Best play background** (updates with your best performance), **Selected song background** (search your library), **Preset artwork**, or **Uploaded banner** (PNG, JPEG or WebP, up to 10 MB). Adjust the background position and add a short bio. Preview before saving, or cancel to keep your current look. Your appearance is shared with other players and kept across devices signed in with your code. You can switch back to your best play’s background with any style.
+Open your profile and choose **Customize profile**. Pick one of nine mania-themed styles, including Miku, Neru and Teto. Each changes the whole profile’s colour palette without changing its background. Choose a background source: **Best play background** (updates with your best performance), **Selected song background** (search your library), or **Uploaded banner** (PNG, JPEG or WebP, up to 10 MB). Adjust the background position and add a short bio. Preview before saving, or cancel to keep your current look. Your appearance is shared with other players and kept across devices signed in with your code. You can switch back to your best play’s background with any style.
 
 Admins can open a player in **/admin → Players → Community tags** to assign up to three named, coloured tags, or remove them. These badges are cosmetic: they never grant staff access. Admin roles remain separate.
 
@@ -68,3 +68,10 @@ python3 tools/neru-art.py IN.png --out public/ # Neru's pictures: upscaled and c
 - The menu cursor and its sound are from [osu-resources](https://github.com/ppy/osu-resources) by ppy, CC BY-NC 4.0.
 - 《NM》 Kori 3.0 skin by Kori.
 - The photos Neru laughs at (`public/neru-photos/`) are fan art and memes by their artists, among them @Koebiiiii and @1_ain.
+
+### Profile character artwork
+
+- Hatsune Miku: illustration by KEI, © Crypton Future Media, INC. [Piapro character page](https://piapro.net/intl/en_character.html); [creator guidelines](https://piapro.net/intl/en_for_creators.html).
+- Kasane Teto (Synthesizer V 2): illustration by 坂内若 (Sakauchi Waka), © TWINDRILL. [Official character page](https://kasaneteto.jp/synthesizerv/).
+
+These are bundled locally in `public/profile-art/` so the picker also works in the saved HTML game.

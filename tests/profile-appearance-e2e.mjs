@@ -62,8 +62,18 @@ try {
   await alice.getByRole('button', { name: 'Aurora profile style' }).click();
   await alice.fill('#pa-bio', 'Here for the music. Staying for the streams.');
   const image = await alice.evaluate(() => { const c = document.createElement('canvas'); c.width = 1440; c.height = 700; const x = c.getContext('2d'); const g = x.createLinearGradient(0, 0, 1440, 700); g.addColorStop(0, '#163047'); g.addColorStop(.5, '#3ea98d'); g.addColorStop(1, '#7d5ab3'); x.fillStyle = g; x.fillRect(0, 0, 1440, 700); return c.toDataURL('image/png').split(',')[1]; });
+  // Theme selection is independent even while a background image is still processing.
+  await alice.evaluate(() => {
+    const A = AshtonkMania.ProfileAppearance, original = A.packBanner;
+    A.packBanner = async function (...args) { A.packBanner = original; await new Promise(resolve => { window.releaseProfileUpload = resolve; }); return original.apply(this, args); };
+  });
   await alice.locator('input[type=file][aria-label="Upload profile banner"]').setInputFiles({ name: 'banner.png', mimeType: 'image/png', buffer: Buffer.from(image, 'base64') });
+  await alice.waitForFunction(() => typeof window.releaseProfileUpload === 'function');
+  await alice.getByRole('button', { name: 'Miku profile style', exact: true }).click();
+  await alice.evaluate(() => window.releaseProfileUpload());
   await alice.waitForFunction(() => document.querySelector('.pa-status').textContent.includes('Banner ready'));
+  assert.equal(await alice.locator('.pa-preview').getAttribute('data-profile-style'), 'miku');
+  await alice.getByRole('button', { name: 'Aurora profile style', exact: true }).click();
   await alice.locator('#pa-position').fill('25'); await alice.locator('#pa-position').dispatchEvent('input');
   const draft = await alice.evaluate(() => ({ style: document.querySelector('.pa-preview').dataset.profileStyle, image: document.querySelector('.pa-preview-cover').style.backgroundImage, saved: AshtonkMania.ProfileManager.profile.appearance }));
   assert.equal(draft.style, 'aurora'); assert.ok(draft.image.includes('data:image/')); assert.equal(draft.saved, undefined);
@@ -152,12 +162,19 @@ try {
   assert.equal(profileFit, true);
   console.log('PASS: appearance restore, mobile editor fit/readability, mobile save and remote profile layout');
   await alice.getByRole('button', { name: 'Customize profile', exact: true }).click();
+  const uploadedPreview = await alice.locator('.pa-preview-cover').evaluate(el => el.style.backgroundImage);
   for (const name of ['Miku', 'Neru', 'Teto']) {
     await alice.getByRole('button', { name: name + ' profile style', exact: true }).click();
     assert.equal(await alice.locator('.pa-preview').getAttribute('data-profile-style'), name.toLowerCase());
-    assert.equal(await alice.locator('.pa-preview-cover').getAttribute('data-cover-kind'), 'preset');
-    assert.ok((await alice.locator('.pa-preview-cover').evaluate(el => getComputedStyle(el, '::before').backgroundImage)).includes(name === 'Neru' ? 'neru.png' : name.toLowerCase() + '.jpg'));
+    assert.equal(await alice.locator('.pa-editor').getAttribute('data-profile-style'), name.toLowerCase());
+    assert.equal(await alice.locator('.pa-preview').getAttribute('data-background'), 'upload');
+    assert.equal(await alice.locator('.pa-preview-cover').evaluate(el => el.style.backgroundImage), uploadedPreview);
+    const art = alice.locator(`.pa-preset[data-style="${name.toLowerCase()}"] img`);
+    assert.ok((await art.getAttribute('src')).includes(name === 'Neru' ? 'neru.png' : `profile-art/${name.toLowerCase()}.png`));
+    await art.evaluate(async el => { await el.decode(); });
+    assert.ok(await art.evaluate(el => el.naturalWidth > 256));
   }
+  assert.equal(await alice.getByRole('button', { name: 'Preset artwork', exact: true }).count(), 0);
   await alice.getByRole('button', { name: 'Neru profile style', exact: true }).click();
   if (process.env.SHOT_DIR) await alice.screenshot({ path: join(process.env.SHOT_DIR, 'profile-menu-neru.png') });
   await alice.getByRole('button', { name: 'Selected song background', exact: true }).click();
@@ -170,6 +187,18 @@ try {
   assert.equal(chosen.background, 'song'); assert.ok(chosen.song.hash); assert.ok(chosen.song.title); assert.ok(chosen.banner.startsWith('data:image/'));
   await bob.waitForFunction(pid => { AshtonkMania.Presence.send({ t: 'profile', pid }); return !!document.querySelector('.pf-header[data-profile-style=neru][data-background=song]'); }, alicePid, { polling: 400 });
   assert.equal(await bob.locator('.pf-cover').getAttribute('data-cover-kind'), 'image');
+  const songBefore = chosen.banner;
+  await alice.getByRole('button', { name: 'Customize profile', exact: true }).click();
+  await alice.getByRole('button', { name: 'Miku profile style', exact: true }).click();
+  assert.equal(await alice.locator('.pa-preview').getAttribute('data-background'), 'song');
+  assert.ok((await alice.locator('.pa-preview-cover').evaluate(el => el.style.backgroundImage)).includes(songBefore));
+  await alice.getByRole('button', { name: 'Save changes', exact: true }).click();
+  await alice.waitForSelector('.pa-editor', { state: 'detached' });
+  const theme = await alice.evaluate(() => {
+    const A = AshtonkMania, root = A.ProfileScreen.page.closest('.ov');
+    return { theme: root.dataset.profileStyle, hue: getComputedStyle(root).getPropertyValue('--o-h').trim(), background: A.ProfileManager.profile.appearance.background, image: A.ProfileManager.profile.appearance.banner };
+  });
+  assert.equal(theme.theme, 'miku'); assert.equal(theme.hue, '176'); assert.equal(theme.background, 'song'); assert.equal(theme.image, songBefore);
   await alice.reload(); await alice.waitForFunction(() => document.querySelector('#loading-screen.done'));
   await alice.evaluate(() => { while (Overlays.top()) Overlays.top().close(); AshtonkMania.Screens.go('profile', { force: true }); });
   await alice.waitForSelector('.pf-header[data-background=song]');
@@ -184,6 +213,6 @@ try {
     return { kind: el.dataset.coverKind, image: el.style.backgroundImage, size: el.style.backgroundSize };
   });
   assert.equal(bestCover.kind, 'image'); assert.ok(bestCover.image.includes('blob:')); assert.equal(bestCover.size, 'cover');
-  console.log('PASS: character preset artwork, selected song picker, remote/reloaded song backgrounds and restoring best-play backgrounds with any style');
+  console.log('PASS: official character assets, full profile themes, preserved upload/song backgrounds, remote/reloaded song backgrounds and best-play reset');
   assert.deepEqual(errors, []);
 } finally { await browser?.close(); await mf.dispose(); }
