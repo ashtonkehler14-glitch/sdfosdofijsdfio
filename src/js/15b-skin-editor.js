@@ -17,9 +17,7 @@ const HUD_PARTS = [
   { id: 'error', name: 'Hit error meter', icon: 'bars', sel: '.hud-err', origin: 'bottom center', setting: 'gameplay.hitErrorMeter' },
   { id: 'jc', name: 'Judgement counter', icon: 'list', sel: '.hud-jc', origin: 'center right', setting: 'gameplay.judgementCounter' },
   { id: 'lb', name: 'Leaderboard', icon: 'crown', sel: '.hud-lb, .hud-mp', origin: 'center left', setting: 'gameplay.leaderboard' },
-  { id: 'background', name: 'Song background', icon: 'image', sel: '.gp-bg', scene: true, advanced: true, origin: 'center center' },
-  { id: 'video', name: 'Background video', icon: 'film', sel: '.gp-video', scene: true, advanced: true, origin: 'center center' },
-  { id: 'storyboard', name: 'Storyboard', icon: 'image', sel: '.gp-sb', scene: true, advanced: true, origin: 'center center' },
+  { id: 'background', name: 'Background', icon: 'image', sel: '.gp-bg, .gp-video, .gp-sb', scene: true, advanced: true, origin: 'center center' },
   { id: 'stageBackground', name: 'Column background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
   { id: 'stageLeft', name: 'Skin left background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
   { id: 'stageRight', name: 'Skin right background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
@@ -36,8 +34,17 @@ const HudLayout = {
     if (this.override) return this.override;
     let v = Settings.get('hud.layout');
     if (!v || typeof v !== 'object') return {};
+    let changed = false;
     // (a layout from when score, accuracy, pp and mods moved as one block: each of the four takes its place)
-    if (v.score) { const c = v.score; v = { sc: c, acc: c, pp: c, mods: c, ...v }; delete v.score; Settings.set('hud.layout', v); }
+    if (v.score) { const c = v.score; v = { sc: c, acc: c, pp: c, mods: c, ...v }; delete v.score; changed = true; }
+    // The three scene layers now share one transform. Keep the image's saved layout when older settings differ;
+    // otherwise carry forward the saved video or storyboard layout instead of dropping the customization.
+    if ('video' in v || 'storyboard' in v) {
+      const background = v.background || v.video || v.storyboard;
+      v = { ...v }; if (background) v.background = { ...background };
+      delete v.video; delete v.storyboard; changed = true;
+    }
+    if (changed) Settings.set('hud.layout', v);
     return v;
   },
   /** One part's elements on the HUD (not one inside another that's already in the list). */
@@ -348,6 +355,7 @@ const SkinEditor = {
     const sw = h(`button.se-switch${on ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(on), title: on ? 'Hide' : 'Show', onclick: () => { UISounds.play(on ? 'check-off' : 'check-on'); this.setShown(p, !on); } }, h('i'));
     clearEl(this.setEl).append(
       this.head(p, sw),
+      p.id === 'background' ? h('p.se-note', 'Moves, scales and shows the beatmap image, video and storyboard together.') : null,
       on ? null : h('p.se-note.se-hid', icon('eye-slash'), h('span', 'Hidden while you play — it shows dimmed here so you can still place it.')),
       h('label.se-f', h('span', 'Scale', val), sl, h('span.se-scale', h('i', '30%'), h('i', '100%'), h('i', '250%'))),
       h('div.se-f', h('span', 'Position'), h('div.se-xy', num('X', c.x || 0, W), num('Y', c.y || 0, H))),

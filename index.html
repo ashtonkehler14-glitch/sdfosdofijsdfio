@@ -23057,9 +23057,7 @@ const HUD_PARTS = [
   { id: 'error', name: 'Hit error meter', icon: 'bars', sel: '.hud-err', origin: 'bottom center', setting: 'gameplay.hitErrorMeter' },
   { id: 'jc', name: 'Judgement counter', icon: 'list', sel: '.hud-jc', origin: 'center right', setting: 'gameplay.judgementCounter' },
   { id: 'lb', name: 'Leaderboard', icon: 'crown', sel: '.hud-lb, .hud-mp', origin: 'center left', setting: 'gameplay.leaderboard' },
-  { id: 'background', name: 'Song background', icon: 'image', sel: '.gp-bg', scene: true, advanced: true, origin: 'center center' },
-  { id: 'video', name: 'Background video', icon: 'film', sel: '.gp-video', scene: true, advanced: true, origin: 'center center' },
-  { id: 'storyboard', name: 'Storyboard', icon: 'image', sel: '.gp-sb', scene: true, advanced: true, origin: 'center center' },
+  { id: 'background', name: 'Background', icon: 'image', sel: '.gp-bg, .gp-video, .gp-sb', scene: true, advanced: true, origin: 'center center' },
   { id: 'stageBackground', name: 'Column background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
   { id: 'stageLeft', name: 'Skin left background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
   { id: 'stageRight', name: 'Skin right background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
@@ -23076,8 +23074,17 @@ const HudLayout = {
     if (this.override) return this.override;
     let v = Settings.get('hud.layout');
     if (!v || typeof v !== 'object') return {};
+    let changed = false;
     // (a layout from when score, accuracy, pp and mods moved as one block: each of the four takes its place)
-    if (v.score) { const c = v.score; v = { sc: c, acc: c, pp: c, mods: c, ...v }; delete v.score; Settings.set('hud.layout', v); }
+    if (v.score) { const c = v.score; v = { sc: c, acc: c, pp: c, mods: c, ...v }; delete v.score; changed = true; }
+    // The three scene layers now share one transform. Keep the image's saved layout when older settings differ;
+    // otherwise carry forward the saved video or storyboard layout instead of dropping the customization.
+    if ('video' in v || 'storyboard' in v) {
+      const background = v.background || v.video || v.storyboard;
+      v = { ...v }; if (background) v.background = { ...background };
+      delete v.video; delete v.storyboard; changed = true;
+    }
+    if (changed) Settings.set('hud.layout', v);
     return v;
   },
   /** One part's elements on the HUD (not one inside another that's already in the list). */
@@ -23388,6 +23395,7 @@ const SkinEditor = {
     const sw = h(`button.se-switch${on ? '.on' : ''}`, { role: 'switch', 'aria-checked': String(on), title: on ? 'Hide' : 'Show', onclick: () => { UISounds.play(on ? 'check-off' : 'check-on'); this.setShown(p, !on); } }, h('i'));
     clearEl(this.setEl).append(
       this.head(p, sw),
+      p.id === 'background' ? h('p.se-note', 'Moves, scales and shows the beatmap image, video and storyboard together.') : null,
       on ? null : h('p.se-note.se-hid', icon('eye-slash'), h('span', 'Hidden while you play — it shows dimmed here so you can still place it.')),
       h('label.se-f', h('span', 'Scale', val), sl, h('span.se-scale', h('i', '30%'), h('i', '100%'), h('i', '250%'))),
       h('div.se-f', h('span', 'Position'), h('div.se-xy', num('X', c.x || 0, W), num('Y', c.y || 0, H))),
@@ -25257,6 +25265,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.9b', title: 'One background control', sections: [
+    { icon: 'image', title: 'Skin editor', items: ['Background image, video and storyboard share one Background component in Advanced mode: move, resize or hide them together'] },
+  ] },
   { id: '2026.11.9', title: 'Advanced skin editing', sections: [
     { icon: 'brush', title: 'Skin editor', items: ['Advanced mode groups background, video and stage-graphic controls separately from the basic HUD editor', 'Adjust background dim, blur and column opacity directly in the advanced editor'] },
     { icon: 'pause', title: 'Gameplay', items: ['The judgement counter dims with the rest of the game when the pause menu opens'] },
@@ -34988,7 +34999,7 @@ const GameViewCapture = {
             ctx.drawImage(s.background, (canvas.width - s.background.width * k) / 2, (canvas.height - s.background.height * k) / 2, s.background.width * k, s.background.height * k);
           }
           const video = GameplayScreen.videoEl;
-          if (video?.readyState >= 2 && video.classList.contains('on') && !(typeof HudLayout !== 'undefined' && HudLayout.part('video')?.off)) ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          if (video?.readyState >= 2 && video.classList.contains('on') && !(typeof HudLayout !== 'undefined' && HudLayout.part('background')?.off)) ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           ctx.fillStyle = `rgba(0,0,0,${GameplayScreen.baseDim ?? .7})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
           // Read geometry once per layout, not once per transmitted frame.
           if (!s.layers) s.layers = [GameplayScreen.sbCanvas, GameplayScreen.renderer?.canvas, ...GameplayScreen.hud.querySelectorAll('canvas')].filter(el => el && getComputedStyle(el).visibility !== 'hidden').map(el => ({ el, hud: GameplayScreen.hud.contains(el), rect: el.getBoundingClientRect() }));
@@ -35605,7 +35616,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '584224c82677';
+const APP_BUILD = 'c6114ee558fb';
 
 const App = {
   lastReport: null,

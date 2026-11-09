@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.9b', title: 'One background control', sections: [
+    { icon: 'image', title: 'Skin editor', items: ['Background image, video and storyboard share one Background component in Advanced mode: move, resize or hide them together'] },
+  ] },
   { id: '2026.11.9', title: 'Advanced skin editing', sections: [
     { icon: 'brush', title: 'Skin editor', items: ['Advanced mode groups background, video and stage-graphic controls separately from the basic HUD editor', 'Adjust background dim, blur and column opacity directly in the advanced editor'] },
     { icon: 'pause', title: 'Gameplay', items: ['The judgement counter dims with the rest of the game when the pause menu opens'] },

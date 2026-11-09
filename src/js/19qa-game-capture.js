@@ -95,7 +95,7 @@ const GameViewCapture = {
             ctx.drawImage(s.background, (canvas.width - s.background.width * k) / 2, (canvas.height - s.background.height * k) / 2, s.background.width * k, s.background.height * k);
           }
           const video = GameplayScreen.videoEl;
-          if (video?.readyState >= 2 && video.classList.contains('on') && !(typeof HudLayout !== 'undefined' && HudLayout.part('video')?.off)) ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          if (video?.readyState >= 2 && video.classList.contains('on') && !(typeof HudLayout !== 'undefined' && HudLayout.part('background')?.off)) ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           ctx.fillStyle = `rgba(0,0,0,${GameplayScreen.baseDim ?? .7})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
           // Read geometry once per layout, not once per transmitted frame.
           if (!s.layers) s.layers = [GameplayScreen.sbCanvas, GameplayScreen.renderer?.canvas, ...GameplayScreen.hud.querySelectorAll('canvas')].filter(el => el && getComputedStyle(el).visibility !== 'hidden').map(el => ({ el, hud: GameplayScreen.hud.contains(el), rect: el.getBoundingClientRect() }));
