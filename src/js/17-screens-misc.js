@@ -935,6 +935,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.9', title: 'Advanced skin editing', sections: [
+    { icon: 'brush', title: 'Skin editor', items: ['Advanced mode groups background, video and stage-graphic controls separately from the basic HUD editor', 'Adjust background dim, blur and column opacity directly in the advanced editor'] },
+    { icon: 'pause', title: 'Gameplay', items: ['The judgement counter dims with the rest of the game when the pause menu opens'] },
+  ] },
   { id: '2026.11.8i', title: 'Make every part yours', sections: [
     { icon: 'brush', title: 'Skin editor', items: ['Move, resize and hide the pp counter, health bars, judgements, key overlay and individual skin background graphics', 'HUD appearance controls now live in the skin editor; custom note width, height and borders are grouped under Custom skin', 'Hit position and note offset are adjusted in the editor instead of the general settings'] },
     { icon: 'image', title: 'Graphics', items: ['Render scale now applies across the game, including menus, overlays and gameplay effects'] },

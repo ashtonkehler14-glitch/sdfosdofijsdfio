@@ -17,14 +17,14 @@ const HUD_PARTS = [
   { id: 'error', name: 'Hit error meter', icon: 'bars', sel: '.hud-err', origin: 'bottom center', setting: 'gameplay.hitErrorMeter' },
   { id: 'jc', name: 'Judgement counter', icon: 'list', sel: '.hud-jc', origin: 'center right', setting: 'gameplay.judgementCounter' },
   { id: 'lb', name: 'Leaderboard', icon: 'crown', sel: '.hud-lb, .hud-mp', origin: 'center left', setting: 'gameplay.leaderboard' },
-  { id: 'background', name: 'Song background', icon: 'image', sel: '.gp-bg', scene: true, origin: 'center center' },
-  { id: 'video', name: 'Background video', icon: 'film', sel: '.gp-video', scene: true, origin: 'center center' },
-  { id: 'storyboard', name: 'Storyboard', icon: 'image', sel: '.gp-sb', scene: true, origin: 'center center' },
-  { id: 'stageBackground', name: 'Column background', icon: 'image', canvas: true, origin: 'top left' },
-  { id: 'stageLeft', name: 'Skin left background', icon: 'image', canvas: true, origin: 'top left' },
-  { id: 'stageRight', name: 'Skin right background', icon: 'image', canvas: true, origin: 'top left' },
-  { id: 'stageBottom', name: 'Skin bottom background', icon: 'image', canvas: true, origin: 'top left' },
-  { id: 'stageHint', name: 'Skin hit-line graphic', icon: 'image', canvas: true, origin: 'top left' },
+  { id: 'background', name: 'Song background', icon: 'image', sel: '.gp-bg', scene: true, advanced: true, origin: 'center center' },
+  { id: 'video', name: 'Background video', icon: 'film', sel: '.gp-video', scene: true, advanced: true, origin: 'center center' },
+  { id: 'storyboard', name: 'Storyboard', icon: 'image', sel: '.gp-sb', scene: true, advanced: true, origin: 'center center' },
+  { id: 'stageBackground', name: 'Column background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
+  { id: 'stageLeft', name: 'Skin left background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
+  { id: 'stageRight', name: 'Skin right background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
+  { id: 'stageBottom', name: 'Skin bottom background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
+  { id: 'stageHint', name: 'Skin hit-line graphic', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
   { id: 'judgement', name: 'Judgements', icon: 'target', canvas: true, setting: 'gameplay.showJudgements', origin: 'center center' },
   { id: 'keys', name: 'Key overlay', icon: 'keyboard', canvas: true, setting: 'input.keyOverlay', origin: 'top left' },
   { id: 'badge', name: 'Auto / replay badge', icon: 'film', sel: '.hud-replay', origin: 'top center' },
@@ -100,24 +100,31 @@ const SkinEditor = {
   attach() {
     if (this.on) return;
     this.on = true; this.sel = null; this.undo = []; this.boxEls = new Map(); this._hitEl = null;
+    this.advanced = !!Settings.get('ui.skinEditorAdvanced');
     { const r = GameplayScreen.renderer; if (r) r.resize(true); } // (the stage uncropped while editing: see ManiaRenderer.resize)
     UISounds.click();
     const btn = (label, ic, fn, cls = '') => h(`button.se-btn${cls}`, { title: label, onclick: () => { UISounds.click(); fn(); } }, icon(ic), h('span', label));
     this.stageEl = h('div.se-list');
     this.listEl = h('div.se-list');
+    this.sceneEl = h('div.se-list');
+    this.modeButton = h('button.se-mode', { role: 'switch', 'aria-label': 'Advanced mode', 'aria-checked': String(this.advanced), onclick: () => { UISounds.click(); this.setAdvanced(!this.advanced); } },
+      h('span', 'Advanced mode', h('small', 'Backgrounds and stage graphics')), h('i', { 'aria-hidden': 'true' }));
+    this.sceneGroup = h('div.se-advanced', { hidden: !this.advanced }, h('div.se-ph', 'Backgrounds & stage'), this.sceneEl);
     this.countEl = h('span.se-cnt');
     this.setEl = h('div.se-set');
     this.boxesEl = h('div.se-boxes');
     this.boxesEl.addEventListener('pointerdown', e => { if (e.target === this.boxesEl) this.select(null); });
     this.undoBtn = btn('Undo', 'back', () => this.undoStep());
-    this.el = h('div.se', { role: 'dialog', 'aria-label': 'Skin editor' },
+    this.el = h('div.se', { role: 'dialog', 'aria-label': 'Skin editor', 'aria-modal': 'true' },
       this.boxesEl,
       h('div.se-top',
         h('div.se-title', h('span.se-logo', icon('brush')), h('div.se-tt', h('b', 'Skin editor'), h('span', h('i', SkinManager.current ? SkinManager.current.name : 'Skin'), ' · gameplay HUD'))),
         h('div.se-acts', this.undoBtn, btn('Reset all', 'retry', () => this.resetAll()), btn('Done', 'check', () => this.close(), '.primary'))),
       h('div.se-side.se-l',
+        this.modeButton,
         h('div.se-ph', 'Stage'), this.stageEl,
         h('div.se-ph', 'HUD', this.countEl), this.listEl,
+        this.sceneGroup,
         h('p.se-hint', kbHint('Drag to move · corner to scale · arrow keys nudge (Shift: 10px) · Delete hides · Ctrl+Z undoes · Esc closes', 'Drag to move, the corner to scale. Tap the eye to show or hide.'))),
       this.rEl = h('div.se-side.se-r', h('div.se-ph', 'Settings'), this.setEl));
     document.body.append(this.el);
@@ -127,6 +134,7 @@ const SkinEditor = {
     this._key = e => this.onKey(e);
     window.addEventListener('keydown', this._key, true);
     this.paintList(); this.paintSettings();
+    if (this.advanced) this.sceneGroup.scrollIntoView({ block: 'start' });
     // (the boxes follow the HUD 15 times a second — each look at where things are makes the browser lay the page out
     // again — and every frame while one is being dragged)
     let n = 0;
@@ -152,8 +160,10 @@ const SkinEditor = {
     const ctrl = e.ctrlKey || e.metaKey;
     // (the browser's own keys still work: reload, fullscreen, a new tab, closing it)
     if (/^F(5|11)$/.test(e.key) || (ctrl && !e.shiftKey && /^Key[RTWL]$/.test(e.code))) return;
+    if (e.key === 'Tab') { e.stopImmediatePropagation(); return; }
     e.preventDefault(); e.stopImmediatePropagation();
     if (e.repeat && !/^Arrow/.test(e.key)) return;
+    if ((e.key === 'Enter' || e.key === ' ') && e.target?.closest('button')) { e.target.closest('button').click(); return; }
     if (e.key === 'Escape') { if (this.sel) this.select(null); else this.close(); return; }
     if (ctrl && e.shiftKey && e.code === 'KeyS') { this.close(); return; }
     if (ctrl && e.code === 'KeyZ') { this.undoStep(); return; }
@@ -167,6 +177,14 @@ const SkinEditor = {
   },
 
   // ── the layout
+  parts() { return HUD_PARTS.filter(p => this.advanced || !p.advanced); },
+  setAdvanced(value) {
+    this.advanced = !!value; Settings.set('ui.skinEditorAdvanced', this.advanced);
+    this.modeButton.setAttribute('aria-checked', String(this.advanced)); this.sceneGroup.hidden = !this.advanced;
+    if (!this.advanced && HUD_PARTS.some(p => p.id === this.sel && p.advanced)) this.sel = null;
+    this._seenKey = null; this.present = null; this.paintList(); this.paintSettings(); this.frame();
+    if (this.advanced) this.sceneGroup.scrollIntoView({ block: 'start' });
+  },
   layout() { return JSON.parse(JSON.stringify(HudLayout.get())); },
   /** What undo goes back to: the HUD layout and the hit position together. */
   snapshot() { return JSON.stringify({ layout: Settings.get('hud.layout') || {}, stage: Object.fromEntries(this.STAGE.map(d => [d.key, this.stageVal(d)])) }); },
@@ -258,6 +276,7 @@ const SkinEditor = {
   },
   shown(p) { return !(this.layout()[p.id] || {}).off && (!p.setting || !!Settings.get(p.setting)); },
   select(id) {
+    if (!this.advanced && HUD_PARTS.some(p => p.id === id && p.advanced)) return;
     if (this.sel === id) return;
     this.sel = id; this.paintList(); this.paintSettings();
     // (the chosen one in view in the list)
@@ -271,15 +290,18 @@ const SkinEditor = {
       h('span.se-ic', icon(d.icon)), h('span.se-nm', d.name, h('small', v === (d.def || 0) ? 'as the skin has it' : d.pct ? `${v}%` : `moved ${v > 0 ? '+' : ''}${v}${d.unit}`))); }));
     this.stageEl.append(...[['noteoptions', 'Note appearance'], ['hudoptions', 'HUD appearance']].map(([id, name]) => h(`button.se-item${this.sel === id ? '.on' : ''}`, { dataset: { id }, onclick: () => { UISounds.click(); this.select(id); } }, h('span.se-ic', icon('brush')), h('span.se-nm', name))));
     let n = 0;
-    clearEl(this.listEl).append(...HUD_PARTS.map(p => {
+    const row = p => {
       const on = this.shown(p), na = on && this.present && !this.present.has(p.id);
-      if (on) n++;
+      if (on && !p.advanced) n++;
       return h(`div.se-item${this.sel === p.id ? '.on' : ''}${on ? '' : '.off'}${na ? '.na' : ''}`, { dataset: { id: p.id }, onclick: () => { UISounds.click(); this.select(p.id); } },
         h('span.se-ic', icon(p.icon)),
         h('span.se-nm', p.name, !on ? h('small', 'hidden') : na ? h('small', p.id === 'hp' ? 'drawn by the skin on the stage' : 'not on screen right now') : null),
         h('button.se-eye', { title: on ? 'Hide' : 'Show', 'aria-label': `${on ? 'Hide' : 'Show'} ${p.name}`, 'aria-pressed': String(on), onclick: e => { e.stopPropagation(); UISounds.play(on ? 'check-off' : 'check-on'); this.setShown(p, !on); } }, icon(on ? 'eye' : 'eye-slash')));
-    }));
-    this.countEl.textContent = `${n} of ${HUD_PARTS.length} shown`;
+    };
+    const parts = this.parts();
+    clearEl(this.listEl).append(...parts.filter(p => !p.advanced).map(row));
+    clearEl(this.sceneEl).append(...parts.filter(p => p.advanced).map(row));
+    this.countEl.textContent = `${n} of ${HUD_PARTS.filter(p => !p.advanced).length} shown`;
     this.placeSettings();
   },
   /** A phone held sideways: no room for a settings panel as well — the chosen one's settings open under it in the list,
@@ -332,6 +354,8 @@ const SkinEditor = {
       h('div.se-btns.se-row',
         h('button.btn.sm', { disabled: !c.x && !c.y, onclick: () => { UISounds.click(); this.setPart(p.id, { x: 0, y: 0 }); } }, icon('target'), 'Reset position'),
         h('button.btn.sm', { disabled: !c.s || c.s === 1, onclick: () => { UISounds.click(); this.setPart(p.id, { s: 1 }); } }, icon('retry'), 'Reset scale')));
+    const extras = p.id === 'background' ? ['gameplay.showBackground', 'gameplay.bgDim', 'gameplay.bgBlur'] : p.id === 'stageBackground' ? ['gameplay.stageOpacity'] : [];
+    if (extras.length) this.setEl.append(h('div.se-ph', 'Appearance'), ...extras.map(k => SettingsPanel.row({ ...SETTINGS_SCHEMA.find(it => it.k === k), x: 0, when: undefined })));
   },
 
   // ── each frame: the game fits between the side panels, and the boxes follow the components
@@ -356,7 +380,7 @@ const SkinEditor = {
     this.hitBox();
     if (!hud) return;
     const seen = new Set();
-    for (const p of HUD_PARTS) {
+    for (const p of this.parts()) {
       const els = HudLayout.els(hud, p);
       let r = p.canvas ? this.canvasRect(p) : null;
       for (const el of els) {
@@ -373,7 +397,7 @@ const SkinEditor = {
       if (!box) { box = this.makeBox(p); this.boxEls.set(p.id, box); this.boxesEl.append(box); }
       box.classList.toggle('on', this.sel === p.id);
       box.classList.toggle('off', !!(HudLayout.get()[p.id] || {}).off || (!!p.setting && !Settings.get(p.setting)));
-      const st = `z-index:${p.scene || p.id === 'stageBackground' ? 0 : 2};left:${r.l.toFixed(1)}px;top:${r.t.toFixed(1)}px;width:${(r.r - r.l).toFixed(1)}px;height:${(r.b - r.t).toFixed(1)}px`;
+      const st = `z-index:${p.scene || p.id === 'stageBackground' ? this.sel === p.id ? 1 : 0 : 2};left:${r.l.toFixed(1)}px;top:${r.t.toFixed(1)}px;width:${(r.r - r.l).toFixed(1)}px;height:${(r.b - r.t).toFixed(1)}px`;
       if (box._st !== st) { box._st = st; box.style.cssText = st; }
       box._r = r;
       // (the name tag on the side facing the middle: one by the right edge was cut off under the Settings panel)
