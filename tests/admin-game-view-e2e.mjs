@@ -22,7 +22,9 @@ const mf = new Miniflare({
 let browser;
 try {
   const url = String(await mf.ready).replace(/\/$/, '');
-  browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'] });
+  browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined, args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required', ...(process.env.EXACT_TAB === '1' ? ['--auto-select-tab-capture-source-by-title=Exact game tab test', '--allow-http-screen-capture', '--enable-usermedia-screen-capturing'] : [])] });
+  const system = await browser.newBrowserCDPSession(), gpu = await system.send('SystemInfo.getInfo'); await system.detach();
+  const softwareGPU = gpu.gpu.devices.some(d => /SwiftShader|llvmpipe|software/i.test(d.deviceString || ''));
   const errors = [];
   async function device(name) {
     const mobile = process.env.SOURCE_MOBILE === '1' && name === 'Player';
@@ -51,7 +53,7 @@ try {
     let bright = 0; for (let i = 0; i < data.length; i += 4) if (data[i] + data[i + 1] + data[i + 2] > 160) bright++;
     return bright > 20;
   });
-  await player.evaluate(() => { window.captureCalls = 0; navigator.mediaDevices.getDisplayMedia = async () => { window.captureCalls++; throw new Error('Tab capture must not be used'); }; });
+  await player.evaluate(() => { window.captureCalls = 0; window.nativeDisplayMedia = navigator.mediaDevices.getDisplayMedia.bind(navigator.mediaDevices); navigator.mediaDevices.getDisplayMedia = async () => { window.captureCalls++; throw new Error('Tab capture must not be used automatically'); }; });
   const pid = await admin.evaluate(() => AshtonkMania.Presence.pid());
   const login = await fetch(url + '/admin/api/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin': '1' }, body: JSON.stringify({ code }) });
   const cookie = login.headers.get('set-cookie').split(';')[0];
@@ -186,13 +188,72 @@ try {
   await player.evaluate(() => AshtonkMania.Screens.go('songselect'));
   await admin.waitForFunction(() => { const m = AshtonkMania.AdminGameView.current?.menu; return m?.active && !m.el.hidden && !!m.iframe.contentDocument.querySelector('.ss'); });
   assert.deepEqual(await admin.evaluate(() => { window.handoffMonitoring = false; return window.handoffGaps; }), [], 'Screen handoffs always retain a visible menu or video frame');
+  if (process.env.EXACT_TAB === '1') {
+    await player.evaluate(() => {
+      document.title = 'Exact game tab test'; window.beforeExactCapture = AdminGameView.current.capture;
+      navigator.mediaDevices.getDisplayMedia = options => { window.captureCalls++; return window.nativeDisplayMedia(options); };
+      const proof = h('section#exact-proof', { style: { position: 'fixed', left: '20px', top: '180px', width: '240px', height: '90px', zIndex: 9999 } });
+      proof.attachShadow({ mode: 'closed' }).innerHTML = '<div style="width:240px;height:90px;background:rgb(12,230,80);color:#000;font:20px Arial">Closed shadow overlay</div>';
+      document.body.append(proof);
+    });
+    await player.getByRole('button', { name: 'Share exact tab', exact: true }).click();
+    try { await player.waitForFunction(() => AdminGameView.current?.capture?.native && AdminGameView.current.capture.ready, null, { timeout: 20000 }); }
+    catch (e) { console.error('Exact view:', await player.evaluate(() => ({ status: document.querySelector('#toasts').textContent, switching: AdminGameView.current?.switching, native: AdminGameView.current?.capture?.native, metrics: AdminGameView.current?.capture?.metrics, settings: AdminGameView.current?.track?.getSettings() }))); throw e; }
+    await admin.waitForFunction(() => { const s = AdminGameView.current; return s.menu.el.hidden && s.video.style.visibility !== 'hidden'; });
+    assert.equal(await player.evaluate(() => window.beforeExactCapture.stopped && window.beforeExactCapture.canvas.width === 0 && !AdminGameView.current.capture.canvas), true, 'Exact view stops the duplicate JS snapshot/canvas renderer');
+    await admin.waitForFunction(() => {
+      const v = AdminGameView.current.video, c = document.createElement('canvas'); c.width = c.height = 1;
+      const x = c.getContext('2d'); x.drawImage(v, v.videoWidth * 30 / 1440, v.videoHeight * 200 / 960, 1, 1, 0, 0, 1, 1); const p = x.getImageData(0, 0, 1, 1).data;
+      return p[0] < 60 && p[1] > 190 && p[2] < 130;
+    });
+    const nativeCpuRate = Number(process.env.EXACT_CPU_RATE || 1);
+    const nativeThrottle = await player.context().newCDPSession(player); await nativeThrottle.send('Emulation.setCPUThrottlingRate', { rate: nativeCpuRate });
+    await player.evaluate(() => {
+      Settings.set('graphics.fpsLimit', 60);
+      window.nativePerf = { frames: [], rafs: [], work: [], tasks: [], start: Infinity }; const p = window.nativePerf, cap = AdminGameView.current.capture, end = cap.gameFrameEnd;
+      cap.gameFrameEnd = (ts, work, limit, drawn) => { if (ts >= p.start) { p.rafs.push(ts); if (drawn) { p.frames.push(ts); p.work.push(work); } } end(ts, work, limit, drawn); };
+      p.observer = new PerformanceObserver(list => p.tasks.push(...list.getEntries().filter(x => x.startTime >= p.start).map(x => x.duration))); p.observer.observe({ type: 'longtask' });
+      const map = [...BeatmapManager.maps.values()].find(m => m.keys === 4 && !m.problems.length); Game.launch({ mapId: map.id, mods: ['NF'], mode: 'play' });
+    });
+    await player.waitForFunction(() => GameplayScreen.s?.running); await player.waitForTimeout(1000);
+    await player.evaluate(() => { window.nativePerf.start = performance.now(); });
+    const decoded = await admin.evaluate(() => ({ frames: AdminGameView.current.video.getVideoPlaybackQuality().totalVideoFrames, at: performance.now() }));
+    await player.waitForTimeout(6000);
+    const remote = await admin.evaluate(before => ({ fps: (AdminGameView.current.video.getVideoPlaybackQuality().totalVideoFrames - before.frames) * 1000 / (performance.now() - before.at), width: AdminGameView.current.video.videoWidth, height: AdminGameView.current.video.videoHeight }), decoded);
+    const perf = await player.evaluate(() => {
+      const p = window.nativePerf, f = p.frames, dt = f.slice(1).map((x, i) => x - f[i]).sort((a, b) => a - b); p.observer.disconnect();
+      return { fps: (f.length - 1) * 1000 / (f.at(-1) - f[0]), rafFps: (p.rafs.length - 1) * 1000 / (p.rafs.at(-1) - p.rafs[0]), meanGameWorkMs: p.work.reduce((a, b) => a + b, 0) / p.work.length, displayMs: GameplayScreen._refresh, verification: AdminGameView.current.capture.verification, p95FrameMs: dt[Math.floor(dt.length * .95)], longTasks: p.tasks.length, longTaskMs: p.tasks.reduce((a, b) => a + b, 0), encoder: AdminGameView.current.capture.metrics };
+    });
+    await nativeThrottle.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    console.log(`EXACT TAB PERFORMANCE ${nativeCpuRate}x CPU:`, JSON.stringify({ softwareGPU, source: perf, viewer: remote }));
+    // The standard run checks the 60fps player target. Stress runs report the device's actual capacity: source
+    // compositing/encoding cannot be guaranteed at 60fps on a software GPU with an artificially slowed CPU.
+    assert.ok(perf.fps > (nativeCpuRate > 1 ? 25 : softwareGPU ? 35 : 50), 'Native sharing keeps the source game responsive at this runner’s graphics capability'); assert.ok(remote.fps > 20, 'The real WebRTC viewer receives smooth game frames');
+    await player.getByRole('button', { name: 'Pause sharing', exact: true }).click();
+    assert.equal(await player.evaluate(() => AdminGameView.current.track.enabled), false);
+    await admin.waitForFunction(() => AdminGameView.current.remotePaused);
+    await player.getByRole('button', { name: 'Resume sharing', exact: true }).click();
+    await player.evaluate(() => CodePanel.open()); await admin.waitForFunction(() => AdminGameView.current.remotePaused);
+    assert.equal(await player.evaluate(() => AdminGameView.current.track.enabled), false, 'Native capture blacks known account panels');
+    await admin.waitForFunction(() => {
+      const v = AdminGameView.current.video, c = document.createElement('canvas'); c.width = c.height = 16; const x = c.getContext('2d'); x.drawImage(v, 0, 0, 16, 16);
+      return x.getImageData(0, 0, 16, 16).data.every((n, i) => i % 4 === 3 || n < 10);
+    });
+    await player.evaluate(() => CodePanel.close()); await admin.waitForFunction(() => !AdminGameView.current.remotePaused);
+    await player.evaluate(() => { document.querySelector('#exact-proof').remove(); Screens.go('songselect'); });
+    await player.getByRole('button', { name: 'Use lightweight view', exact: true }).click();
+    await player.waitForFunction(() => !AdminGameView.current.capture.native && !AdminGameView.current.switching);
+    await admin.waitForFunction(() => AdminGameView.current.menu.active && !AdminGameView.current.menu.el.hidden);
+    assert.equal(await player.evaluate(() => window.captureCalls), 1, 'Only the explicit player action opened the tab picker');
+    console.log('PASS: real browser tab capture, verified current tab, exact closed-shadow visuals, no duplicate renderer, live native WebRTC, pause/privacy and return to lightweight view');
+  }
   await admin.getByRole('button', { name: 'Stop watching', exact: true }).click();
   await player.waitForFunction(() => !AshtonkMania.AdminGameView.current);
   // More than the server's short rejoin cooldown has elapsed during the checks above.
   await admin.evaluate(() => AshtonkMania.AdminGameView.start(AshtonkMania.Presence.players.find(u => u.name === 'Player'), true));
   await player.locator('#toasts').filter({ hasText: 'Live View' }).waitFor();
   await visibleVideo();
-  assert.equal(await player.evaluate(() => window.captureCalls), 0, 'Rejoining never asks the player to share a tab');
+  assert.equal(await player.evaluate(() => window.captureCalls), process.env.EXACT_TAB === '1' ? 1 : 0, 'Rejoining never asks the player to share a tab');
   await player.getByRole('button', { name: 'Stop sharing', exact: true }).click();
   await admin.waitForFunction(() => !AshtonkMania.AdminGameView.current);
   assert.equal(await player.locator('.admin-view-sharing').count(), 0);

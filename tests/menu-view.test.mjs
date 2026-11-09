@@ -26,12 +26,24 @@ test('menu streaming suspends screenshots in menus and resumes video for running
   try {
     s.receive({ t: 'ready' }); await s.tick();
     assert.equal(s.flags.at(-1), true);
+    assert.equal(s.m.observing, true);
     assert.ok(s.packets.some(p => p.t === 'snapshot' && p.w === 1440));
     s.c.Screens.currentName = 'gameplay'; s.c.GameplayScreen.s = { running: true }; await s.tick();
     assert.equal(s.flags.at(-1), false);
+    assert.equal(s.m.observing, false, 'Gameplay does not allocate unused DOM mutation records');
     assert.ok(s.packets.some(p => p.t === 'mode' && p.active === false));
     s.c.SkinEditor = { on: true }; await s.tick(); assert.equal(s.flags.at(-1), true, 'The skin editor shares its live controls, not only the preview playfield');
     s.c.SkinEditor.on = false; s.c.Overlays = { top: () => ({}) }; await s.tick(); assert.equal(s.flags.at(-1), true, 'Gameplay dialogs use the lightweight menu path');
+  } finally { s.m.stop(); }
+});
+
+test('native tab capture disables DOM mirroring and its mutation observer', async () => {
+  const s = source();
+  try {
+    s.receive({ t: 'ready' }); await s.tick();
+    s.m.owner.capture.native = true; s.m.owner.capture.ready = true; await s.tick();
+    assert.equal(s.m.active, false); assert.equal(s.m.observing, false);
+    assert.ok(s.packets.some(p => p.t === 'video'), 'A ready native video replaces the held menu snapshot');
   } finally { s.m.stop(); }
 });
 

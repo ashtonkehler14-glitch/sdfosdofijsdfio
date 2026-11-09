@@ -67,7 +67,7 @@ const GameViewCapture = {
       }
       if (!s.manual) s.track.applyConstraints?.({ frameRate: { max: q.fps } }).catch(() => {});
     };
-    s.setSender = sender => { s.sender = sender; tune(); };
+    s.setSender = sender => { s.sender = sender; tune(); if (s.suspended) mask(); };
     const paint = () => {
       if (!alive() || s.suspended || s.paused || isPrivate() || !s.frame && !running()) return;
       const start = performance.now();

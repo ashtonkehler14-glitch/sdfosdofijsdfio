@@ -43,8 +43,8 @@ const MenuView = {
     channel.onmessage = e => receive(e.data);
     const sourceMessage = value => { if (value.t === 'rendered' && value.epoch === m.currentEpoch) m.rendered = true; if (value.t === 'ready') { m.ready = true; m.disabled = false; clearTimeout(m.fallbackTimer); if (owner.host) invalidate(); } };
     let invalidate = () => {}, viewerMessage = () => {};
-    const menuActive = () => Screens.currentName !== 'gameplay' || !GameplayScreen.s?.running || (typeof Overlays !== 'undefined' && !!Overlays.top()) || (typeof SkinEditor !== 'undefined' && SkinEditor.on);
-    const state = () => { if (!alive() || m.disabled) return; m.active = !!menuActive(); owner.capture?.setSuspended(m.active); };
+    const menuActive = () => !owner.capture?.native && (Screens.currentName !== 'gameplay' || !GameplayScreen.s?.running || (typeof Overlays !== 'undefined' && !!Overlays.top()) || (typeof SkinEditor !== 'undefined' && SkinEditor.on));
+    const state = () => { if (!alive() || m.disabled) return; m.active = !!menuActive(); m.observeActive?.(m.active && !m.paused); owner.capture?.setSuspended(m.active); };
     if (owner.host) {
       const ids = new WeakMap(), dirty = new Set(), urls = new Map(); let next = 0, assetId = 0, epoch = 0;
       const id = node => { if (!ids.has(node)) ids.set(node, ++next); return ids.get(node); };
@@ -113,7 +113,7 @@ const MenuView = {
         if (!m.active || blocked()) return;
         for (const r of records) { const node = r.target; if (node.nodeType === 1 && node.closest('.admin-view-sharing, .admin-view-wrap, #lz-cur')) continue; if (node.parentElement?.closest('.admin-view-sharing, .admin-view-wrap, #lz-cur')) continue; dirty.add(node); }
       });
-      observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'src', 'value', 'checked', 'selected', 'disabled'] });
+      m.observeActive = active => { if (m.observing === active) return; m.observing = active; if (active) observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'src', 'value', 'checked', 'selected', 'disabled'] }); else observer.disconnect(); };
       const scroll = e => { if (m.active && !blocked()) { const n = e.target === document ? document.scrollingElement : e.target; if (n?.nodeType === 1) send({ t: 'scroll', id: id(n), x: n.scrollLeft, y: n.scrollTop }); } };
       const input = e => { if (m.active && !blocked()) dirty.add(e.target); };
       const pointer = e => { m.pointer = { x: e.clientX, y: e.clientY, id: e.target?.nodeType === 1 ? id(e.target) : 0 }; };
@@ -147,14 +147,14 @@ const MenuView = {
         const signature = `${Screens.currentName}/${!!GameplayScreen.s?.running}/${!!menuActive()}`;
         if (signature !== lastState) { lastState = signature; invalidate(); }
         flush();
-        if (!m.active && !m.videoNotified && (owner.capture?.paintedFrames || 0) > m.videoAt && owner.capture?.liveFrameMode?.startsWith('gameplay/true')) { m.videoNotified = true; send({ t: 'video', epoch }, true); }
+        if (!m.active && !m.videoNotified && (owner.capture?.native ? owner.capture.ready : (owner.capture?.paintedFrames || 0) > m.videoAt && owner.capture?.liveFrameMode?.startsWith('gameplay/true'))) { m.videoNotified = true; send({ t: 'video', epoch }, true); }
         if (performance.now() - lastCanvas > 250) { lastCanvas = performance.now(); canvases(); }
         const p = JSON.stringify(m.pointer); if (m.active && !blocked() && p && p !== lastPointer) { lastPointer = p; send({ t: 'pointer', ...m.pointer }); }
       }, 33);
-      m.setPaused = paused => { if (m.paused === paused) return; m.paused = paused; epoch++; m.currentEpoch = epoch; m.rendered = false; canvasAt = new WeakMap(); m.queue.length = 0; m.reset = true; dirty.clear(); send({ t: 'mode', active: m.active, blocked: paused, epoch }, true); };
+      m.setPaused = paused => { if (m.paused === paused) return; m.paused = paused; m.observeActive(m.active && !paused); epoch++; m.currentEpoch = epoch; m.rendered = false; canvasAt = new WeakMap(); m.queue.length = 0; m.reset = true; dirty.clear(); send({ t: 'mode', active: m.active, blocked: paused, epoch }, true); };
       m.cleanup = () => { observer.disconnect(); off(); window.removeEventListener('resize', invalidate); document.removeEventListener('scroll', scroll, true); document.removeEventListener('input', input, true); document.removeEventListener('pointermove', pointer); };
       channel.onopen = () => { state(); send({ t: 'hello' }); };
-      m.fallbackTimer = setTimeout(() => { if (alive() && !m.ready) { m.disabled = true; owner.capture?.setSuspended(false); } }, 5000); state();
+      m.fallbackTimer = setTimeout(() => { if (alive() && !m.ready) { m.disabled = true; m.observeActive(false); owner.capture?.setSuspended(false); } }, 5000); state();
     } else {
       const wrap = m.el = h('div.admin-view-menu', { hidden: true });
       const frame = m.iframe = h('iframe', { title: 'Live menu view', sandbox: 'allow-same-origin', tabindex: '-1', 'aria-hidden': 'true' });
@@ -230,7 +230,7 @@ const MenuView = {
       m.setPaused = paused => { m.paused = paused; show(); if (!paused) send({ t: 'ready' }, true); };
       channel.onopen = () => { if (loaded) send({ t: 'ready' }, true); };
     }
-    channel.onclose = () => { if (alive()) { m.active = false; owner.capture?.setSuspended(false); if (m.el) { m.el.hidden = true; owner.video.style.visibility = ''; } } };
+    channel.onclose = () => { if (alive()) { m.active = false; m.disabled = true; m.observeActive?.(false); owner.capture?.setSuspended(false); if (m.el) { m.el.hidden = true; owner.video.style.visibility = ''; } } };
     m.stop = () => { m.stopped = true; clearInterval(m.timer); clearTimeout(m.pumpTimer); clearTimeout(m.fallbackTimer); clearTimeout(m.videoCheck); m.cleanup?.(); m.queue.length = 0; m.parts.clear(); for (const url of m.objects) URL.revokeObjectURL(url); for (const url of m.canvasURLs?.values() || []) URL.revokeObjectURL(url); channel.close(); };
     return m;
   },

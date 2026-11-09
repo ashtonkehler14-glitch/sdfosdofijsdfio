@@ -1,4 +1,4 @@
-/* Admin game view renders only this app's menus and gameplay. No browser display capture or remote control. */
+/* Live View shares this game's interface. Exact tab capture is optional and started by the player. No remote control. */
 const AdminGameView = {
   current: null,
   init() {
@@ -84,18 +84,48 @@ const AdminGameView = {
   sharingBar(s) {
     s.label = h('span', `Sharing your game with ${s.name}`);
     s.pause = h('button.btn.sm', { onclick: () => { s.paused = !s.paused; this.protect(s); } }, 'Pause sharing');
-    s.bar = h('div.admin-view-sharing', { role: 'status' }, icon('film'), s.label, s.pause,
+    s.exact = typeof TabViewCapture !== 'undefined' && TabViewCapture.supported() ? h('button.btn.sm', { title: 'Share the game tab exactly as it appears, using the browser’s tab-sharing picker.', onclick: () => this.switchCapture(s) }, 'Share exact tab') : null;
+    s.bar = h('div.admin-view-sharing', { role: 'status' }, icon('film'), s.label, s.exact, s.pause,
       h('button.btn.sm', { onclick: () => this.stop() }, 'Stop sharing'));
     document.body.append(s.bar);
+  },
+  async switchCapture(s) {
+    if (this.current !== s || !s.host || s.switching) return;
+    const sender = s.pc?.getSenders().find(x => x.track?.kind === 'video');
+    if (!sender || s.pc.connectionState !== 'connected') { Toast.show('Still connecting', 'Try exact tab sharing once the live view connects.'); return; }
+    s.switching = true; if (s.exact) s.exact.disabled = true;
+    let next;
+    try {
+      next = s.capture.native ? await GameViewCapture.create(s, () => this.current === s, () => this.privateOpen()) :
+        await TabViewCapture.create(() => this.current === s, () => this.privateOpen(), () => { if (this.current === s) this.stop('Tab sharing ended.'); });
+      if (!next || this.current !== s) { next?.stop(); return; }
+      const previous = s.capture;
+      if (next.budget && previous.budget) {
+        next.budget.displayMs = Math.min(next.budget.displayMs, previous.budget.displayMs);
+        next.budget.level = Math.min(next.budget.level, previous.budget.level);
+      }
+      s.pendingCapture = next;
+      next.setPaused(!!s.paused || this.privateOpen());
+      try { await sender.replaceTrack(next.track); if (next.track.readyState === 'ended') throw new Error('Tab sharing ended before it connected.'); }
+      catch (e) { if (this.current === s) await sender.replaceTrack(previous.track).catch(() => this.stop('The game-view connection ended.')); throw e; }
+      if (this.current !== s) { next.stop(); return; }
+      s.capture = next; s.stream = next.stream; s.track = next.track;
+      next.onended = () => { if (this.current === s && s.capture === next) this.stop('Tab sharing ended.'); };
+      previous.stop(); next.setSender(sender); this.protect(s);
+      if (s.exact) { s.exact.textContent = next.native ? 'Use lightweight view' : 'Share exact tab'; s.exact.title = next.native ? 'Return to the lightweight game renderer without reconnecting.' : 'Share the game tab exactly as it appears, using the browser’s tab-sharing picker.'; }
+    } catch (e) {
+      next?.stop();
+      if (this.current === s && e.name !== 'NotAllowedError' && e.name !== 'AbortError') Toast.err('Could not switch live view', e.message || 'The current view is still available.');
+    } finally { if (s.pendingCapture === next) s.pendingCapture = null; s.switching = false; if (s.exact) s.exact.disabled = false; }
   },
   protect(s) {
     if (this.current !== s || !s.track) return;
     const privatePanel = this.privateOpen();
     const paused = !!s.paused || privatePanel;
-    s.capture?.setPaused(paused); s.menu?.setPaused(paused);
+    s.capture?.setPaused(paused); s.pendingCapture?.setPaused(paused); s.menu?.setPaused(paused);
     // Manual canvas tracks must stay enabled to transmit their black privacy frames.
     s.track.enabled = !paused || !!s.capture?.manual;
-    const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : `Sharing your game with ${s.name}`;
+    const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : `Sharing your ${s.capture?.native ? 'exact game tab' : 'game'} with ${s.name}`;
     const button = s.paused ? 'Resume sharing' : 'Pause sharing';
     if (s.label.textContent !== label) s.label.textContent = label;
     if (s.pause.textContent !== button) s.pause.textContent = button;
@@ -127,6 +157,8 @@ const AdminGameView = {
     s.connecting = setTimeout(() => { if (this.current === s && pc.connectionState !== 'connected') this.stop('Could not connect. A network may be blocking direct game views.'); }, 25000);
     if (s.host) {
       for (const track of s.stream.getVideoTracks()) pc.addTrack(track, s.stream);
+      if (typeof TabViewCapture !== 'undefined') await Promise.race([TabViewCapture.preferEfficientCodec(pc), new Promise(r => setTimeout(r, 300))]);
+      if (this.current !== s) return;
       const offer = await pc.createOffer();
       if (this.current !== s) return;
       await pc.setLocalDescription(offer);
@@ -162,7 +194,7 @@ const AdminGameView = {
     this.current = null;
     for (const t of [s.timer, s.connecting, s.disconnected]) clearTimeout(t);
     s.menu?.stop(); s.pc?.close();
-    s.observer?.disconnect(); if (s.capture) s.capture.stop(); else s.stream?.getTracks().forEach(t => t.stop());
+    s.observer?.disconnect(); s.pendingCapture?.stop(); if (s.capture) s.capture.stop(); else s.stream?.getTracks().forEach(t => t.stop());
     if (s.video) { s.video.pause(); s.video.srcObject = null; }
     s.bar?.remove(); s.dialog?.close(); s.overlay?.close();
     if (reason) Toast.show('Game view ended', reason);

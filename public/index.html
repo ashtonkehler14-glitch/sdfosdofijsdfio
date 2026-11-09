@@ -34571,7 +34571,7 @@ const Staff = {
 };
 
 /* ===== 19q-admin-game-view.js ===== */
-/* Admin game view renders only this app's menus and gameplay. No browser display capture or remote control. */
+/* Live View shares this game's interface. Exact tab capture is optional and started by the player. No remote control. */
 const AdminGameView = {
   current: null,
   init() {
@@ -34657,18 +34657,48 @@ const AdminGameView = {
   sharingBar(s) {
     s.label = h('span', `Sharing your game with ${s.name}`);
     s.pause = h('button.btn.sm', { onclick: () => { s.paused = !s.paused; this.protect(s); } }, 'Pause sharing');
-    s.bar = h('div.admin-view-sharing', { role: 'status' }, icon('film'), s.label, s.pause,
+    s.exact = typeof TabViewCapture !== 'undefined' && TabViewCapture.supported() ? h('button.btn.sm', { title: 'Share the game tab exactly as it appears, using the browser’s tab-sharing picker.', onclick: () => this.switchCapture(s) }, 'Share exact tab') : null;
+    s.bar = h('div.admin-view-sharing', { role: 'status' }, icon('film'), s.label, s.exact, s.pause,
       h('button.btn.sm', { onclick: () => this.stop() }, 'Stop sharing'));
     document.body.append(s.bar);
+  },
+  async switchCapture(s) {
+    if (this.current !== s || !s.host || s.switching) return;
+    const sender = s.pc?.getSenders().find(x => x.track?.kind === 'video');
+    if (!sender || s.pc.connectionState !== 'connected') { Toast.show('Still connecting', 'Try exact tab sharing once the live view connects.'); return; }
+    s.switching = true; if (s.exact) s.exact.disabled = true;
+    let next;
+    try {
+      next = s.capture.native ? await GameViewCapture.create(s, () => this.current === s, () => this.privateOpen()) :
+        await TabViewCapture.create(() => this.current === s, () => this.privateOpen(), () => { if (this.current === s) this.stop('Tab sharing ended.'); });
+      if (!next || this.current !== s) { next?.stop(); return; }
+      const previous = s.capture;
+      if (next.budget && previous.budget) {
+        next.budget.displayMs = Math.min(next.budget.displayMs, previous.budget.displayMs);
+        next.budget.level = Math.min(next.budget.level, previous.budget.level);
+      }
+      s.pendingCapture = next;
+      next.setPaused(!!s.paused || this.privateOpen());
+      try { await sender.replaceTrack(next.track); if (next.track.readyState === 'ended') throw new Error('Tab sharing ended before it connected.'); }
+      catch (e) { if (this.current === s) await sender.replaceTrack(previous.track).catch(() => this.stop('The game-view connection ended.')); throw e; }
+      if (this.current !== s) { next.stop(); return; }
+      s.capture = next; s.stream = next.stream; s.track = next.track;
+      next.onended = () => { if (this.current === s && s.capture === next) this.stop('Tab sharing ended.'); };
+      previous.stop(); next.setSender(sender); this.protect(s);
+      if (s.exact) { s.exact.textContent = next.native ? 'Use lightweight view' : 'Share exact tab'; s.exact.title = next.native ? 'Return to the lightweight game renderer without reconnecting.' : 'Share the game tab exactly as it appears, using the browser’s tab-sharing picker.'; }
+    } catch (e) {
+      next?.stop();
+      if (this.current === s && e.name !== 'NotAllowedError' && e.name !== 'AbortError') Toast.err('Could not switch live view', e.message || 'The current view is still available.');
+    } finally { if (s.pendingCapture === next) s.pendingCapture = null; s.switching = false; if (s.exact) s.exact.disabled = false; }
   },
   protect(s) {
     if (this.current !== s || !s.track) return;
     const privatePanel = this.privateOpen();
     const paused = !!s.paused || privatePanel;
-    s.capture?.setPaused(paused); s.menu?.setPaused(paused);
+    s.capture?.setPaused(paused); s.pendingCapture?.setPaused(paused); s.menu?.setPaused(paused);
     // Manual canvas tracks must stay enabled to transmit their black privacy frames.
     s.track.enabled = !paused || !!s.capture?.manual;
-    const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : `Sharing your game with ${s.name}`;
+    const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : `Sharing your ${s.capture?.native ? 'exact game tab' : 'game'} with ${s.name}`;
     const button = s.paused ? 'Resume sharing' : 'Pause sharing';
     if (s.label.textContent !== label) s.label.textContent = label;
     if (s.pause.textContent !== button) s.pause.textContent = button;
@@ -34700,6 +34730,8 @@ const AdminGameView = {
     s.connecting = setTimeout(() => { if (this.current === s && pc.connectionState !== 'connected') this.stop('Could not connect. A network may be blocking direct game views.'); }, 25000);
     if (s.host) {
       for (const track of s.stream.getVideoTracks()) pc.addTrack(track, s.stream);
+      if (typeof TabViewCapture !== 'undefined') await Promise.race([TabViewCapture.preferEfficientCodec(pc), new Promise(r => setTimeout(r, 300))]);
+      if (this.current !== s) return;
       const offer = await pc.createOffer();
       if (this.current !== s) return;
       await pc.setLocalDescription(offer);
@@ -34735,7 +34767,7 @@ const AdminGameView = {
     this.current = null;
     for (const t of [s.timer, s.connecting, s.disconnected]) clearTimeout(t);
     s.menu?.stop(); s.pc?.close();
-    s.observer?.disconnect(); if (s.capture) s.capture.stop(); else s.stream?.getTracks().forEach(t => t.stop());
+    s.observer?.disconnect(); s.pendingCapture?.stop(); if (s.capture) s.capture.stop(); else s.stream?.getTracks().forEach(t => t.stop());
     if (s.video) { s.video.pause(); s.video.srcObject = null; }
     s.bar?.remove(); s.dialog?.close(); s.overlay?.close();
     if (reason) Toast.show('Game view ended', reason);
@@ -34888,7 +34920,7 @@ const GameViewCapture = {
       }
       if (!s.manual) s.track.applyConstraints?.({ frameRate: { max: q.fps } }).catch(() => {});
     };
-    s.setSender = sender => { s.sender = sender; tune(); };
+    s.setSender = sender => { s.sender = sender; tune(); if (s.suspended) mask(); };
     const paint = () => {
       if (!alive() || s.suspended || s.paused || isPrivate() || !s.frame && !running()) return;
       const start = performance.now();
@@ -35145,8 +35177,8 @@ const MenuView = {
     channel.onmessage = e => receive(e.data);
     const sourceMessage = value => { if (value.t === 'rendered' && value.epoch === m.currentEpoch) m.rendered = true; if (value.t === 'ready') { m.ready = true; m.disabled = false; clearTimeout(m.fallbackTimer); if (owner.host) invalidate(); } };
     let invalidate = () => {}, viewerMessage = () => {};
-    const menuActive = () => Screens.currentName !== 'gameplay' || !GameplayScreen.s?.running || (typeof Overlays !== 'undefined' && !!Overlays.top()) || (typeof SkinEditor !== 'undefined' && SkinEditor.on);
-    const state = () => { if (!alive() || m.disabled) return; m.active = !!menuActive(); owner.capture?.setSuspended(m.active); };
+    const menuActive = () => !owner.capture?.native && (Screens.currentName !== 'gameplay' || !GameplayScreen.s?.running || (typeof Overlays !== 'undefined' && !!Overlays.top()) || (typeof SkinEditor !== 'undefined' && SkinEditor.on));
+    const state = () => { if (!alive() || m.disabled) return; m.active = !!menuActive(); m.observeActive?.(m.active && !m.paused); owner.capture?.setSuspended(m.active); };
     if (owner.host) {
       const ids = new WeakMap(), dirty = new Set(), urls = new Map(); let next = 0, assetId = 0, epoch = 0;
       const id = node => { if (!ids.has(node)) ids.set(node, ++next); return ids.get(node); };
@@ -35215,7 +35247,7 @@ const MenuView = {
         if (!m.active || blocked()) return;
         for (const r of records) { const node = r.target; if (node.nodeType === 1 && node.closest('.admin-view-sharing, .admin-view-wrap, #lz-cur')) continue; if (node.parentElement?.closest('.admin-view-sharing, .admin-view-wrap, #lz-cur')) continue; dirty.add(node); }
       });
-      observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'src', 'value', 'checked', 'selected', 'disabled'] });
+      m.observeActive = active => { if (m.observing === active) return; m.observing = active; if (active) observer.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'src', 'value', 'checked', 'selected', 'disabled'] }); else observer.disconnect(); };
       const scroll = e => { if (m.active && !blocked()) { const n = e.target === document ? document.scrollingElement : e.target; if (n?.nodeType === 1) send({ t: 'scroll', id: id(n), x: n.scrollLeft, y: n.scrollTop }); } };
       const input = e => { if (m.active && !blocked()) dirty.add(e.target); };
       const pointer = e => { m.pointer = { x: e.clientX, y: e.clientY, id: e.target?.nodeType === 1 ? id(e.target) : 0 }; };
@@ -35249,14 +35281,14 @@ const MenuView = {
         const signature = `${Screens.currentName}/${!!GameplayScreen.s?.running}/${!!menuActive()}`;
         if (signature !== lastState) { lastState = signature; invalidate(); }
         flush();
-        if (!m.active && !m.videoNotified && (owner.capture?.paintedFrames || 0) > m.videoAt && owner.capture?.liveFrameMode?.startsWith('gameplay/true')) { m.videoNotified = true; send({ t: 'video', epoch }, true); }
+        if (!m.active && !m.videoNotified && (owner.capture?.native ? owner.capture.ready : (owner.capture?.paintedFrames || 0) > m.videoAt && owner.capture?.liveFrameMode?.startsWith('gameplay/true'))) { m.videoNotified = true; send({ t: 'video', epoch }, true); }
         if (performance.now() - lastCanvas > 250) { lastCanvas = performance.now(); canvases(); }
         const p = JSON.stringify(m.pointer); if (m.active && !blocked() && p && p !== lastPointer) { lastPointer = p; send({ t: 'pointer', ...m.pointer }); }
       }, 33);
-      m.setPaused = paused => { if (m.paused === paused) return; m.paused = paused; epoch++; m.currentEpoch = epoch; m.rendered = false; canvasAt = new WeakMap(); m.queue.length = 0; m.reset = true; dirty.clear(); send({ t: 'mode', active: m.active, blocked: paused, epoch }, true); };
+      m.setPaused = paused => { if (m.paused === paused) return; m.paused = paused; m.observeActive(m.active && !paused); epoch++; m.currentEpoch = epoch; m.rendered = false; canvasAt = new WeakMap(); m.queue.length = 0; m.reset = true; dirty.clear(); send({ t: 'mode', active: m.active, blocked: paused, epoch }, true); };
       m.cleanup = () => { observer.disconnect(); off(); window.removeEventListener('resize', invalidate); document.removeEventListener('scroll', scroll, true); document.removeEventListener('input', input, true); document.removeEventListener('pointermove', pointer); };
       channel.onopen = () => { state(); send({ t: 'hello' }); };
-      m.fallbackTimer = setTimeout(() => { if (alive() && !m.ready) { m.disabled = true; owner.capture?.setSuspended(false); } }, 5000); state();
+      m.fallbackTimer = setTimeout(() => { if (alive() && !m.ready) { m.disabled = true; m.observeActive(false); owner.capture?.setSuspended(false); } }, 5000); state();
     } else {
       const wrap = m.el = h('div.admin-view-menu', { hidden: true });
       const frame = m.iframe = h('iframe', { title: 'Live menu view', sandbox: 'allow-same-origin', tabindex: '-1', 'aria-hidden': 'true' });
@@ -35332,9 +35364,111 @@ const MenuView = {
       m.setPaused = paused => { m.paused = paused; show(); if (!paused) send({ t: 'ready' }, true); };
       channel.onopen = () => { if (loaded) send({ t: 'ready' }, true); };
     }
-    channel.onclose = () => { if (alive()) { m.active = false; owner.capture?.setSuspended(false); if (m.el) { m.el.hidden = true; owner.video.style.visibility = ''; } } };
+    channel.onclose = () => { if (alive()) { m.active = false; m.disabled = true; m.observeActive?.(false); owner.capture?.setSuspended(false); if (m.el) { m.el.hidden = true; owner.video.style.visibility = ''; } } };
     m.stop = () => { m.stopped = true; clearInterval(m.timer); clearTimeout(m.pumpTimer); clearTimeout(m.fallbackTimer); clearTimeout(m.videoCheck); m.cleanup?.(); m.queue.length = 0; m.parts.clear(); for (const url of m.objects) URL.revokeObjectURL(url); for (const url of m.canvasURLs?.values() || []) URL.revokeObjectURL(url); channel.close(); };
     return m;
+  },
+};
+
+/* ===== 19qc-tab-view.js ===== */
+/* Optional, player-initiated native capture of this game tab. The browser handles compositing and capture. */
+const TabViewCapture = {
+  async preferEfficientCodec(pc) {
+    if (typeof navigator === 'undefined' || !navigator.mediaCapabilities?.encodingInfo || typeof RTCRtpSender === 'undefined') return;
+    try {
+      const codecs = RTCRtpSender.getCapabilities?.('video')?.codecs || [], choices = [...new Set(codecs.map(c => c.mimeType).filter(m => /^video\/(VP8|VP9|H264|AV1)$/i.test(m)))];
+      const results = await Promise.all(choices.map(async mime => {
+        try { const r = await navigator.mediaCapabilities.encodingInfo({ type: 'webrtc', video: { contentType: mime, width: 1280, height: 720, bitrate: 2500000, framerate: 30 } }); return r.supported && r.smooth && r.powerEfficient ? mime : null; } catch { return null; }
+      }));
+      const best = results.find(Boolean); if (!best) return;
+      const ordered = [...codecs.filter(c => c.mimeType === best), ...codecs.filter(c => c.mimeType !== best)];
+      for (const t of pc.getTransceivers()) if (t.sender.track?.kind === 'video') t.setCodecPreferences?.(ordered);
+    } catch { /* Keep the browser's codec order when capability information is unavailable. */ }
+  },
+  canCrop() { return typeof CropTarget !== 'undefined' && typeof CropTarget.fromElement === 'function' && typeof BrowserCaptureMediaStreamTrack !== 'undefined' && typeof BrowserCaptureMediaStreamTrack.prototype.cropTo === 'function'; },
+  canVerifyHandle() { return typeof navigator !== 'undefined' && typeof navigator.mediaDevices?.setCaptureHandleConfig === 'function' && typeof MediaStreamTrack !== 'undefined' && typeof MediaStreamTrack.prototype.getCaptureHandle === 'function'; },
+  supported() {
+    return typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia && (this.canVerifyHandle() || this.canCrop());
+  },
+  async create(valid, privateOpen, onended = () => {}) {
+    if (!this.supported()) throw new Error('Exact tab sharing needs a browser with current-tab capture support. The lightweight view is still available.');
+    // Verify this tab using its per-request browser capture handle. This keeps the direct compositor path;
+    // cropping the entire document is a compatibility fallback, since region capture can add GPU readbacks.
+    let handle = '', stream, track, verification;
+    const clearHandle = () => { if (handle) try { navigator.mediaDevices.setCaptureHandleConfig({ handle: '', exposeOrigin: false, permittedOrigins: [] }); } catch {} };
+    if (this.canVerifyHandle()) try {
+      handle = crypto.randomUUID(); navigator.mediaDevices.setCaptureHandleConfig({ handle, exposeOrigin: true, permittedOrigins: [location.origin] });
+    } catch { handle = ''; }
+    try {
+      // This call must stay in the player's click handler, before any asynchronous work consumes activation.
+      stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { displaySurface: 'browser', width: { ideal: Math.round(720 * Math.max(1, innerWidth / innerHeight)), max: Math.round(720 * Math.max(1, innerWidth / innerHeight)) }, height: { ideal: Math.round(720 * Math.max(1, innerHeight / innerWidth)), max: Math.round(720 * Math.max(1, innerHeight / innerWidth)) }, frameRate: { ideal: 30, max: 30 } },
+        audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', monitorTypeSurfaces: 'exclude', surfaceSwitching: 'exclude', systemAudio: 'exclude',
+      });
+      track = stream.getVideoTracks()[0];
+      if (track) { track.enabled = false; track.onended = () => { if (valid()) onended(); }; }
+      if (track?.readyState === 'ended') { if (valid()) onended(); stream.getTracks().forEach(t => t.stop()); clearHandle(); return null; }
+      if (!valid()) { stream.getTracks().forEach(t => t.stop()); clearHandle(); return null; }
+      if (!track || track.getSettings().displaySurface !== 'browser') throw new Error('Choose this game’s tab to share.');
+      const identity = handle && track.getCaptureHandle?.();
+      if (identity?.handle === handle && identity.origin === location.origin) verification = 'handle';
+      else {
+        if (identity?.handle || !this.canCrop() || typeof track.cropTo !== 'function') throw new Error('The selected tab is not this game.');
+        await track.cropTo(await CropTarget.fromElement(document.documentElement)); verification = 'crop';
+      }
+      if (!valid()) { stream.getTracks().forEach(t => t.stop()); clearHandle(); return null; }
+    } catch (e) {
+      stream?.getTracks().forEach(t => t.stop()); clearHandle();
+      if (e.name === 'NotAllowedError' || e.name === 'AbortError') throw e;
+      throw new Error('Exact sharing could not capture this game tab. Choose the current game tab, or keep using the lightweight view.');
+    }
+    const budget = new GameViewBudget(), s = { native: true, manual: false, stream, track, budget, verification, ready: false, paused: false, stopped: false, metrics: {} };
+    budget.level = 0;
+    const alive = () => !s.stopped && valid();
+    track.contentHint = 'detail';
+    const tune = () => {
+      const q = budget.quality, ratio = innerWidth / innerHeight, shortSide = [720, 720, 900, 900, 1080, 1080][budget.level];
+      const height = Math.round(shortSide / Math.min(1, ratio)), width = Math.round(height * ratio);
+      s.tuning = (s.tuning || Promise.resolve()).catch(() => {}).then(async () => {
+        if (!alive()) return;
+        // Keep 30fps and readable text as targets; browser congestion control still manages the real network rate.
+        await track.applyConstraints({ width: { ideal: width, max: width }, height: { ideal: height, max: height }, frameRate: { ideal: 30, max: 30 } }).catch(() => {});
+        if (!alive() || !s.sender) return;
+        const p = s.sender.getParameters();
+        if (p.encodings?.length) { p.encodings[0].maxBitrate = q.bitrate; p.encodings[0].maxFramerate = 30; p.degradationPreference = 'maintain-resolution'; await s.sender.setParameters(p); }
+      }).catch(() => {});
+      s.level = budget.level;
+    };
+    const stats = async () => {
+      if (!alive()) return;
+      try {
+        if (s.sender) for (const r of (await s.sender.getStats()).values()) if (r.type === 'outbound-rtp' && r.kind === 'video') {
+          if (!alive()) return;
+          const previous = s.metrics, frames = r.framesEncoded - (previous.framesEncoded || 0);
+          if (previous.framesEncoded !== undefined && frames > 0) s.ready = true;
+          const encodeMs = frames > 0 && previous.totalEncodeTime !== undefined ? (r.totalEncodeTime - previous.totalEncodeTime) * 1000 / frames : 0;
+          budget.encoder(performance.now(), r.qualityLimitationReason === 'cpu', encodeMs);
+          s.metrics = { framesEncoded: r.framesEncoded, framesPerSecond: r.framesPerSecond, width: r.frameWidth, height: r.frameHeight, totalEncodeTime: r.totalEncodeTime, encodeMs, qualityLimitationReason: r.qualityLimitationReason };
+        }
+        if (s.level !== budget.level) tune();
+      } catch { /* Browser telemetry is optional. */ }
+      finally { if (alive()) s.statsTimer = setTimeout(stats, s.ready ? 2000 : 100); }
+    };
+    s.setSender = sender => {
+      if (s.sender === sender) return;
+      s.sender = sender; tune(); stats();
+      // A static tab may emit just one frame, and some browsers omit encoding counters. Do not make optional
+      // telemetry a prerequisite for viewing; the receiver still waits for its video clock to advance.
+      s.readyTimer = setTimeout(() => { if (alive()) s.ready = true; }, 750);
+    };
+    s.gameFrameBegin = ts => budget.begin(ts);
+    s.gameFrameEnd = (ts, work, limit, drawn) => budget.sample(ts, work, limit, drawn);
+    s.setSuspended = () => {}; // Native capture already includes menus and gameplay, with no duplicate JS renderer.
+    s.setPaused = paused => { s.paused = !!paused; track.enabled = alive() && !s.paused && !privateOpen(); };
+    track.onended = () => { if (alive()) (s.onended || onended)(); };
+    s.stop = () => { s.stopped = true; clearTimeout(s.statsTimer); clearTimeout(s.readyTimer); window.removeEventListener('resize', tune); track.onended = null; stream.getTracks().forEach(t => t.stop()); clearHandle(); };
+    window.addEventListener('resize', tune); tune();
+    return s;
   },
 };
 
@@ -35431,7 +35565,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '8ec459453156';
+const APP_BUILD = '054fb08e1efd';
 
 const App = {
   lastReport: null,
