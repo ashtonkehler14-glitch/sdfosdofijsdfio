@@ -35,7 +35,7 @@ const App = {
     await ProfileManager.syncPlays().catch(e => console.warn('plays under an earlier name', e)); // (renamed before this was done)
     say('Preparing stage…');
     AudioManager.init();
-    Zoom.init();
+    Zoom.init(); RenderScale.init();
     Toolbar.build();
     GameDropdowns.init();
     AdminGameView.init();

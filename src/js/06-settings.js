@@ -131,7 +131,7 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.lowLatency', l: 'Low-latency playfield', t: 'bool', d: false, hint: 'Draws the playfield without waiting for the display\'s refresh. It can show a frame sooner, but the stage may tear, which makes notes look like they stutter. Applies from the next play.' },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: kbHint('Ctrl+F11 toggles it anywhere.') },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: false, hint: 'When a song can\'t keep up, the playfield is drawn at a lower resolution until it can.' },
-  { s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Renderer scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'How sharp the playfield is drawn. Lower is faster on slow computers.' },
+  { s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Render scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Resolution scale for the whole game: menus, overlays, effects and gameplay. Layout size, hit positions and timing stay the same.' },
   { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no particles, hit lighting or stage light while playing, the menus without animations, blur, glow or moving backgrounds, and song pictures at a lower resolution.' },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
@@ -221,6 +221,14 @@ const SETTINGS_SCHEMA = [
   { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 },
   { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1, coDir: 0 } },
 ];
+// Appearance belongs to the skin and its editor; keep stored values compatible with existing skins.
+for (const it of SETTINGS_SCHEMA) {
+  if (['gameplay.laneWidth', 'gameplay.noteHeight', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].includes(it.k)) { it.s = 'Skin'; it.g = 'Custom skin'; it.when = customSkinOn; }
+  if (it.g === 'Custom skin' && !it.when) it.when = customSkinOn;
+  if (it.g === 'HUD' || ['input.keyOverlay', 'gameplay.showJudgements', 'gameplay.showMax', 'gameplay.earlyLate'].includes(it.k)) { it.x = 1; it.editor = 'hud'; }
+  if (['gameplay.hitPositionOffset', 'gameplay.noteOffset'].includes(it.k)) it.x = 1;
+}
+
 
 const Settings = {
   values: {},

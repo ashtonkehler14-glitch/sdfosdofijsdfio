@@ -684,8 +684,8 @@ const ProfileScreen = {
       // (back from the score comes back here — this profile, scrolled where it was — not to song select)
       const back = { name: 'profile', params: this.backParams() };
       if (!s.remote) { Screens.go('results', { score: s, fromList: true, browse: true, back }, { transition: 'right' }); return; }
-      const r = this.remote || {};
-      Screens.go('results', { score: { ...s, scoreStd: s.score, online: true, player: r.name, avatar: r.avatar, counts: s.counts || [0, 0, 0, 0, 0, 0], passed: s.passed !== false && s.grade !== 'F', replayId: null }, fromList: true, browse: true, watched: 'online', back }, { transition: 'right' });
+      const r = this.remote || { pid: Presence.pid(), name: ProfileManager.profile.name, avatar: ProfileManager.sharedAvatar || '' };
+      Screens.go('results', { score: { ...s, id: r.pid ? 'o-' + r.pid : s.id, pid: r.pid, scoreStd: s.score, online: true, player: r.name || s.player, avatar: r.avatar || s.avatar, counts: s.counts || [0, 0, 0, 0, 0, 0], passed: s.passed !== false && s.grade !== 'F', replayId: null }, fromList: true, browse: true, watched: 'online', back }, { transition: 'right' });
     } },
       rankPill(s.grade),
       h('div.main', h('div.t', s.title, h('span.a', ` by ${s.artist || ''}`)), h('div.s', h('span.v', s.version), h('span.d', fmtDate(s.date)))),
@@ -935,6 +935,11 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8i', title: 'Make every part yours', sections: [
+    { icon: 'brush', title: 'Skin editor', items: ['Move, resize and hide the pp counter, health bars, judgements, key overlay and individual skin background graphics', 'HUD appearance controls now live in the skin editor; custom note width, height and borders are grouped under Custom skin', 'Hit position and note offset are adjusted in the editor instead of the general settings'] },
+    { icon: 'image', title: 'Graphics', items: ['Render scale now applies across the game, including menus, overlays and gameplay effects'] },
+    { icon: 'user', title: 'Profiles', items: ['Opening a top score shows its correct player, without an extra Player result beside it'] },
+  ] },
   { id: '2026.11.8h', title: 'A week to beat it', sections: [
     { icon: 'calendar', title: 'Weekly challenge', items: ['One shared beatmap for the whole week, with a new challenge every Monday at midnight US Central time', 'Weekly leaderboards, countdowns and participation streaks'] },
     { icon: 'film', title: 'Spectating', items: ['Between songs, regular spectate shows where the player is, including song select, menus and results, instead of their previous song'] },

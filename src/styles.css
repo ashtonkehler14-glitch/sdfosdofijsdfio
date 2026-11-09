@@ -4615,6 +4615,8 @@ body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 
 .se-list { display: flex; flex-direction: column; gap: 3px; }
 .se-item { display: flex; align-items: center; gap: 9px; min-height: 40px; padding: 4px 5px 4px 6px; border-radius: 8px; background: rgba(255, 255, 255, .035); font-size: 13px; cursor: pointer; transition: background .15s, box-shadow .15s; }
 .se-item:hover { background: rgba(255, 255, 255, .075); }
+button.se-item { width: 100%; border: 0; color: inherit; font-family: inherit; text-align: left; }
+button.se-item:focus-visible { outline: 2px solid var(--se-gold); outline-offset: -2px; }
 .se-item.on { background: rgba(255, 204, 34, .1); box-shadow: inset 0 0 0 1px rgba(255, 204, 34, .35); }
 .se-ic { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: rgba(255, 255, 255, .06); color: rgba(255, 255, 255, .8); transition: background .15s, color .15s; }
 .se-ic .ic { width: 14px; height: 14px; }
@@ -5535,3 +5537,23 @@ html.lp-open #toasts { right: 380px; }
 .admin-view-sharing > span { min-width: 0; }
 .admin-view-sharing .btn { flex: none; font-size: 12px; padding: 6px 10px; color: #fff; background: #37343e; }
 @media (max-width: 700px) { .admin-view-footer, .admin-view-heading { padding: 10px 14px; flex-wrap: wrap; } .admin-view-sharing { flex-wrap: wrap; justify-content: center; width: max-content; } }
+
+.admin-view-menu { position: absolute; inset: 0; overflow: hidden; background: #18171c; pointer-events: none; }
+.admin-view-menu[hidden] { display: none; }
+.admin-view-menu iframe { position: absolute; border: 0; transform-origin: top left; pointer-events: none; }
+.admin-view-menu-cursor { position: absolute; left: 0; top: 0; color: #fff; text-shadow: 0 0 2px #000, 1px 1px 2px #000; font-size: 20px; line-height: 1; pointer-events: none; }
+
+.gameplay .hl-off { visibility: hidden !important; }
+body.se-open .gameplay .hl-off { visibility: visible !important; opacity: .3; }
+.se-set .set-row { margin: 12px 0; }
+.se-set .set-row .lbl { font-size: 12px; }
+#render-surface { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; transform-origin: 0 0; will-change: transform; isolation: isolate; }
+
+.se-hitline { z-index: 4; }
+.se-set .set-row.form { display: flex; position: relative; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--se-line); border-radius: 7px; background: rgba(255,255,255,.035); margin: 0; }
+.se-set .set-row.frange, .se-set .set-row.fsel { display: flex; flex-direction: column; align-items: stretch; }
+.se-set .fleft, .se-set .fright { width: 100%; min-width: 0; }
+.se-set .fright { flex: none; }
+.se-set .set-row .val { min-width: 0; text-align: left; font-size: 12px; }
+.se-set .set-row .reset { position: absolute; top: 5px; right: 5px; }
+.se-set .set-row .fhint { font-size: 11px; color: rgba(255,255,255,.5); }

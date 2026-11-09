@@ -14,12 +14,12 @@ const GameViewCapture = {
     return this.loading;
   },
   async create(owner, valid, isPrivate) {
-    const renderer = await this.load();
+    let renderer = owner.menuMirror ? null : await this.load();
     if (!valid()) return null;
     const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', { alpha: false });
     if (!canvas.captureStream || !ctx) throw new Error('This browser cannot stream the game view.');
     const budget = new GameViewBudget(), waiting = new Set();
-    const s = { canvas, budget, paused: false, epoch: 0, frame: null, dirty: true, stopped: false, cursor: null,
+    const s = { canvas, budget, paused: false, suspended: !!owner.menuMirror && (Screens.currentName !== 'gameplay' || !GameplayScreen.s?.running), epoch: 0, frame: null, dirty: true, stopped: false, cursor: null,
       paintedFrames: 0, snapshots: 0, hudSnapshots: 0, fullSnapshots: 0, yielded: 0, skipped: 0 };
     const alive = () => !s.stopped && valid();
     const aborted = () => Object.assign(new Error('Game-view work deferred.'), { name: 'AbortError' });
@@ -46,7 +46,7 @@ const GameViewCapture = {
     const emit = () => { if (s.manual) s.track.requestFrame(); };
     const mask = (send = true) => { ctx.fillStyle = s.paused || isPrivate() ? '#000' : '#18171c'; ctx.fillRect(0, 0, canvas.width, canvas.height); if (send && s.track) emit(); };
     const dimensions = () => {
-      s.scale = Math.min(devicePixelRatio || 1, budget.quality.width / innerWidth, 1440 / innerHeight);
+      s.scale = Math.max(720 / Math.min(innerWidth, innerHeight), Math.min(devicePixelRatio || 1, budget.quality.width / innerWidth, 1440 / innerHeight));
       s.width = innerWidth; s.height = innerHeight;
       const w = Math.max(1, Math.round(innerWidth * s.scale)), h = Math.max(1, Math.round(innerHeight * s.scale));
       if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
@@ -69,7 +69,7 @@ const GameViewCapture = {
     };
     s.setSender = sender => { s.sender = sender; tune(); };
     const paint = () => {
-      if (!alive() || s.paused || isPrivate() || !s.frame && !running()) return;
+      if (!alive() || s.suspended || s.paused || isPrivate() || !s.frame && !running()) return;
       const start = performance.now();
       if (!budget.due(start)) return;
       if (s.level !== budget.level) { dimensions(); s.level = budget.level; if (!running() || !s.activeFrame) s.dirty = true; tune(); }
@@ -90,15 +90,15 @@ const GameViewCapture = {
             s.backgroundURL = backgroundURL; s.background = null;
             if (backgroundURL) { const image = new Image(); image.onload = () => { if (alive() && s.backgroundGame === game && s.backgroundURL === backgroundURL) s.background = image; }; image.src = backgroundURL; }
           }
-          if (s.background) {
+          if (s.background && !(typeof HudLayout !== 'undefined' && HudLayout.part('background')?.off)) {
             const k = Math.max(canvas.width / s.background.width, canvas.height / s.background.height);
             ctx.drawImage(s.background, (canvas.width - s.background.width * k) / 2, (canvas.height - s.background.height * k) / 2, s.background.width * k, s.background.height * k);
           }
           const video = GameplayScreen.videoEl;
-          if (video?.readyState >= 2 && video.classList.contains('on')) ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          if (video?.readyState >= 2 && video.classList.contains('on') && !(typeof HudLayout !== 'undefined' && HudLayout.part('video')?.off)) ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
           ctx.fillStyle = `rgba(0,0,0,${GameplayScreen.baseDim ?? .7})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
           // Read geometry once per layout, not once per transmitted frame.
-          if (!s.layers) s.layers = [GameplayScreen.sbCanvas, GameplayScreen.renderer?.canvas, ...GameplayScreen.hud.querySelectorAll('canvas')].filter(Boolean).map(el => ({ el, hud: GameplayScreen.hud.contains(el), rect: el.getBoundingClientRect() }));
+          if (!s.layers) s.layers = [GameplayScreen.sbCanvas, GameplayScreen.renderer?.canvas, ...GameplayScreen.hud.querySelectorAll('canvas')].filter(el => el && getComputedStyle(el).visibility !== 'hidden').map(el => ({ el, hud: GameplayScreen.hud.contains(el), rect: el.getBoundingClientRect() }));
           for (const layer of s.layers) {
             if (layer.hud || !layer.rect.width || !layer.rect.height || !layer.el.width || !layer.el.height) continue;
             const r = layer.rect;
@@ -115,6 +115,7 @@ const GameViewCapture = {
           if (!s.hud) s.hud = [GameplayScreen.scoreEl, GameplayScreen.accEl, GameplayScreen.ppEl, ...(GameplayScreen.jc?.items || []).map(i => i.n), ...GameplayScreen.hud.querySelectorAll('.sp-times span')].map(el => {
             if (!el) return null;
             const rect = el.getBoundingClientRect(), style = getComputedStyle(el);
+            if (style.visibility === 'hidden') return null;
             return { el, rect, font: style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`, color: style.color, opacity: +style.opacity * s.hudOpacity, align: style.textAlign };
           }).filter(h => h && h.rect.width && h.rect.height);
           ctx.save(); ctx.scale(s.scale, s.scale); ctx.textBaseline = 'top';
@@ -129,6 +130,7 @@ const GameViewCapture = {
             const bar = (el, fill, kind) => {
               if (!el) return null;
               const rect = el.getBoundingClientRect(), style = getComputedStyle(el), ink = fill && getComputedStyle(fill);
+              if (style.visibility === 'hidden') return null;
               return rect.width && rect.height ? { rect, kind, background: style.backgroundColor, colors: (ink?.backgroundImage.match(/rgba?\([^)]+\)/g) || [ink?.backgroundColor || '#fff']), opacity: s.hudOpacity } : null;
             };
             s.liveHud = [bar(GameplayScreen.hpEl?.querySelector('.hp-track'), GameplayScreen.hpFill, 'health'), bar(GameplayScreen.progEl?.parentElement, GameplayScreen.progEl, 'progress')].filter(Boolean);
@@ -143,7 +145,7 @@ const GameViewCapture = {
           }
           const pie = GameplayScreen.pieEl;
           if (pie?.isConnected) {
-            if (!s.pieRect) s.pieRect = pie.getBoundingClientRect();
+            if (!s.pieRect) s.pieRect = getComputedStyle(pie).visibility === 'hidden' ? { width: 0, height: 0 } : pie.getBoundingClientRect();
             const r = s.pieRect, radius = r.width / 2, x = r.left + radius, y = r.top + r.height / 2, lead = GameplayScreen._lead;
             if (r.width && r.height) {
               ctx.fillStyle = lead ? 'rgba(126,224,122,.18)' : 'rgba(255,255,255,.14)'; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
@@ -163,7 +165,7 @@ const GameViewCapture = {
       budget.painted(start, performance.now() - start);
     };
     const queuePaint = () => {
-      if (s.paintPending || !alive() || s.paused || !s.frame && !running() || !budget.due(performance.now()) || !running() && !s.paintDirty) return;
+      if (s.paintPending || !alive() || s.suspended || s.paused || !s.frame && !running() || !budget.due(performance.now()) || !running() && !s.paintDirty) return;
       s.paintPending = true;
       idle(budget.paintCost).then(paint).catch(() => {}).finally(() => { s.paintPending = false; });
     };
@@ -180,10 +182,11 @@ const GameViewCapture = {
     s.gameFrameEnd = (ts, work, limit, drawn) => { if (alive()) { budget.sample(ts, work, limit, drawn); if (drawn) queuePaint(); } };
     const refresh = async () => {
       if (!alive()) return;
+      if (s.suspended) { if (s.paused || isPrivate()) mask(); s.timer = setTimeout(refresh, 250); return; }
       const start = performance.now(), epoch = s.epoch, view = mode(), active = !!running() && !Overlays.top();
       // A rate-limited encoder may drop a single transition frame. Keep a black heartbeat until sharing resumes.
       if (s.paused || isPrivate()) mask();
-      const check = () => alive() && !s.paused && !isPrivate() && s.epoch === epoch && mode() === view;
+      const check = () => alive() && !s.suspended && !s.paused && !isPrivate() && s.epoch === epoch && mode() === view;
       const gate = async (heavy = false) => {
         if (!check()) throw aborted();
         const now = performance.now();
@@ -196,6 +199,8 @@ const GameViewCapture = {
         if (check() && (s.dirty || !s.frame || s.frameMode !== view || !active && start - (s.captured || 0) > 5000) && start - (s.attempted || -Infinity) >= interval) {
           s.attempted = start; s.dirty = false;
           await gate(true);
+          if (!renderer) renderer = await this.load();
+          if (!check()) throw aborted();
           const root = active ? GameplayScreen.hud : document.body;
           const liveText = active ? [GameplayScreen.scoreEl, GameplayScreen.accEl, GameplayScreen.ppEl, ...(GameplayScreen.jc?.items || []).map(i => i.n), ...GameplayScreen.hud.querySelectorAll('.sp-times span'), GameplayScreen.hpEl, GameplayScreen.progEl?.parentElement, GameplayScreen.pieEl] : [];
           const options = { width: s.width, height: s.height, scale: s.scale, backgroundColor: active ? 'rgba(0,0,0,0)' : '#18171c', timeout: 3000,
@@ -226,7 +231,7 @@ const GameViewCapture = {
     const stats = async () => {
       if (!alive()) return;
       try {
-        if (s.sender && !s.paused) for (const r of (await s.sender.getStats()).values()) if (r.type === 'outbound-rtp' && r.kind === 'video') {
+        if (s.sender && !s.paused && !s.suspended) for (const r of (await s.sender.getStats()).values()) if (r.type === 'outbound-rtp' && r.kind === 'video') {
           const prev = s.encoderSample, frames = prev ? r.framesEncoded - prev.frames : 0;
           budget.encoder(performance.now(), r.qualityLimitationReason === 'cpu', frames > 0 ? (r.totalEncodeTime - prev.time) * 1000 / frames : 0);
           s.encoderSample = { frames: r.framesEncoded, time: r.totalEncodeTime };
@@ -259,6 +264,7 @@ const GameViewCapture = {
     const changed = () => { s.dirty = true; s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; };
     document.addEventListener('scroll', changed, true); document.addEventListener('input', changed, true);
     document.addEventListener('pointermove', pointer, { passive: true }); window.addEventListener('resize', resize);
+    s.setSuspended = suspended => { if (suspended !== s.suspended) { s.suspended = suspended; s.epoch++; cancelWork(); if (!suspended) { s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; s.dirty = true; s.attempted = -Infinity; wakeMenus(); } } };
     s.setPaused = paused => { if (paused !== s.paused) { s.paused = paused; s.epoch++; cancelWork(); s.frame = s.activeFrame = null; s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; s.dirty = true; s.attempted = -Infinity; mask(); } };
     s.stop = () => {
       s.stopped = true; cancelWork(); clearTimeout(s.timer); clearTimeout(s.statsTimer); cancelAnimationFrame(s.animation); observer.disconnect(); offScreen();

@@ -60,6 +60,7 @@ try {
       r._drawNotes({ engine: { columns: [[n]], ptr: [0] }, scroll: { pos: t => t, posAt: t => t }, pxPerMs: 1, percy }, 0);
       ends.push(n.end);
     }
+    await S.set('skin.current', 'default');
     AshtonkMania.SettingsPanel.open();
     const hasControls = ['Note height', 'Note border thickness', 'Note border colour', 'Column width (lane width)'].every(l => document.querySelector(`[aria-label="${l}"]`));
     const rows = ModSelect.configRows(['PC']);

@@ -59,3 +59,9 @@ test('recovering stream quality never reduces text resolution, frame rate or enc
     assert.ok(after.width >= before.width); assert.ok(after.fps >= before.fps); assert.ok(after.bitrate >= before.bitrate);
   }
 });
+
+test('every video tier targets at least 720p at 30fps', () => {
+  for (const tier of Budget.TIERS) {
+    assert.ok(tier.width >= 1280); assert.ok(tier.fps >= 30);
+  }
+});

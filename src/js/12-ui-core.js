@@ -1565,7 +1565,7 @@ const Zoom = {
     Bus.emit('ui:scaled', 1 / z);
   },
   /** Canvas backing-store scale for sizes measured in layout px (clientWidth). */
-  dpr() { return (window.devicePixelRatio || 1) / this.z; },
+  dpr() { return (window.devicePixelRatio || 1) / this.z * clamp(Number(Settings.get('graphics.renderScale')) || 1, .5, 1); },
 };
 
 function toggleFullscreen(force) {

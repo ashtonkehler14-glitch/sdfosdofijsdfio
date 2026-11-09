@@ -8,15 +8,25 @@ const HUD_PARTS = [
   // (score, accuracy, pp and mods are placed and sized each on its own, as lazer's separate HUD components)
   { id: 'sc', name: 'Score', icon: 'trophy', sel: '.hud-score > .sc', origin: 'top right' },
   { id: 'acc', name: 'Accuracy', icon: 'target', sel: '.hud-score > .hud-accrow', origin: 'top right' },
-  { id: 'pp', name: 'Performance (pp)', icon: 'chart', sel: '.hud-score > .hud-pp', origin: 'top right' },
+  { id: 'pp', name: 'Performance (pp)', icon: 'chart', sel: '.hud-score > .hud-pp', setting: 'gameplay.showPp', origin: 'top right' },
   { id: 'mods', name: 'Mods', icon: 'mods', sel: '.hud-score > .hud-mods', origin: 'top right' },
   // (drawn with the stage, on the canvas, at the skin's ComboPosition: moved and sized from there)
   { id: 'combo', name: 'Combo counter', icon: 'bolt', canvas: true, origin: 'center center' },
-  { id: 'hp', name: 'Health display', icon: 'heart', sel: '.hud-hp, .hud-skinhp', origin: 'top left' },
+  { id: 'hp', name: 'Health display', icon: 'heart', sel: '.hud-hp, .hud-skinhp', canvas: true, setting: 'gameplay.showHealth', origin: 'top left' },
   { id: 'progress', name: 'Song progress', icon: 'clock', sel: '.hud-sp, .hud-progress', origin: 'bottom center' },
   { id: 'error', name: 'Hit error meter', icon: 'bars', sel: '.hud-err', origin: 'bottom center', setting: 'gameplay.hitErrorMeter' },
   { id: 'jc', name: 'Judgement counter', icon: 'list', sel: '.hud-jc', origin: 'center right', setting: 'gameplay.judgementCounter' },
   { id: 'lb', name: 'Leaderboard', icon: 'crown', sel: '.hud-lb, .hud-mp', origin: 'center left', setting: 'gameplay.leaderboard' },
+  { id: 'background', name: 'Song background', icon: 'image', sel: '.gp-bg', scene: true, origin: 'center center' },
+  { id: 'video', name: 'Background video', icon: 'film', sel: '.gp-video', scene: true, origin: 'center center' },
+  { id: 'storyboard', name: 'Storyboard', icon: 'image', sel: '.gp-sb', scene: true, origin: 'center center' },
+  { id: 'stageBackground', name: 'Column background', icon: 'image', canvas: true, origin: 'top left' },
+  { id: 'stageLeft', name: 'Skin left background', icon: 'image', canvas: true, origin: 'top left' },
+  { id: 'stageRight', name: 'Skin right background', icon: 'image', canvas: true, origin: 'top left' },
+  { id: 'stageBottom', name: 'Skin bottom background', icon: 'image', canvas: true, origin: 'top left' },
+  { id: 'stageHint', name: 'Skin hit-line graphic', icon: 'image', canvas: true, origin: 'top left' },
+  { id: 'judgement', name: 'Judgements', icon: 'target', canvas: true, setting: 'gameplay.showJudgements', origin: 'center center' },
+  { id: 'keys', name: 'Key overlay', icon: 'keyboard', canvas: true, setting: 'input.keyOverlay', origin: 'top left' },
   { id: 'badge', name: 'Auto / replay badge', icon: 'film', sel: '.hud-replay', origin: 'top center' },
 ];
 
@@ -33,11 +43,13 @@ const HudLayout = {
   /** One part's elements on the HUD (not one inside another that's already in the list). */
   els(hud, p) {
     if (!hud || !p.sel) return [];
-    const all = [...hud.querySelectorAll(p.sel)];
+    const root = p.scene ? GameplayScreen.el : hud;
+    const all = [...root.querySelectorAll(p.sel)];
     return all.length > 1 ? all.filter(el => !all.some(o => o !== el && o.contains(el))) : all;
   },
   /** The combo counter's place, size and visibility ({ x, y, s, off }), for the stage renderer. */
   // (read every frame by the stage renderer: the setting as it's kept, not a fresh copy of it each time)
+  part(id) { const v = this.override || Settings.values['hud.layout']; return (v && typeof v === 'object' && v[id]) || null; },
   combo() { const v = this.override || Settings.values['hud.layout']; return (v && typeof v === 'object' && v.combo) || null; },
   /** "x y" from a computed `translate` (the CSS one the element already has: the offset goes on top of it). */
   split(t) {
@@ -165,6 +177,7 @@ const SkinEditor = {
     Settings.set('hud.layout', L);
     HudLayout.override = null;
     HudLayout.apply(GameplayScreen.hud);
+    GameplayScreen.renderer?.resize(true);
     this.paintList(); this.paintSettings();
   },
   setPart(id, patch) { const L = this.layout(); L[id] = { ...(L[id] || {}), ...patch }; this.commit(L); },
@@ -175,6 +188,7 @@ const SkinEditor = {
     Settings.set('hud.layout', snap.layout || {});
     for (const d of this.STAGE) { const v = (snap.stage || {})[d.key] ?? (d.def || 0); if (this.stageVal(d) !== v) Settings.set(d.key, v); }
     HudLayout.apply(GameplayScreen.hud);
+    GameplayScreen.renderer?.resize(true);
     this.paintList(); this.paintSettings();
   },
   resetAll() {
@@ -255,6 +269,7 @@ const SkinEditor = {
     if (this.undoBtn) this.undoBtn.disabled = !this.undo.length;
     clearEl(this.stageEl).append(...this.STAGE.map(d => { const v = this.stageVal(d); return h(`div.se-item.se-stage${this.sel === d.id ? '.on' : ''}`, { dataset: { id: d.id }, onclick: () => { UISounds.click(); this.select(d.id); } },
       h('span.se-ic', icon(d.icon)), h('span.se-nm', d.name, h('small', v === (d.def || 0) ? 'as the skin has it' : d.pct ? `${v}%` : `moved ${v > 0 ? '+' : ''}${v}${d.unit}`))); }));
+    this.stageEl.append(...[['noteoptions', 'Note appearance'], ['hudoptions', 'HUD appearance']].map(([id, name]) => h(`button.se-item${this.sel === id ? '.on' : ''}`, { dataset: { id }, onclick: () => { UISounds.click(); this.select(id); } }, h('span.se-ic', icon('brush')), h('span.se-nm', name))));
     let n = 0;
     clearEl(this.listEl).append(...HUD_PARTS.map(p => {
       const on = this.shown(p), na = on && this.present && !this.present.has(p.id);
@@ -280,6 +295,12 @@ const SkinEditor = {
     else if (this.setEl.parentElement !== this.rEl) this.rEl.append(this.setEl);
   },
   paintSettings() {
+    if (this.sel === 'hudoptions' || this.sel === 'noteoptions') {
+      const hud = this.sel === 'hudoptions';
+      const rows = SETTINGS_SCHEMA.filter(it => hud ? it.editor === 'hud' : ['gameplay.laneWidth', 'gameplay.noteHeight', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].includes(it.k));
+      clearEl(this.setEl).append(h('div.se-head', hud ? 'HUD appearance' : 'Note appearance'), ...rows.map(it => SettingsPanel.row({ ...it, when: undefined, x: 0 })));
+      return;
+    }
     const sd = this.stageDef(this.sel);
     if (sd) { clearEl(this.setEl).append(...this.stagePanel(sd)); return; }
     const p = HUD_PARTS.find(x => x.id === this.sel);
@@ -352,7 +373,7 @@ const SkinEditor = {
       if (!box) { box = this.makeBox(p); this.boxEls.set(p.id, box); this.boxesEl.append(box); }
       box.classList.toggle('on', this.sel === p.id);
       box.classList.toggle('off', !!(HudLayout.get()[p.id] || {}).off || (!!p.setting && !Settings.get(p.setting)));
-      const st = `left:${r.l.toFixed(1)}px;top:${r.t.toFixed(1)}px;width:${(r.r - r.l).toFixed(1)}px;height:${(r.b - r.t).toFixed(1)}px`;
+      const st = `z-index:${p.scene || p.id === 'stageBackground' ? 0 : 2};left:${r.l.toFixed(1)}px;top:${r.t.toFixed(1)}px;width:${(r.r - r.l).toFixed(1)}px;height:${(r.b - r.t).toFixed(1)}px`;
       if (box._st !== st) { box._st = st; box.style.cssText = st; }
       box._r = r;
       // (the name tag on the side facing the middle: one by the right edge was cut off under the Settings panel)
@@ -364,7 +385,7 @@ const SkinEditor = {
   },
   /** Where a part drawn on the stage canvas (the combo counter) is on screen, from where it was last drawn. */
   canvasRect(p) {
-    const rr = GameplayScreen.renderer, cv = rr && rr.canvas, b = p.id === 'combo' && rr && rr._cmbRect;
+    const rr = GameplayScreen.renderer, cv = rr && rr.canvas, b = rr && (p.id === 'combo' ? rr._cmbRect : rr._hudRects?.[p.id]);
     if (!b || !cv || !cv.isConnected) return null;
     const cr = cv.getBoundingClientRect();
     if (!cr.width || !cr.height) return null;

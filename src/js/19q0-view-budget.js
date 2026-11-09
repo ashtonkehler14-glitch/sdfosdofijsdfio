@@ -1,12 +1,12 @@
 /* Stream quality is expendable. The player's configured frame limit and display cadence are not. */
 class GameViewBudget {
   static TIERS = [
-    { fps: 2, width: 854, bitrate: 450000, snapshot: 6000 },
-    { fps: 5, width: 854, bitrate: 650000, snapshot: 4000 },
-    { fps: 10, width: 1024, bitrate: 1000000, snapshot: 3000 },
-    { fps: 15, width: 1024, bitrate: 1400000, snapshot: 2200 },
-    { fps: 24, width: 1280, bitrate: 2600000, snapshot: 1500 },
-    { fps: 30, width: 1920, bitrate: 5000000, snapshot: 1000 },
+    { fps: 30, width: 1280, bitrate: 2500000, snapshot: 6000 },
+    { fps: 30, width: 1280, bitrate: 3000000, snapshot: 4000 },
+    { fps: 30, width: 1600, bitrate: 3500000, snapshot: 3000 },
+    { fps: 30, width: 1600, bitrate: 4000000, snapshot: 2200 },
+    { fps: 30, width: 1920, bitrate: 5000000, snapshot: 1500 },
+    { fps: 30, width: 1920, bitrate: 6000000, snapshot: 1000 },
   ];
   constructor() {
     this.level = 5; this.displayMs = 1000 / 60; this.targetMs = this.displayMs;

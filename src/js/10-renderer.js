@@ -67,6 +67,7 @@ class ManiaRenderer {
   constructor(canvas, { crop = false, touch = true } = {}) {
     this.canvas = canvas; this.touchLayout = touch;
     this.crop = crop; this.cropX = 0;
+    this._hudRects = {};
     this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._tx = 0; this._noteRefW = 0;
     if (crop && typeof ResizeObserver !== 'undefined' && canvas.parentElement) {
       // cache the screen size instead of reading clientWidth every frame (that can force a layout)
@@ -86,6 +87,7 @@ class ManiaRenderer {
   }
   setLayout(layout) {
     this.layout = layout;
+    this._hudRects = {};
     this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._noteRefW = 0;
     this.keyLight = new Array(layout.keys).fill(-1e9);
     this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0; this._missFx = []; this._cmb = null; this.lastCombo = 0;
@@ -108,7 +110,7 @@ class ManiaRenderer {
     this._hostRect = null;
     const c = this.canvas;
     // (autoScale: lowered by gameplay when this device can't keep up — see GameplayScreen.adaptResolution)
-    const dpr = Zoom.dpr() * Settings.get('graphics.renderScale') * (this.autoScale || 1);
+    const dpr = Zoom.dpr() * (this.autoScale || 1);
     if (this.crop) {
       const host = c.parentElement;
       const cw = this._hostW ?? (host ? host.clientWidth : c.clientWidth), ch = this._hostH ?? (host ? host.clientHeight : c.clientHeight);
@@ -192,9 +194,25 @@ class ManiaRenderer {
       const reach = Math.abs(cl.x) * this.W + 160 * s * (cl.s || 1) - this.stageW / 2;
       if (cl.x < 0) left = Math.max(left, reach); else right = Math.max(right, reach);
     }
+    const layout = typeof HudLayout !== 'undefined' ? HudLayout.get?.() || {} : {};
+    const include = (id, x, width) => {
+      const c = layout[id]; if (c?.off) return;
+      const start = x + (c?.x || 0) * this.W, end = start + width * (c?.s > 0 ? c.s : 1);
+      left = Math.max(left, -start); right = Math.max(right, end - this.stageW);
+    };
+    include('stageBackground', 0, this.stageW);
+    include('stageLeft', -sideL, sideL); include('stageRight', this.stageW, sideR);
+    if (L.tex?.stageBottom) { const width = L.tex.stageBottom.w * us * (this.legacy ? 1.6 : 1); include('stageBottom', (this.stageW - width) / 2, width); }
+    if (L.tex?.stageHint) include('stageHint', 0, this.stageW);
+    if (hm === 'stage') include('hp', this.stageW + 5 * s, Math.max(4, 3.4 * s));
+    if (hm === 'skinstage') include('hp', this.stageW + 2 * s, 66 * s);
+    if (Settings.get('input.keyOverlay')) include('keys', this.stageW + 14 * s, 31 * s);
+    const judgeWidth = L.wom ? 400 * this.womD : 160 * s;
+    include('judgement', (this.stageW - judgeWidth) / 2, judgeWidth);
     return [Math.ceil(left + 2), Math.ceil(right + 2)];
   }
   _geom() {
+    this._hudRects = {};
     this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._noteRefW = 0; // sizes change: drop the pre-scaled sprites
     const L = this.layout;
     if (!L) return;
@@ -473,6 +491,7 @@ class ManiaRenderer {
     ctx.translate(this.stageX, 0);
     this._tx = this.stageX - this.cropX;
 
+    this._hudPart('stageBackground', { x: 0, y: 0, w: this.stageW, h: H }, () => {
     // column backgrounds, snapped to whole device pixels: adjacent columns then share an exact edge instead of
     // two anti-aliased half-covered pixels, which let the background show through as thin vertical seams
     const sx = this.stageX;
@@ -482,6 +501,7 @@ class ManiaRenderer {
       ctx.fillRect(x0, 0, x1 - x0, H);
     }
     if (this._dimFill) { ctx.fillStyle = this._dimFill; ctx.fillRect(0, 0, this.stageW, H); }
+    }, true);
     // column lines
     if (this._hasLines) {
       ctx.fillStyle = this._lineFill;
@@ -524,7 +544,7 @@ class ManiaRenderer {
     // stage hint
     if (L.tex.stageHint) {
       const t = L.tex.stageHint, h = t.h * (this.legacy ? this.u * 0.9 * 1.6025 : s); // (lazer's LegacyHitTarget)
-      this._img(t.img, 0, this.hitY - h / 2, this.stageW, h, this.up);
+      this._hudPart('stageHint', { x: 0, y: this.hitY - h / 2, w: this.stageW, h }, () => this._img(t.img, 0, this.hitY - h / 2, this.stageW, h, this.up), true);
     }
     if (L.keysUnderNotes) this._drawKeys(g, realNow);
 
@@ -548,11 +568,11 @@ class ManiaRenderer {
     if (!L.keysUnderNotes) this._drawKeys(g, realNow);
     // stage sides / bottom
     const us = this.legacy ? this.u : s;
-    if (L.tex.stageLeft) { const t = L.tex.stageLeft, w = t.w * us; ctx.drawImage(t.img, -w, 0, w, H); }
-    if (L.tex.stageRight) { const t = L.tex.stageRight, w = t.w * us; ctx.drawImage(t.img, this.stageW, 0, w, H); }
+    if (L.tex.stageLeft) { const t = L.tex.stageLeft, w = t.w * us; this._hudPart('stageLeft', { x: -w, y: 0, w, h: H }, () => ctx.drawImage(t.img, -w, 0, w, H), true); }
+    if (L.tex.stageRight) { const t = L.tex.stageRight, w = t.w * us; this._hudPart('stageRight', { x: this.stageW, y: 0, w, h: H }, () => ctx.drawImage(t.img, this.stageW, 0, w, H), true); }
     if (L.tex.stageBottom) {
       const t = L.tex.stageBottom, k = this.legacy ? 1.6 : 1, w = t.w * us * k, h = t.h * us * k; // (lazer: 1.6×)
-      this._img(t.img, (this.stageW - w) / 2, H - h, w, h, this.up);
+      this._hudPart('stageBottom', { x: (this.stageW - w) / 2, y: H - h, w, h }, () => this._img(t.img, (this.stageW - w) / 2, H - h, w, h, this.up), true);
     }
     // lighting
     if (Settings.get('gameplay.hitLighting')) this._drawLighting(g, realNow);
@@ -567,7 +587,7 @@ class ManiaRenderer {
       // (the osu!lazer-style bar is part of the HUD, not the canvas)
       if (this.healthMode === 'stage') this._drawHealth(g.engine.health.value);
       else if (this.healthMode === 'skinstage') this._drawSkinHealth(g.engine.health.value);
-      if (Settings.get('input.keyOverlay')) this._drawKeyOverlay(g);
+      if (Settings.get('input.keyOverlay') || typeof SkinEditor !== 'undefined' && SkinEditor.on) this._drawKeyOverlay(g);
     }
   }
   /** lazer's mania bar lines: a thin line across the stage at the start of each bar, scrolling with the notes (and
@@ -863,12 +883,15 @@ class ManiaRenderer {
       const grad = gr || ctx.createLinearGradient(0, this.up ? 0 : H, 0, this.up ? H : 0);
       if (!gr) { grad.addColorStop(0.4, 'rgba(128,128,128,1)'); grad.addColorStop(1, 'rgba(128,128,128,0)'); this._womSides = { H, up: this.up, g: grad }; }
       ctx.globalAlpha = so; ctx.fillStyle = grad;
-      ctx.fillRect(-2 * d, 0, 2 * d, H); ctx.fillRect(this.stageW, 0, 2 * d, H);
+      this._hudPart('stageLeft', { x: -2 * d, y: 0, w: 2 * d, h: H }, () => ctx.fillRect(-2 * d, 0, 2 * d, H), true);
+      this._hudPart('stageRight', { x: this.stageW, y: 0, w: 2 * d, h: H }, () => ctx.fillRect(this.stageW, 0, 2 * d, H), true);
       ctx.globalAlpha = 1;
     }
     // stage background
-    ctx.globalAlpha = st('stageOpacity'); ctx.fillStyle = '#111111'; ctx.fillRect(0, 0, this.stageW, H); ctx.globalAlpha = 1;
-    const dim = Settings.get('skin.dim'); if (dim > 0) { ctx.fillStyle = `rgba(0,0,0,${dim})`; ctx.fillRect(0, 0, this.stageW, H); }
+    this._hudPart('stageBackground', { x: 0, y: 0, w: this.stageW, h: H }, () => {
+      ctx.globalAlpha = st('stageOpacity'); ctx.fillStyle = '#111111'; ctx.fillRect(0, 0, this.stageW, H); ctx.globalAlpha = 1;
+      const dim = Settings.get('skin.dim'); if (dim > 0) { ctx.fillStyle = `rgba(0,0,0,${dim})`; ctx.fillRect(0, 0, this.stageW, H); }
+    }, true);
     // (WOM's stage lights — a tall glow up a held column — are left out: the receptor lights up instead)
     // (WOM's stage hint — a thick grey line across the stage at the hit position — is left out: it read as clutter)
     ctx.globalAlpha = ro;
@@ -905,7 +928,7 @@ class ManiaRenderer {
       this._drawWomJudgement(realNow); this._drawWomCombo(g.engine.score.combo);
       ctx.setTransform(1, 0, 0, 1, -this.cropX, 0);
       if (this.healthMode === 'stage') this._drawHealth(g.engine.health.value);
-      if (Settings.get('input.keyOverlay')) this._drawKeyOverlay(g);
+      if (Settings.get('input.keyOverlay') || typeof SkinEditor !== 'undefined' && SkinEditor.on) this._drawKeyOverlay(g);
     }
   }
   /** Notes and holds, as WOM's Tap and Hold sprites. */
@@ -966,6 +989,12 @@ class ManiaRenderer {
   /** WOM's judgement: the set's image at its scale, popping from 1.2× over 0.3 s, gone 0.8 s later over 0.3 s; "Early"
    *  / "Late" above it for 200s and below (WOM's default). */
   _drawWomJudgement(realNow) {
+    const y = this.up ? this.H - this.layout.scorePosition * this.s : this.layout.scorePosition * this.s;
+    this.ctx.save(); this.ctx.translate(this.stageX, 0);
+    this._hudPart('judgement', { x: this.stageW / 2 - 80 * this.s, y: y - 30 * this.s, w: 160 * this.s, h: 60 * this.s }, () => this._drawWomJudgementBase(realNow), true);
+    this.ctx.restore();
+  }
+  _drawWomJudgementBase(realNow) {
     const fx = this.judgementFx;
     if (!fx) return;
     const el = Math.max(0, realNow - fx.t0);
@@ -977,10 +1006,9 @@ class ManiaRenderer {
     const p = Math.min(1, el / 300), ease = 1 - (1 - p) * (1 - p);
     // (placed and sized like the Kori skin's: at its score position, in osu!'s 480-tall space)
     const k = WOM.judgementScale(set) * (1.2 - 0.2 * ease) * this.s * 0.5 * Settings.get('skin.scale');
-    const cx = this._tx + this.stageW / 2, y0 = this.layout.scorePosition * this.s, y = this.up ? this.H - y0 : y0;
+    const cx = this.stageW / 2, y0 = this.layout.scorePosition * this.s, y = this.up ? this.H - y0 : y0;
     ctx.globalAlpha = el > 800 ? 1 - (el - 800) / 300 : 1;
     const w = img.naturalWidth * k, h = img.naturalHeight * k;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.drawImage(img, cx - w / 2, y - h / 2, w, h);
     const thr = Settings.get('wom.earlyLate'), score = [320, 300, 200, 100, 50, 0][fx.j];
     if (fx.err != null && fx.j !== J.MISS && thr >= 0 && score <= thr && fx.err !== 0) {
@@ -993,11 +1021,16 @@ class ManiaRenderer {
   }
   _drawWomCombo(combo) {
     if (combo < 1) return;
+    const c = typeof HudLayout !== 'undefined' ? HudLayout.combo() : null, edit = typeof SkinEditor !== 'undefined' && SkinEditor.on;
+    if (c?.off && !edit) { this._cmbRect = null; return; }
     const ctx = this.ctx, y0 = this.layout.comboPosition * this.s;
-    const cx = this._tx + this.stageW / 2, y = this.up ? this.H - y0 : y0;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.font = `800 ${Math.round(14 * this.s)}px WomRobotoMono, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const cx = this.stageX + this.stageW / 2 + (c?.x || 0) * this.W, y = (this.up ? this.H - y0 : y0) + (c?.y || 0) * this.H;
+    const size = Math.round(14 * this.s * (c?.s > 0 ? c.s : 1));
+    ctx.save(); ctx.globalAlpha = c?.off ? .25 : 1;
+    ctx.font = `800 ${size}px WomRobotoMono, "Roboto Mono", monospace`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const w = ctx.measureText(String(combo)).width; this._cmbRect = { x: cx - w / 2, y: y - size / 2, w, h: size };
     ctx.fillStyle = '#dddddd'; ctx.fillText(String(combo), cx, y);
+    ctx.restore();
   }
 
   // ── effects
@@ -1141,6 +1174,10 @@ class ManiaRenderer {
    *  →0.4 (40 ms, In); a miss drops from 1.2× over 100 ms (Out) while tilting up to ±5.73°. Animated judgements run at
    *  20 fps. Sizes are the skin texture's own, in lazer's 768-unit-tall legacy space. */
   _drawJudgement(realNow) {
+    const y = this.up ? this.H - this.layout.scorePosition * this.s : this.layout.scorePosition * this.s;
+    return this._hudPart('judgement', { x: this.stageW / 2 - 80 * this.s, y: y - 30 * this.s, w: 160 * this.s, h: 60 * this.s }, () => this._drawJudgementBase(realNow), true);
+  }
+  _drawJudgementBase(realNow) {
     const fx = this.judgementFx;
     if (!fx) return;
     const L = this.layout, el = Math.max(0, realNow - fx.t0);
@@ -1274,7 +1311,21 @@ class ManiaRenderer {
   }
   /** Health: a slim bar beside the stage running from near the top down to the bottom of the screen.
    *  The value eases smoothly, glows in the accent colour and turns red (with a gentle pulse) when low. */
+  _hudPart(id, rect, draw, local = false) {
+    const c = typeof HudLayout !== 'undefined' ? HudLayout.part?.(id) : null, edit = typeof SkinEditor !== 'undefined' && SkinEditor.on;
+    this._hudRects ||= {};
+    if (c?.off && !edit) { delete this._hudRects[id]; return; }
+    const k = c?.s > 0 ? c.s : 1, dx = (c?.x || 0) * this.W, dy = (c?.y || 0) * this.H;
+    this._hudRects[id] = { x: rect.x + dx + (local ? this.stageX : 0), y: rect.y + dy, w: rect.w * k, h: rect.h * k };
+    if (!c) { draw(); return; }
+    const x = rect.x + dx, y = rect.y + dy, ctx = this.ctx;
+    ctx.save(); ctx.translate(x, y); ctx.scale(k, k); ctx.translate(-rect.x, -rect.y); if (c?.off) ctx.globalAlpha = .25;
+    draw(); ctx.restore();
+  }
   _drawHealth(v) {
+    return this._hudPart('hp', { x: this.stageX + this.stageW + 5 * this.s, y: this.H * .06, w: Math.max(4, 3.4 * this.s), h: this.H * .94 }, () => this._drawHealthBase(v));
+  }
+  _drawHealthBase(v) {
     const ctx = this.ctx, s = this.s, now = performance.now();
     const dt = Math.min(100, now - (this._hpT || now)); this._hpT = now;
     this._hp = this._hp == null ? v : this._hp + (v - this._hp) * Math.min(1, dt / 120);
@@ -1304,6 +1355,11 @@ class ManiaRenderer {
   }
   /** The skin's scorebar, as osu!stable draws it in mania: turned upright beside the stage, filling upwards. */
   _drawSkinHealth(v) {
+    const t = this.layout.tex.scorebarBg || this.layout.tex.scorebarColour; if (!t) return;
+    const k = Math.min(this.s, this.H * .94 / t.w, 66 * this.s / t.h);
+    return this._hudPart('hp', { x: this.stageX + this.stageW + 2 * this.s, y: this.H - t.w * k, w: t.h * k, h: t.w * k }, () => this._drawSkinHealthBase(v));
+  }
+  _drawSkinHealthBase(v) {
     const L = this.layout, col = L.tex.scorebarColour, bg = L.tex.scorebarBg;
     if (!col) return;
     const ctx = this.ctx, now = performance.now();
@@ -1326,6 +1382,9 @@ class ManiaRenderer {
     ctx.restore();
   }
   _drawKeyOverlay(g) {
+    return this._hudPart('keys', { x: this.stageX + this.stageW + 14 * this.s, y: this.H * .5, w: 31 * this.s, h: this.layout.keys * 16 * this.s }, () => this._drawKeyOverlayBase(g));
+  }
+  _drawKeyOverlayBase(g) {
     const ctx = this.ctx, s = this.s, K = this.layout.keys;
     const size = 14 * s, gap = 2 * s;
     const x0 = this.stageX + this.stageW + 14 * s, y0 = this.H * 0.5;

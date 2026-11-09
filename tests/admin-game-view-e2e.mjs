@@ -41,6 +41,8 @@ try {
   }
   const admin = await device('Moderator'), player = await device('Player');
   const visibleVideo = async () => admin.waitForFunction(() => {
+    const menu = AshtonkMania.AdminGameView.current?.menu;
+    if (menu?.active && !menu.paused && !menu.el.hidden && menu.updates > 0) return menu.iframe.contentDocument.body.textContent.trim().length > 0;
     const video = document.querySelector('.admin-view-video');
     if (!video?.videoWidth) return false;
     const canvas = document.createElement('canvas'); canvas.width = canvas.height = 32;
@@ -69,19 +71,80 @@ try {
   catch (e) { for (const [label, pg] of [['player', player], ['admin', admin]]) console.error(label, JSON.stringify(await pg.evaluate(() => ({ captureError: AshtonkMania.AdminGameView.current?.captureError, messages: window.viewMessages, stops: window.viewStops, current: AshtonkMania.AdminGameView.current && { host: AshtonkMania.AdminGameView.current.host, session: AshtonkMania.AdminGameView.current.session, pc: AshtonkMania.AdminGameView.current.pc?.connectionState, ice: AshtonkMania.AdminGameView.current.pc?.iceConnectionState, handle: AshtonkMania.AdminGameView.handle }, toasts: document.querySelector('#toasts').textContent })), null, 2)); throw e; }
   assert.equal(await player.evaluate(() => !!AshtonkMania.AdminGameView.current.capture), true, 'The game renders its own UI without display capture');
   assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.pc.connectionState), 'connected');
-  await visibleVideo();
+  try { await visibleVideo(); } catch (e) {
+    for (const [label, page] of [['source', player], ['viewer', admin]]) console.error(label, JSON.stringify(await page.evaluate(() => { const s = AshtonkMania.AdminGameView.current, m = s?.menu; return { errors: window.viewStops, menu: m && { error: m.error, busy: m.busy, reset: m.reset, active: m.active, ready: m.ready, disabled: m.disabled, paused: m.paused, rendered: m.rendered, updates: m.updates, queued: m.queue.length, epoch: m.epoch, currentEpoch: m.currentEpoch, channel: m.channel.readyState, hidden: m.el?.hidden, html: m.iframe?.contentDocument?.body?.innerHTML.slice(0, 500) }, remotePaused: s?.remotePaused, capture: s?.capture && { suspended: s.capture.suspended, paused: s.capture.paused } }; })));
+    console.error('page errors', errors); throw e;
+  }
   assert.equal(await admin.locator('.admin-view-video').evaluate(el => {
     const r = el.getBoundingClientRect(), css = getComputedStyle(el);
     return r.width >= innerWidth - 1 && r.height >= innerHeight - 1 && css.opacity === '1' && css.filter === 'none';
   }), true, 'Video fills the viewport without dimming');
-  assert.equal(await player.evaluate(() => { const c = AshtonkMania.AdminGameView.current.capture.canvas; return c.width > 0 && c.width <= 1920 && c.height <= 1440 && Math.abs(c.width / c.height - innerWidth / innerHeight) < .01; }), true, 'Adaptive capture preserves aspect ratio at its selected resolution');
+  assert.equal(await player.evaluate(() => { const c = AshtonkMania.AdminGameView.current.capture.canvas; return Math.min(c.width, c.height) >= 720 && Math.max(c.width, c.height) <= Math.max(1920, 720 * Math.max(innerWidth / innerHeight, innerHeight / innerWidth)) + 1 && Math.abs(c.width / c.height - innerWidth / innerHeight) < .01; }), true, 'Adaptive capture preserves aspect ratio with a 720p minimum');
   assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.capture.manual), true, 'Only budgeted frames are submitted to the encoder');
   assert.equal(await player.evaluate(() => window.captureCalls), 0);
+  if (process.env.SOURCE_MOBILE === '1') {
+    await player.setViewportSize({ width: 390, height: 844 });
+    await player.waitForFunction(() => { const c = AshtonkMania.AdminGameView.current.capture.canvas; return c.width >= 720 && c.height >= 1558 && c.height > c.width; });
+    await admin.waitForFunction(() => AshtonkMania.AdminGameView.current.menu.width === 390 && !AshtonkMania.AdminGameView.current.menu.el.hidden);
+    await player.setViewportSize({ width: 844, height: 390 });
+    await admin.waitForFunction(() => AshtonkMania.AdminGameView.current.menu.width === 844 && !AshtonkMania.AdminGameView.current.menu.el.hidden);
+  }
+
+  await admin.evaluate(() => {
+    window.handoffGaps = []; window.handoffMonitoring = true;
+    const frame = () => { if (!window.handoffMonitoring) return; const s = AshtonkMania.AdminGameView.current, m = s?.menu; if (m?.hasSnapshot && !m.paused && !s.remotePaused && m.el.hidden && s.video.style.visibility === 'hidden') window.handoffGaps.push(performance.now()); requestAnimationFrame(frame); }; requestAnimationFrame(frame);
+  });
 
   await player.evaluate(() => AshtonkMania.Screens.go('profile'));
+  await admin.waitForFunction(() => !!AshtonkMania.AdminGameView.current?.menu?.iframe?.contentDocument?.querySelector('.pf-cover'));
   await player.getByRole('button', { name: 'Customize profile', exact: true }).click();
   await player.getByRole('button', { name: 'Aurora profile style', exact: true }).click();
-  await admin.waitForFunction(() => document.querySelector('.admin-view-video')?.currentTime > 1);
+  await admin.waitForFunction(() => AshtonkMania.AdminGameView.current?.menu?.updates > 1);
+  assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.capture.fullSnapshots), 0, 'Menu viewing takes no page screenshots');
+  assert.equal(await player.evaluate(() => !!window.modernScreenshot), false, 'The source does not load the screenshot renderer for menus');
+  const throttle = await player.context().newCDPSession(player); await throttle.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+  const startUpdates = await admin.evaluate(() => AshtonkMania.AdminGameView.current.menu.updates);
+  await player.evaluate(() => {
+    window.menuPerf = { times: [], tasks: [], start: performance.now() + 1000, index: 0 };
+    const el = h('div', { id: 'menu-perf', style: { position: 'fixed', top: '110px', left: '20px', zIndex: 9999, color: '#fff', background: '#18171c' } }, 'Menu update 0'); document.querySelector('#app').append(el);
+    window.menuPerf.timer = setInterval(() => { el.textContent = 'Menu update ' + ++window.menuPerf.index; }, 50);
+    const frame = t => { if (t >= window.menuPerf.start) window.menuPerf.times.push(t); window.menuPerf.raf = requestAnimationFrame(frame); }; window.menuPerf.raf = requestAnimationFrame(frame);
+    window.menuPerf.observer = new PerformanceObserver(list => window.menuPerf.tasks.push(...list.getEntries().filter(e => e.startTime >= window.menuPerf.start).map(e => e.duration))); window.menuPerf.observer.observe({ type: 'longtask', buffered: false });
+  });
+  await player.waitForTimeout(6000);
+  const seenIndex = await admin.evaluate(() => Number(AshtonkMania.AdminGameView.current.menu.iframe.contentDocument.querySelector('#menu-perf')?.textContent.match(/\d+/)?.[0]));
+  const metrics = await player.evaluate(() => {
+    const p = window.menuPerf, dt = p.times.slice(1).map((t, i) => t - p.times[i]).sort((a, b) => a - b);
+    const result = { fps: (p.times.length - 1) * 1000 / (p.times.at(-1) - p.times[0]), p95FrameMs: dt[Math.floor(dt.length * .95)], longTasks: p.tasks.length, longTaskMs: p.tasks.reduce((a, b) => a + b, 0), last: p.index, screenshots: AshtonkMania.AdminGameView.current.capture.fullSnapshots, pixels: AshtonkMania.AdminGameView.current.capture.paintedFrames };
+    clearInterval(p.timer); cancelAnimationFrame(p.raf); p.observer.disconnect(); document.querySelector('#menu-perf').remove(); return result;
+  });
+  await throttle.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  const changed = await admin.evaluate(() => AshtonkMania.AdminGameView.current.menu.updates) - startUpdates;
+  assert.ok(metrics.fps > 45, JSON.stringify(metrics)); assert.equal(metrics.screenshots, 0); assert.equal(metrics.pixels, 0);
+  assert.ok(metrics.last - seenIndex < 8, 'Menu updates arrive within eight 50ms changes'); assert.ok(changed > 50, 'Fresh menu updates are not limited to low video FPS');
+  console.log('MENU PERFORMANCE 4x CPU:', JSON.stringify({ ...metrics, viewerUpdates: changed, viewerLagInUpdates: metrics.last - seenIndex }));
+  await admin.evaluate(() => { window.menuExecuted = 0; });
+  await player.evaluate(() => {
+    const channel = AshtonkMania.AdminGameView.current.menu.channel;
+    const send = (v, k) => channel.send(JSON.stringify({ k, i: 0, n: 1, d: JSON.stringify(v) }));
+    send({ t: 'mode', active: true, blocked: false, epoch: 99999 }, 900000);
+    send({ t: 'snapshot', epoch: 99999, w: 1440, h: 960, html: {}, tree: { i: 1, t: 'body', a: {}, c: [
+      { i: 2, t: 'script', a: {}, c: [{ i: 3, x: 'parent.menuExecuted=1' }] },
+      { i: 4, t: 'iframe', a: { src: '/admin' }, c: [] },
+      { i: 5, t: 'img', a: { src: 'https://example.invalid/tracker', onerror: 'parent.menuExecuted=1', style: 'background-image:url(https://example.invalid/tracker)' }, c: [] },
+      { i: 6, t: 'svg', a: {}, c: [{ i: 7, t: 'foreignObject', a: {}, c: [] }] },
+      { i: 8, t: 'input', a: { type: 'file', value: 'C:/fakepath/test.osz' }, c: [] },
+      { i: 9, t: 'div', a: { id: 'after-file-input' }, c: [{ i: 10, x: 'Still renders' }] }
+    ] } }, 900001);
+  });
+  await admin.waitForFunction(() => AshtonkMania.AdminGameView.current.menu.epoch === 99999);
+  assert.equal(await admin.evaluate(() => window.menuExecuted), 0);
+  assert.equal(await admin.evaluate(() => AshtonkMania.AdminGameView.current.menu.iframe.contentDocument.querySelectorAll('script, iframe, [onerror], foreignObject, img[src^="https:"]').length), 0);
+  assert.equal(await admin.evaluate(() => AshtonkMania.AdminGameView.current.menu.iframe.getAttribute('sandbox')), 'allow-same-origin', 'Remote content has no script permission');
+  assert.equal(await admin.evaluate(() => AshtonkMania.AdminGameView.current.menu.iframe.contentDocument.querySelector('#after-file-input')?.textContent), 'Still renders', 'Selected file inputs cannot abort a menu snapshot');
+  await admin.evaluate(() => AshtonkMania.AdminGameView.current.menu.setPaused(false));
+  await admin.waitForFunction(() => AshtonkMania.AdminGameView.current.menu.epoch !== 99999 && !!AshtonkMania.AdminGameView.current.menu.iframe.contentDocument.querySelector('.pf-cover'));
+
   await player.getByRole('button', { name: 'Pause sharing', exact: true }).click();
   await admin.waitForFunction(() => AshtonkMania.AdminGameView.current?.remotePaused === true);
   assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.capture.paused), true);
@@ -96,7 +159,8 @@ try {
   });
   await player.evaluate(() => AshtonkMania.CodePanel.close());
   await admin.waitForFunction(() => AshtonkMania.AdminGameView.current?.remotePaused === false);
-  await player.waitForFunction(() => !!AshtonkMania.AdminGameView.current?.capture?.frame);
+  await player.waitForFunction(() => AshtonkMania.AdminGameView.current?.menu?.active && AshtonkMania.AdminGameView.current.menu.updates > 0);
+  await admin.waitForFunction(() => !!AshtonkMania.AdminGameView.current?.menu?.iframe?.contentDocument?.querySelector('.pf-cover'));
   await visibleVideo();
   if (process.env.SHOT_DIR) await admin.screenshot({ path: join(process.env.SHOT_DIR, 'admin-live-game-view.png') });
   await player.evaluate(async () => {
@@ -117,8 +181,11 @@ try {
   await player.waitForFunction(url => AshtonkMania.AdminGameView.current.capture.background?.src === url, lateBackground);
 
   await visibleVideo();
+  await admin.waitForFunction(() => { const s = AshtonkMania.AdminGameView.current; return s?.menu && !s.menu.active && s.menu.el.hidden && s.video.style.visibility !== 'hidden'; });
   if (process.env.SHOT_DIR) await admin.screenshot({ path: join(process.env.SHOT_DIR, process.env.SOURCE_MOBILE ? 'admin-live-gameplay-mobile.png' : 'admin-live-gameplay.png') });
   await player.evaluate(() => AshtonkMania.Screens.go('songselect'));
+  await admin.waitForFunction(() => { const m = AshtonkMania.AdminGameView.current?.menu; return m?.active && !m.el.hidden && !!m.iframe.contentDocument.querySelector('.ss'); });
+  assert.deepEqual(await admin.evaluate(() => { window.handoffMonitoring = false; return window.handoffGaps; }), [], 'Screen handoffs always retain a visible menu or video frame');
   await admin.getByRole('button', { name: 'Stop watching', exact: true }).click();
   await player.waitForFunction(() => !AshtonkMania.AdminGameView.current);
   // More than the server's short rejoin cooldown has elapsed during the checks above.

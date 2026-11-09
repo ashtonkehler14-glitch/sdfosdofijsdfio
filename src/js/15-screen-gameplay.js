@@ -125,8 +125,8 @@ const FAIL_WIND_DOWN = 1.2; // seconds the song takes to wind down after a fail
 
 /** Which health bar a play shows: the skin's own (top left, or beside the stage), osu!lazer's, the slim stage bar,
  *  or none. A skin without scorebar images gets the osu!lazer bar. */
-function healthModeFor(layout) {
-  if (!Settings.get('gameplay.showHealth')) return null;
+function healthModeFor(layout, preview = false) {
+  if (!preview && !Settings.get('gameplay.showHealth')) return null;
   const hs = Settings.get('gameplay.healthStyle');
   if (hs === 'stage') return 'stage';
   if ((hs === 'skin' || hs === 'skinstage') && layout && layout.tex.scorebarColour) return hs;
@@ -303,6 +303,7 @@ const GameplayScreen = {
     this._settingsSub = Bus.on('settings:changed', k => {
       // (dim and blur only change the picture behind: no new layout for the playfield, on every slider step)
       if (/^gameplay\.(bgDim|bgBlur)$/.test(k)) { if (this.s || this.bgRec) this.applyBackground(); return; }
+      if (this.s && ['gameplay.showHealth', 'gameplay.showPp', 'gameplay.healthStyle', 'gameplay.progressDisplay', 'gameplay.judgementCounter', 'gameplay.judgementCounterFlow', 'gameplay.hitErrorMeter'].includes(k)) this.buildHud();
       if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k.startsWith('wom.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); const rp = this.hud && this.hud.querySelector('.hud-replay'); if (rp) rp.classList.toggle('low', this.renderer.up); }
       if (k === 'debug.overlay' && this.debugEl) this.debugEl.hidden = !Settings.get('debug.overlay'); });
     // (this entry's token, taken now: a frame that only comes after the screen was left — a tab in the background —
@@ -819,7 +820,7 @@ const GameplayScreen = {
     this.scoreEl = h('div.sc', '0'); this.accEl = h('div.acc', '100.00%');
     this.progEl = h('i');
     this.pieEl = h('div.hud-pie', { title: 'Song progress' });
-    this.ppEl = h('div.hud-pp');
+    this.ppEl = h('div.hud-pp', all ? '0' : '');
     const pd = Settings.get('gameplay.progressDisplay');
     this.sp = pd === 'graph' ? this.songProgress(s) : null;
     this.hud.classList.toggle('has-sp', !!this.sp);
@@ -865,6 +866,13 @@ const GameplayScreen = {
     else this.buildLeaderboard();
     this.board().classList.toggle('lb-off', !Settings.get('gameplay.leaderboard') && !all);
     // osu!lazer-style health bar (top left): the fill eases to the new value, and a red trail shows what a miss took
+    this.healthMode = healthModeFor(s.layout, all);
+    if (typeof Mobile !== 'undefined' && Mobile.touch && innerHeight > innerWidth && ['stage', 'skinstage', 'skin'].includes(this.healthMode)) this.healthMode = 'lazer';
+    this.renderer.healthMode = ['stage', 'skinstage'].includes(this.healthMode) ? this.healthMode : null;
+    this.renderer.resize(true);
+    if (this.renderer.healthMode && this.renderer.fnf && this.renderer.stageX + this.renderer.stageW + this.renderer._cropMargins()[1] > this.renderer.W) {
+      this.healthMode = 'lazer'; this.renderer.healthMode = null; this.renderer.resize(true);
+    }
     this.hpEl = this._hpQ = this._hpLow = null;
     this.skinHp = null;
     if (this.healthMode === 'skin') {
@@ -1159,7 +1167,7 @@ const GameplayScreen = {
         if (lead !== this._lead) { this._lead = lead; this.pieEl.classList.toggle('lead', lead); }
       }
     }
-    if (Settings.get('gameplay.showPp') && s.mode !== 'auto') {
+    if (this._hudAll || Settings.get('gameplay.showPp') && s.mode !== 'auto') {
       // live pp only changes when a note is judged
       if (e.score.judged !== this._ppJudged) {
         this._ppJudged = e.score.judged;

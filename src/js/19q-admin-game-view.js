@@ -32,7 +32,7 @@ const AdminGameView = {
   on(m) {
     if (m.t === 'adminViewReady' && m.host) {
       if (this.current || typeof RTCPeerConnection === 'undefined') { Presence.send({ t: 'adminViewStop', session: m.session }); return; }
-      const source = this.current = { host: true, session: m.session, name: m.name || 'Admin' };
+      const source = this.current = { host: true, session: m.session, name: m.name || 'Admin', menuMirror: typeof MenuView !== 'undefined' };
       if (m.notify) Toast.show('Live View', `${source.name} is viewing your game.`);
       this.share(source).then(() => {
         if (this.current !== source) return;
@@ -52,7 +52,7 @@ const AdminGameView = {
       clearTimeout(s.timer); s.timer = setTimeout(() => { if (this.current === s) this.stop('The 30-minute game view ended.'); }, 30 * 60000);
       this.ready(s, m.iceServers).catch(() => { if (this.current === s) this.stop('The game view could not connect.'); }); return;
     }
-    if (m.t === 'adminViewState' && !s.host) { s.remotePaused = m.paused; this.status(s); return; }
+    if (m.t === 'adminViewState' && !s.host) { s.remotePaused = m.paused; s.menu?.setPaused(m.paused); this.status(s); return; }
     if (m.t === 'adminViewSignal') {
       s.signals = (s.signals || Promise.resolve()).then(() => this.signal(s, m.signal)).catch(() => { if (this.current === s) this.stop('The game view could not connect.'); });
     }
@@ -92,7 +92,7 @@ const AdminGameView = {
     if (this.current !== s || !s.track) return;
     const privatePanel = this.privateOpen();
     const paused = !!s.paused || privatePanel;
-    s.capture?.setPaused(paused);
+    s.capture?.setPaused(paused); s.menu?.setPaused(paused);
     // Manual canvas tracks must stay enabled to transmit their black privacy frames.
     s.track.enabled = !paused || !!s.capture?.manual;
     const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : `Sharing your game with ${s.name}`;
@@ -108,6 +108,11 @@ const AdminGameView = {
     if (s.host && !s.stream) { this.stop('The game view could not start.'); return; }
     const pc = s.pc = new RTCPeerConnection({ iceServers: iceServers.length ? iceServers : [{ urls: 'stun:stun.cloudflare.com:3478' }] });
     s.ice = [];
+    if (typeof MenuView !== 'undefined') {
+      const open = channel => { if (channel.label !== 'game-menu-v1' || this.current !== s) { channel.close(); return; } s.menu?.stop(); s.menu = MenuView.open(s, channel, () => this.current === s, () => this.privateOpen()); if (s.host) s.menu.setPaused(!!s.sentPaused); };
+      if (s.host && s.menuMirror) open(pc.createDataChannel('game-menu-v1', { ordered: true }));
+      else pc.ondatachannel = e => open(e.channel);
+    }
     pc.onicecandidate = e => { if (this.current === s && e.candidate) this.send('adminViewSignal', { signal: { candidate: e.candidate.toJSON() } }); };
     pc.onconnectionstatechange = () => {
       if (this.current !== s) return;
@@ -156,7 +161,7 @@ const AdminGameView = {
     if (notify) this.send('adminViewStop');
     this.current = null;
     for (const t of [s.timer, s.connecting, s.disconnected]) clearTimeout(t);
-    s.pc?.close();
+    s.menu?.stop(); s.pc?.close();
     s.observer?.disconnect(); if (s.capture) s.capture.stop(); else s.stream?.getTracks().forEach(t => t.stop());
     if (s.video) { s.video.pause(); s.video.srcObject = null; }
     s.bar?.remove(); s.dialog?.close(); s.overlay?.close();
