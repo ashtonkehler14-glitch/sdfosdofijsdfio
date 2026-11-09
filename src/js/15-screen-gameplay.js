@@ -946,6 +946,8 @@ const GameplayScreen = {
       const s = this.s;
       if (!s) return;
       const w0 = performance.now(), realNow = ts > 0 ? ts : w0;
+      const view = typeof AdminGameView !== 'undefined' && AdminGameView.current?.capture;
+      view?.gameFrameBegin?.(realNow);
       // the display's refresh interval, for the frame limiter
       if (this._lastTs && realNow > this._lastTs) this._refresh += (clamp(realNow - this._lastTs, 2, 50) - this._refresh) * 0.1;
       this._lastTs = realNow;
@@ -981,7 +983,7 @@ const GameplayScreen = {
         // refresh that reaches it: the average rate is the limit, and a limit at or above the refresh rate never
         // drops a frame because of timing jitter
         const iv = 1000 / lim;
-        if (this._due && realNow < this._due - this._refresh / 2) return;
+        if (this._due && realNow < this._due - this._refresh / 2) { view?.gameFrameEnd?.(realNow, performance.now() - w0, lim, false); return; }
         this._due = this._due && this._due > realNow - iv ? this._due + iv : realNow + iv;
       }
       if (s.running) this.adaptResolution(realNow - this.lastRender, realNow, lim);
@@ -1014,6 +1016,7 @@ const GameplayScreen = {
       if (!this.debugEl.hidden) this.updateDebug(now, realNow);
       FPS.frame(realNow);
       this._work = performance.now() - w0;
+      view?.gameFrameEnd?.(realNow, this._work, lim, true);
     };
     frame(performance.now());
   },

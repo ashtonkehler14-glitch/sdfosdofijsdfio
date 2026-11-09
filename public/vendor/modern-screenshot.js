@@ -1,4 +1,4 @@
-/* modern-screenshot 4.7.0 — game-video snapshot adaptation.
+/* modern-screenshot 4.7.0 — game-video snapshot and cooperative scheduling adaptations.
 The MIT License (MIT)
 
 Copyright (c) 2021-present wxm
@@ -501,6 +501,7 @@ async function imageToCanvas(image, context) {
   } = context;
   log.time("image to canvas");
   const loaded = await loadMedia(image, { timeout, onWarn: context.log.warn });
+  await context.onBeforeWork?.(true);
   const { canvas, context2d } = createCanvas(image.ownerDocument, context);
   const drawImage = () => {
     try {
@@ -950,6 +951,7 @@ function applyCssStyleWithOptions(cloned, context) {
 }
 const NORMAL_ATTRIBUTE_RE = /^[\w-:]+$/;
 async function cloneNode(node, context, isRoot = false, addWordToFontFamilies) {
+  await context.onBeforeWork?.();
   const { ownerDocument, ownerWindow, fontFamilies, onCloneEachNode } = context;
   if (ownerDocument && isTextNode(node)) {
     if (addWordToFontFamilies && /\S/.test(node.data)) {
@@ -1285,7 +1287,8 @@ function embedSvgUse(cloned, context) {
   return [];
 }
 
-function embedNode(cloned, context) {
+async function embedNode(cloned, context) {
+  await context.onBeforeWork?.();
   const { tasks } = context;
   if (isElementNode(cloned)) {
     if (isImageElement(cloned) || isSVGImageElementNode(cloned)) {
@@ -1298,9 +1301,7 @@ function embedNode(cloned, context) {
   if (isHTMLElementNode(cloned)) {
     tasks.push(...embedCssStyleImage(cloned.style, context));
   }
-  cloned.childNodes.forEach((child) => {
-    embedNode(child, context);
-  });
+  for (const child of cloned.childNodes) await embedNode(child, context);
 }
 
 async function embedWebFont(clone, context) {
@@ -1334,7 +1335,7 @@ async function embedWebFont(clone, context) {
     const tempStyleSheet = tempStyleEl.sheet;
     await Promise.all(
       styleSheets.flatMap((styleSheet) => {
-        return Array.from(styleSheet.cssRules).map(async (cssRule) => {
+        return Array.from(styleSheet.cssRules).filter(isCSSImportRule).map(async (cssRule) => {
           if (isCSSImportRule(cssRule)) {
             const baseUrl = cssRule.href;
             let cssText = "";
@@ -1497,7 +1498,7 @@ async function domToForeignObjectSvg(node, options) {
     log.timeEnd("embed web font");
   }
   log.time("embed node");
-  embedNode(clone, context);
+  await embedNode(clone, context);
   const count = tasks.length;
   let current = 0;
   const runTask = async () => {
@@ -1540,6 +1541,7 @@ function createForeignObjectSvg(clone, context) {
 async function domToCanvas(node, options) {
   const context = await orCreateContext(node, options);
   const svg = await domToForeignObjectSvg(context);
+  await context.onBeforeWork?.(true);
   const dataUrl = svgToDataUrl(svg, context.isEnable("removeControlCharacter"));
   if (!context.autoDestruct) {
     context.svgStyleElement = createStyleElement(context.ownerDocument);

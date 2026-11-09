@@ -58,19 +58,28 @@ const AdminGameView = {
       s.signals = (s.signals || Promise.resolve()).then(() => this.signal(s, m.signal)).catch(() => { if (this.current === s) this.stop('The game view could not connect.'); });
     }
   },
+  PRIVATE: '.login-panel, .setup-step-account, input[type=password], [data-private]',
   privateOpen() {
-    return [...document.querySelectorAll('.login-panel, .setup-step-account, input[type=password], [data-private]')].some(el => el.getClientRects().length);
+    const nodes = this.current?.privateNodes || [...document.querySelectorAll(this.PRIVATE)];
+    return nodes.some(el => el.isConnected !== false && el.getClientRects().length);
   },
   async share(s) {
     if (this.current !== s) return;
+    s.privateNodes = null; // Until the observer is installed, privateOpen reads the live document.
     const capture = await GameViewCapture.create(s, () => this.current === s, () => this.privateOpen());
     if (!capture) return;
     if (this.current !== s) { capture.stop(); return; }
     s.capture = capture; s.stream = capture.stream; s.track = capture.track;
     try { s.track.contentHint = 'detail'; } catch { /* optional hint */ }
     this.sharingBar(s);
-    s.observer = new MutationObserver(() => this.protect(s));
-    s.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+    s.privateNodes = [...document.querySelectorAll(this.PRIVATE)];
+    s.observer = new MutationObserver(records => {
+      const relevant = records.some(r => r.type === 'attributes' ? r.target.matches(this.PRIVATE) || s.privateNodes.some(el => r.target === el || r.target.contains(el)) :
+        [...r.addedNodes, ...r.removedNodes].some(el => el.nodeType === 1 && (el.matches(this.PRIVATE) || el.querySelector(this.PRIVATE) || s.privateNodes.some(n => el.contains(n)))));
+      if (!relevant) return;
+      s.privateNodes = [...document.querySelectorAll(this.PRIVATE)]; this.protect(s);
+    });
+    s.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class', 'style', 'type', 'data-private'] });
     this.protect(s);
   },
   sharingBar(s) {
@@ -84,7 +93,9 @@ const AdminGameView = {
     if (this.current !== s || !s.track) return;
     const privatePanel = this.privateOpen();
     const paused = !!s.paused || privatePanel;
-    s.capture?.setPaused(paused); s.track.enabled = !paused;
+    s.capture?.setPaused(paused);
+    // Manual canvas tracks must stay enabled to transmit their black privacy frames.
+    s.track.enabled = !paused || !!s.capture?.manual;
     const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : `Sharing your game with ${s.name}`;
     const button = s.paused ? 'Resume sharing' : 'Pause sharing';
     if (s.label.textContent !== label) s.label.textContent = label;
@@ -104,7 +115,7 @@ const AdminGameView = {
       clearTimeout(s.disconnected);
       if (pc.connectionState === 'connected') {
         if (!s.host) this.status(s);
-        else for (const sender of pc.getSenders()) { const p = sender.getParameters(); if (p.encodings?.length) { p.encodings[0].maxBitrate = 8000000; p.degradationPreference = 'maintain-resolution'; sender.setParameters(p).catch(() => {}); } }
+        else for (const sender of pc.getSenders()) s.capture?.setSender(sender);
       }
       else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') this.stop('The game-view connection ended.');
       else if (pc.connectionState === 'disconnected') s.disconnected = setTimeout(() => { if (this.current === s) this.stop('The game-view connection was lost.'); }, 10000);

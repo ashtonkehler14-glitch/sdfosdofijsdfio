@@ -126,3 +126,45 @@ test('account details pause the video track, and manual pause stays set when the
   privatePanel = false; A.protect(s); assert.equal(s.track.enabled, false);
   s.paused = false; A.protect(s); assert.equal(s.track.enabled, true);
 });
+
+test('privacy protection caches account panels instead of querying the entire GUI on every HUD change', async () => {
+  const { AdminGameView: A, __ctx } = load(['19q-admin-game-view.js']);
+  let queries = 0, observer;
+  __ctx.document = { body: {}, querySelectorAll: () => { queries++; return []; } };
+  __ctx.Presence = { send() {} };
+  __ctx.MutationObserver = class { constructor(fn) { observer = fn; } observe() {} };
+  __ctx.GameViewCapture = { create: async () => ({ stream: {}, track: { enabled: true }, setPaused() {} }) };
+  A.sharingBar = s => { s.label = {}; s.pause = {}; };
+  const s = A.current = { host: true, session: 's', name: 'Admin' }; await A.share(s);
+  for (let i = 0; i < 50; i++) { observer([{ type: 'childList', addedNodes: [{ nodeType: 3 }], removedNodes: [] }]); A.privateOpen(); }
+  assert.equal(queries, 1, 'only the initial panel scan is needed');
+  s.privateNodes = [{ isConnected: true, getClientRects: () => [1] }]; A.protect(s); assert.equal(s.track.enabled, false);
+});
+
+test('an account panel opened while the capture library loads is protected before sharing starts', async () => {
+  const { AdminGameView: A, __ctx } = load(['19q-admin-game-view.js']);
+  let visible = false;
+  const panel = { isConnected: true, getClientRects: () => visible ? [1] : [] };
+  __ctx.document = { body: {}, querySelectorAll: () => visible ? [panel] : [] }; __ctx.Presence = { send() {} };
+  __ctx.MutationObserver = class { observe() {} };
+  __ctx.GameViewCapture = { create: async (_owner, _valid, privateOpen) => { visible = true; assert.equal(privateOpen(), true); return { stream: {}, track: { enabled: true }, setPaused() {} }; } };
+  A.sharingBar = s => { s.label = {}; s.pause = {}; }; const s = A.current = { host: true, session: 's', name: 'Admin' };
+  await A.share(s); assert.equal(s.track.enabled, false);
+});
+
+test('marking an existing panel private updates the cached guard immediately', async () => {
+  const { AdminGameView: A, __ctx } = load(['19q-admin-game-view.js']); let privateNow = false, observer;
+  const panel = { isConnected: true, matches: () => privateNow, getClientRects: () => [1] };
+  __ctx.document = { body: {}, querySelectorAll: () => privateNow ? [panel] : [] }; __ctx.Presence = { send() {} };
+  __ctx.MutationObserver = class { constructor(fn) { observer = fn; } observe() {} };
+  __ctx.GameViewCapture = { create: async () => ({ stream: {}, track: { enabled: true }, setPaused() {} }) };
+  A.sharingBar = s => { s.label = {}; s.pause = {}; }; const s = A.current = { host: true, session: 's', name: 'Admin' };
+  await A.share(s); privateNow = true; observer([{ type: 'attributes', target: panel }]); assert.equal(s.track.enabled, false);
+});
+
+test('manual capture keeps its track available for black privacy frames while its renderer is paused', () => {
+  const { AdminGameView: A, __ctx } = load(['19q-admin-game-view.js']); let paused = false;
+  __ctx.document = { querySelectorAll: () => [{ getClientRects: () => [1] }] }; __ctx.Presence = { send() {} };
+  const s = A.current = { session: 's', track: { enabled: true }, capture: { manual: true, setPaused: v => { paused = v; } }, label: {}, pause: {}, name: 'Admin' };
+  A.protect(s); assert.equal(paused, true); assert.equal(s.track.enabled, true);
+});

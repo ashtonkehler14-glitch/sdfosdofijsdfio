@@ -75,7 +75,8 @@ try {
     const r = el.getBoundingClientRect(), css = getComputedStyle(el);
     return r.width >= innerWidth - 1 && r.height >= innerHeight - 1 && css.opacity === '1' && css.filter === 'none';
   }), true, 'Video fills the viewport without dimming');
-  assert.ok((await player.evaluate(() => AshtonkMania.AdminGameView.current.capture.canvas.width)) >= (await player.evaluate(() => innerWidth)), 'Capture retains the game viewport resolution');
+  assert.equal(await player.evaluate(() => { const c = AshtonkMania.AdminGameView.current.capture.canvas; return c.width > 0 && c.width <= 1920 && c.height <= 1440 && Math.abs(c.width / c.height - innerWidth / innerHeight) < .01; }), true, 'Adaptive capture preserves aspect ratio at its selected resolution');
+  assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.capture.manual), true, 'Only budgeted frames are submitted to the encoder');
   assert.equal(await player.evaluate(() => window.captureCalls), 0);
 
   await player.evaluate(() => AshtonkMania.Screens.go('profile'));
@@ -84,11 +85,11 @@ try {
   await admin.waitForFunction(() => document.querySelector('.admin-view-video')?.currentTime > 1);
   await player.getByRole('button', { name: 'Pause sharing', exact: true }).click();
   await admin.waitForFunction(() => AshtonkMania.AdminGameView.current?.remotePaused === true);
-  assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.track.enabled), false);
+  assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.capture.paused), true);
   await player.getByRole('button', { name: 'Resume sharing', exact: true }).click();
   await player.evaluate(() => AshtonkMania.CodePanel.open());
   await admin.waitForFunction(() => AshtonkMania.AdminGameView.current?.remotePaused === true);
-  assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.track.enabled), false);
+  assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.capture.paused), true);
   await admin.waitForFunction(() => {
     const v = document.querySelector('.admin-view-video'); if (!v?.videoWidth) return false;
     const c = document.createElement('canvas'); c.width = c.height = 16; const ctx = c.getContext('2d'); ctx.drawImage(v, 0, 0, 16, 16);
@@ -107,7 +108,7 @@ try {
     const A = AshtonkMania, map = [...A.BeatmapManager.maps.values()].find(m => m.keys === 4 && !m.problems.length);
     await A.Game.launch({ mapId: map.id, mods: ['NF'], mode: 'play' });
   });
-  try { await player.waitForFunction(() => AshtonkMania.GameplayScreen.s?.running && AshtonkMania.AdminGameView.current?.capture?.frameMode?.startsWith('gameplay/true')); } catch (e) { console.error('Gameplay capture state:', JSON.stringify(await player.evaluate(() => ({ screen: Screens.currentName, running: GameplayScreen.s?.running, state: GameplayScreen.s && { finished: GameplayScreen.s.finished, failed: GameplayScreen.s.failed }, mode: AdminGameView.current?.capture?.frameMode, capturedAgo: performance.now() - (AdminGameView.current?.capture?.captured || 0), videos: [...document.querySelectorAll('video')].map(v => ({ state: v.readyState, paused: v.paused })), private: AdminGameView.privateOpen(), error: AdminGameView.current?.captureError, overlays: Overlays.stack.length, label: AdminGameView.current?.label?.textContent })))); throw e; }
+  try { await player.waitForFunction(() => AshtonkMania.GameplayScreen.s?.running && AshtonkMania.AdminGameView.current?.capture?.liveFrameMode?.startsWith('gameplay/true')); } catch (e) { console.error('Gameplay capture state:', JSON.stringify(await player.evaluate(() => ({ screen: Screens.currentName, running: GameplayScreen.s?.running, state: GameplayScreen.s && { finished: GameplayScreen.s.finished, failed: GameplayScreen.s.failed }, mode: AdminGameView.current?.capture?.frameMode, capturedAgo: performance.now() - (AdminGameView.current?.capture?.captured || 0), videos: [...document.querySelectorAll('video')].map(v => ({ state: v.readyState, paused: v.paused })), private: AdminGameView.privateOpen(), error: AdminGameView.current?.captureError, overlays: Overlays.stack.length, label: AdminGameView.current?.label?.textContent })))); throw e; }
   await visibleVideo();
   if (process.env.SHOT_DIR) await admin.screenshot({ path: join(process.env.SHOT_DIR, process.env.SOURCE_MOBILE ? 'admin-live-gameplay-mobile.png' : 'admin-live-gameplay.png') });
   await player.evaluate(() => AshtonkMania.Screens.go('songselect'));

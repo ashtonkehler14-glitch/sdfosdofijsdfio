@@ -21396,6 +21396,8 @@ const GameplayScreen = {
       const s = this.s;
       if (!s) return;
       const w0 = performance.now(), realNow = ts > 0 ? ts : w0;
+      const view = typeof AdminGameView !== 'undefined' && AdminGameView.current?.capture;
+      view?.gameFrameBegin?.(realNow);
       // the display's refresh interval, for the frame limiter
       if (this._lastTs && realNow > this._lastTs) this._refresh += (clamp(realNow - this._lastTs, 2, 50) - this._refresh) * 0.1;
       this._lastTs = realNow;
@@ -21431,7 +21433,7 @@ const GameplayScreen = {
         // refresh that reaches it: the average rate is the limit, and a limit at or above the refresh rate never
         // drops a frame because of timing jitter
         const iv = 1000 / lim;
-        if (this._due && realNow < this._due - this._refresh / 2) return;
+        if (this._due && realNow < this._due - this._refresh / 2) { view?.gameFrameEnd?.(realNow, performance.now() - w0, lim, false); return; }
         this._due = this._due && this._due > realNow - iv ? this._due + iv : realNow + iv;
       }
       if (s.running) this.adaptResolution(realNow - this.lastRender, realNow, lim);
@@ -21464,6 +21466,7 @@ const GameplayScreen = {
       if (!this.debugEl.hidden) this.updateDebug(now, realNow);
       FPS.frame(realNow);
       this._work = performance.now() - w0;
+      view?.gameFrameEnd?.(realNow, this._work, lim, true);
     };
     frame(performance.now());
   },
@@ -34444,19 +34447,28 @@ const AdminGameView = {
       s.signals = (s.signals || Promise.resolve()).then(() => this.signal(s, m.signal)).catch(() => { if (this.current === s) this.stop('The game view could not connect.'); });
     }
   },
+  PRIVATE: '.login-panel, .setup-step-account, input[type=password], [data-private]',
   privateOpen() {
-    return [...document.querySelectorAll('.login-panel, .setup-step-account, input[type=password], [data-private]')].some(el => el.getClientRects().length);
+    const nodes = this.current?.privateNodes || [...document.querySelectorAll(this.PRIVATE)];
+    return nodes.some(el => el.isConnected !== false && el.getClientRects().length);
   },
   async share(s) {
     if (this.current !== s) return;
+    s.privateNodes = null; // Until the observer is installed, privateOpen reads the live document.
     const capture = await GameViewCapture.create(s, () => this.current === s, () => this.privateOpen());
     if (!capture) return;
     if (this.current !== s) { capture.stop(); return; }
     s.capture = capture; s.stream = capture.stream; s.track = capture.track;
     try { s.track.contentHint = 'detail'; } catch { /* optional hint */ }
     this.sharingBar(s);
-    s.observer = new MutationObserver(() => this.protect(s));
-    s.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class'] });
+    s.privateNodes = [...document.querySelectorAll(this.PRIVATE)];
+    s.observer = new MutationObserver(records => {
+      const relevant = records.some(r => r.type === 'attributes' ? r.target.matches(this.PRIVATE) || s.privateNodes.some(el => r.target === el || r.target.contains(el)) :
+        [...r.addedNodes, ...r.removedNodes].some(el => el.nodeType === 1 && (el.matches(this.PRIVATE) || el.querySelector(this.PRIVATE) || s.privateNodes.some(n => el.contains(n)))));
+      if (!relevant) return;
+      s.privateNodes = [...document.querySelectorAll(this.PRIVATE)]; this.protect(s);
+    });
+    s.observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['hidden', 'class', 'style', 'type', 'data-private'] });
     this.protect(s);
   },
   sharingBar(s) {
@@ -34470,7 +34482,9 @@ const AdminGameView = {
     if (this.current !== s || !s.track) return;
     const privatePanel = this.privateOpen();
     const paused = !!s.paused || privatePanel;
-    s.capture?.setPaused(paused); s.track.enabled = !paused;
+    s.capture?.setPaused(paused);
+    // Manual canvas tracks must stay enabled to transmit their black privacy frames.
+    s.track.enabled = !paused || !!s.capture?.manual;
     const label = privatePanel ? 'Sharing paused while account details are open' : paused ? 'Game sharing paused' : `Sharing your game with ${s.name}`;
     const button = s.paused ? 'Resume sharing' : 'Pause sharing';
     if (s.label.textContent !== label) s.label.textContent = label;
@@ -34490,7 +34504,7 @@ const AdminGameView = {
       clearTimeout(s.disconnected);
       if (pc.connectionState === 'connected') {
         if (!s.host) this.status(s);
-        else for (const sender of pc.getSenders()) { const p = sender.getParameters(); if (p.encodings?.length) { p.encodings[0].maxBitrate = 8000000; p.degradationPreference = 'maintain-resolution'; sender.setParameters(p).catch(() => {}); } }
+        else for (const sender of pc.getSenders()) s.capture?.setSender(sender);
       }
       else if (pc.connectionState === 'failed' || pc.connectionState === 'closed') this.stop('The game-view connection ended.');
       else if (pc.connectionState === 'disconnected') s.disconnected = setTimeout(() => { if (this.current === s) this.stop('The game-view connection was lost.'); }, 10000);
@@ -34540,13 +34554,91 @@ const AdminGameView = {
   },
 };
 
+/* ===== 19q0-view-budget.js ===== */
+/* Stream quality is expendable. The player's configured frame limit and display cadence are not. */
+class GameViewBudget {
+  static TIERS = [
+    { fps: 2, width: 480, bitrate: 180000, snapshot: 6000 },
+    { fps: 5, width: 640, bitrate: 400000, snapshot: 4000 },
+    { fps: 10, width: 854, bitrate: 800000, snapshot: 3000 },
+    { fps: 15, width: 1024, bitrate: 1400000, snapshot: 2200 },
+    { fps: 24, width: 1280, bitrate: 2600000, snapshot: 1500 },
+    { fps: 30, width: 1920, bitrate: 5000000, snapshot: 1000 },
+  ];
+  constructor() {
+    this.level = 5; this.displayMs = 1000 / 60; this.targetMs = this.displayMs;
+    this.work = 0; this.paintCost = .4; this.last = 0; this.lastDraw = 0; this.window = 0;
+    this.frames = 0; this.late = 0; this.healthy = 0; this.blockedUntil = 0; this.lastPaint = -Infinity;
+    this.slices = []; this.encoderPressureUntil = 0; this.changed = false;
+  }
+  get quality() { return GameViewBudget.TIERS[this.level]; }
+  begin(ts) { this.frameStart = ts; }
+  sample(ts, work, limit = 0, drawn = true) {
+    const dt = ts - this.last;
+    if (this.last && dt > 1 && dt < 100) {
+      this.slices.push(dt); if (this.slices.length > 120) this.slices.shift();
+      // Keep the best observed display cadence: a missed frame must not lower the player's FPS goal.
+      if (this.slices.length >= 16 && ts - (this.cadenceAt || 0) >= 500) {
+        this.cadenceAt = ts;
+        const sorted = [...this.slices].sort((a, b) => a - b);
+        this.displayMs = Math.min(this.displayMs, sorted[Math.floor(sorted.length * .2)]);
+      }
+    }
+    this.last = ts;
+    this.targetMs = Math.max(this.displayMs, limit > 0 ? 1000 / limit : this.displayMs);
+    this.work += (Math.max(0, work) - this.work) * .15;
+    if (drawn) {
+      if (this.lastDraw && ts - this.lastDraw < 250) {
+        this.frames++;
+        if (ts - this.lastDraw > this.targetMs + Math.max(this.targetMs * .25, this.displayMs * .75)) this.late++;
+      }
+      this.lastDraw = ts;
+    }
+    if (!this.window) this.window = ts;
+    if (ts - this.window < 750) return;
+    const missed = this.frames ? this.late / this.frames : 0;
+    const busy = this.work > this.displayMs * .65 || missed > .06 || ts < this.encoderPressureUntil;
+    if (busy) {
+      this.lower(ts, missed > .2 || this.work > this.displayMs * .85 ? 2 : 1);
+      this.healthy = 0;
+    } else if (missed < .02 && this.work < this.displayMs * .45) {
+      this.healthy += ts - this.window;
+      if (this.healthy >= 6000 && this.level < GameViewBudget.TIERS.length - 1) { this.level++; this.changed = true; this.healthy = 0; }
+    } else this.healthy = 0;
+    this.window = ts; this.frames = this.late = 0;
+  }
+  lower(now, steps = 1) {
+    const next = Math.max(0, this.level - steps);
+    if (next !== this.level) { this.level = next; this.changed = true; }
+    this.blockedUntil = now + 180; this.healthy = 0;
+  }
+  encoder(now, cpuLimited, encodeMs = 0) {
+    if (cpuLimited || encodeMs > 1000 / this.quality.fps * .7) { this.encoderPressureUntil = now + 2500; this.lower(now); }
+  }
+  slack(now) {
+    const reserve = Math.max(.8, this.displayMs * .2);
+    return Math.max(0, (this.frameStart || 0) + this.displayMs - now - reserve);
+  }
+  canSpend(now, cost = .2) {
+    return now >= this.blockedUntil && this.work < this.displayMs * .85 && this.slack(now) > cost + .25;
+  }
+  slice(now) { return Math.max(0, Math.min(.8, this.displayMs * .08, this.slack(now) * .25)); }
+  due(now) { return now - this.lastPaint >= 1000 / this.quality.fps && this.canSpend(now, this.paintCost); }
+  painted(now, cost) {
+    this.lastPaint = now; this.paintCost += (cost - this.paintCost) * .2;
+    if (cost > Math.min(2, this.displayMs * .2)) this.lower(now);
+  }
+}
+
 /* ===== 19qa-game-capture.js ===== */
 /* Render this app's own UI to a video canvas. No display/tab capture, remote DOM or browser permission is used. */
 const GameViewCapture = {
   load() {
     if (window.modernScreenshot) return Promise.resolve(window.modernScreenshot);
     if (!this.loading) this.loading = new Promise((resolve, reject) => {
-      const script = document.createElement('script'); script.src = Host.asset('vendor/modern-screenshot.js');
+      const script = document.createElement('script'), src = Host.asset('vendor/modern-screenshot.js');
+      // A cached pre-budget renderer has no yield checkpoints. Saved HTML files already contain the matching asset.
+      script.src = /^(blob:|data:)/.test(src) ? src : src + (src.includes('?') ? '&' : '?') + 'v=' + APP_BUILD;
       const timer = setTimeout(() => { script.remove(); this.loading = null; reject(new Error('The game view renderer timed out. Please try again.')); }, 12000);
       script.onload = () => { clearTimeout(timer); resolve(window.modernScreenshot); };
       script.onerror = () => { clearTimeout(timer); script.remove(); this.loading = null; reject(new Error('The game view renderer could not load.')); };
@@ -34559,75 +34651,189 @@ const GameViewCapture = {
     if (!valid()) return null;
     const canvas = document.createElement('canvas'), ctx = canvas.getContext('2d', { alpha: false });
     if (!canvas.captureStream || !ctx) throw new Error('This browser cannot stream the game view.');
-    const s = { canvas, paused: false, epoch: 0, frame: null, dirty: true, stopped: false, cursor: null };
-    const size = () => {
-      const scale = Math.min(devicePixelRatio || 1, 1920 / innerWidth, 1440 / innerHeight);
-      canvas.width = Math.round(innerWidth * scale); canvas.height = Math.round(innerHeight * scale);
-      s.scale = scale; s.width = innerWidth; s.height = innerHeight; s.frame = null; s.dirty = true;
+    const budget = new GameViewBudget(), waiting = new Set();
+    const s = { canvas, budget, paused: false, epoch: 0, frame: null, dirty: true, stopped: false, cursor: null,
+      paintedFrames: 0, snapshots: 0, yielded: 0, skipped: 0 };
+    const alive = () => !s.stopped && valid();
+    const aborted = () => Object.assign(new Error('Game-view work deferred.'), { name: 'AbortError' });
+    const cancelWork = () => {
+      for (const task of waiting) { if (task.idle) cancelIdleCallback(task.id); else clearTimeout(task.id); task.reject(aborted()); }
+      waiting.clear(); s.sliceEnd = 0;
     };
-    size();
-    const mask = () => { ctx.fillStyle = '#18171c'; ctx.fillRect(0, 0, canvas.width, canvas.height); };
-    mask();
-    const stream = s.stream = canvas.captureStream(30), track = s.track = stream.getVideoTracks()[0];
+    // No timeout forces capture into a busy game frame. At minimum quality, the stream waits when there is no slack.
+    const idle = (cost = .2, check = alive) => new Promise((resolve, reject) => {
+      const task = { reject, id: 0, idle: typeof requestIdleCallback === 'function' }; waiting.add(task);
+      const attempt = deadline => {
+        if (!check()) { waiting.delete(task); reject(aborted()); return; }
+        const now = performance.now();
+        if (budget.canSpend(now, cost) && (!deadline || deadline.timeRemaining() > cost + .3)) {
+          waiting.delete(task); resolve();
+        } else { s.skipped++; schedule(); }
+      };
+      const schedule = () => { task.id = task.idle ? requestIdleCallback(attempt) : setTimeout(() => attempt(null), Math.max(4, Math.ceil(budget.displayMs / 2))); };
+      schedule();
+    });
     const running = () => Screens.currentName === 'gameplay' && GameplayScreen.s?.running;
-    const mode = () => `${Screens.currentName}/${!!running()}/${Overlays.stack.length}`;
+    const inGame = () => Screens.currentName === 'gameplay' && !!GameplayScreen.s;
+    const mode = () => `${Screens.currentName}/${!!running()}/${Overlays.stack.length}/${GameplayScreen.s?.startedReal || 0}`;
+    const emit = () => { if (s.manual) s.track.requestFrame(); };
+    const mask = (send = true) => { ctx.fillStyle = s.paused || isPrivate() ? '#000' : '#18171c'; ctx.fillRect(0, 0, canvas.width, canvas.height); if (send && s.track) emit(); };
+    const dimensions = () => {
+      s.scale = Math.min(devicePixelRatio || 1, budget.quality.width / innerWidth, 1440 / innerHeight);
+      s.width = innerWidth; s.height = innerHeight;
+      const w = Math.max(1, Math.round(innerWidth * s.scale)), h = Math.max(1, Math.round(innerHeight * s.scale));
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+    };
+    dimensions(); mask();
+    let stream = canvas.captureStream(0);
+    if (typeof stream.getVideoTracks()[0]?.requestFrame !== 'function') { stream.getTracks().forEach(t => t.stop()); stream = canvas.captureStream(budget.quality.fps); }
+    s.stream = stream; s.track = stream.getVideoTracks()[0]; s.manual = typeof s.track.requestFrame === 'function';
+    const tune = () => {
+      const q = budget.quality;
+      if (s.sender) {
+        // Serialize setParameters: overlapping encoder changes can silently undo each other.
+        s.senderUpdates = (s.senderUpdates || Promise.resolve()).catch(() => {}).then(async () => {
+          if (!alive()) return;
+          const p = s.sender.getParameters();
+          if (p.encodings?.length) { p.encodings[0].maxBitrate = q.bitrate; p.encodings[0].maxFramerate = q.fps; p.degradationPreference = 'maintain-framerate'; await s.sender.setParameters(p); }
+        }).catch(() => {});
+      }
+      if (!s.manual) s.track.applyConstraints?.({ frameRate: { max: q.fps } }).catch(() => {});
+    };
+    s.setSender = sender => { s.sender = sender; tune(); };
     const paint = () => {
-      if (s.stopped || !valid()) return;
-      s.animation = requestAnimationFrame(paint);
-      if (performance.now() - (s.painted || 0) < 30) return;
-      s.painted = performance.now();
-      if (s.paused || isPrivate()) { mask(); return; }
-      if (s.frame) ctx.drawImage(s.frame, 0, 0, canvas.width, canvas.height);
-      else mask();
-      // Gameplay's own canvas stays fluid; UI snapshots supply the menus and HUD around it.
-      const live = running() && !Overlays.top() && !GameplayScreen.pauseEl?.classList.contains('on') && GameplayScreen.renderer?.canvas;
-      const source = live || (running() && !Overlays.top() && GameplayScreen.s?.renderer?.canvas);
-      if (source && s.frame && s.frameMode === mode()) {
+      if (!alive() || s.paused || isPrivate() || !s.frame && !running()) return;
+      const start = performance.now();
+      if (!budget.due(start)) return;
+      if (s.level !== budget.level) { dimensions(); s.level = budget.level; s.dirty = true; tune(); }
+      const game = GameplayScreen.s, currentView = mode();
+      const base = running() && s.activeGame === game ? s.activeFrame : s.frameMode === currentView ? s.frame : null;
+      if (base) ctx.drawImage(base, 0, 0, canvas.width, canvas.height);
+      else {
+        mask(false);
+        // A cheap live playfield is available immediately, even while a detailed UI snapshot waits for idle time.
+        if (running()) {
+          if (s.backgroundGame !== game) {
+            s.backgroundGame = game; s.background = null; s.hud = null;
+            const url = /^url\(["']?(.*?)["']?\)$/.exec(GameplayScreen.bgEl?.style.backgroundImage || '')?.[1];
+            if (url) { const image = new Image(); image.onload = () => { if (alive() && s.backgroundGame === game) s.background = image; }; image.src = url; }
+          }
+          if (s.background) {
+            const k = Math.max(canvas.width / s.background.width, canvas.height / s.background.height);
+            ctx.drawImage(s.background, (canvas.width - s.background.width * k) / 2, (canvas.height - s.background.height * k) / 2, s.background.width * k, s.background.height * k);
+            ctx.fillStyle = `rgba(0,0,0,${GameplayScreen.baseDim ?? .7})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
+          }
+        }
+      }
+      const source = running() && !Overlays.top() && GameplayScreen.renderer?.canvas;
+      if (source) {
         const r = source.getBoundingClientRect();
-        if (r.width && r.height) try { ctx.drawImage(source, r.left * s.scale, r.top * s.scale, r.width * s.scale, r.height * s.scale); } catch { /* detached renderer */ }
+        if (r.width && r.height) try { ctx.drawImage(source, r.left * s.scale, r.top * s.scale, r.width * s.scale, r.height * s.scale); s.liveFrameMode = currentView; } catch { /* detached renderer */ }
+        if (!base) {
+          if (!s.hud) s.hud = [GameplayScreen.scoreEl, GameplayScreen.accEl, GameplayScreen.ppEl].map((el, kind) => {
+            if (!el) return null;
+            const rect = el.getBoundingClientRect(), style = getComputedStyle(el);
+            return { el, kind, rect, font: style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`, color: style.color };
+          }).filter(h => h && h.rect.width && h.rect.height);
+          ctx.save(); ctx.scale(s.scale, s.scale); ctx.textBaseline = 'top';
+          for (let i = 0; i < s.hud.length; i++) {
+            const h = s.hud[i]; ctx.font = h.font; ctx.fillStyle = h.color;
+            const text = h.kind === 0 ? fmtScore(game.engine.score.scoreStd) : h.kind === 1 ? fmtAcc(game.engine.score.accuracy) : h.el.textContent;
+            ctx.fillText(text, h.rect.right - ctx.measureText(text).width, h.rect.top);
+          }
+          ctx.restore();
+        }
       }
       if (s.cursor) {
         const { x, y } = s.cursor; ctx.save(); ctx.translate(x * s.scale, y * s.scale); ctx.scale(s.scale, s.scale);
         ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, 20); ctx.lineTo(6, 14); ctx.lineTo(12, 23); ctx.lineTo(16, 20); ctx.lineTo(10, 12); ctx.lineTo(19, 12); ctx.closePath();
         ctx.fillStyle = '#fff'; ctx.strokeStyle = '#18171c'; ctx.lineWidth = 2; ctx.fill(); ctx.stroke(); ctx.restore();
       }
+      emit(); s.paintedFrames++; s.paintDirty = false;
+      budget.painted(start, performance.now() - start);
     };
+    const queuePaint = () => {
+      if (s.paintPending || !alive() || s.paused || !s.frame && !running() || !budget.due(performance.now()) || !running() && !s.paintDirty) return;
+      s.paintPending = true;
+      idle(budget.paintCost).then(paint).catch(() => {}).finally(() => { s.paintPending = false; });
+    };
+    const menuFrame = ts => {
+      s.animation = 0;
+      if (!alive()) return;
+      if (inGame()) return; // Gameplay drives capture after its own frame has finished.
+      const work = s.lastMenu ? Math.max(0, performance.now() - ts) : 0; s.lastMenu = ts;
+      budget.begin(ts); budget.sample(ts, work); queuePaint();
+      s.animation = requestAnimationFrame(menuFrame);
+    };
+    const wakeMenus = () => { if (alive() && !s.animation && !inGame()) s.animation = requestAnimationFrame(menuFrame); };
+    s.gameFrameBegin = ts => { budget.begin(ts); const view = mode(); if (s.lastGameMode !== view) { s.lastGameMode = view; cancelWork(); s.attempted = -Infinity; s.dirty = true; } };
+    s.gameFrameEnd = (ts, work, limit, drawn) => { if (alive()) { budget.sample(ts, work, limit, drawn); if (drawn) queuePaint(); } };
     const refresh = async () => {
-      if (s.stopped || !valid()) return;
+      if (!alive()) return;
       const start = performance.now(), epoch = s.epoch, view = mode(), active = !!running();
+      // A rate-limited encoder may drop a single transition frame. Keep a black heartbeat until sharing resumes.
+      if (s.paused || isPrivate()) mask();
+      const check = () => alive() && !s.paused && !isPrivate() && s.epoch === epoch && mode() === view;
+      const gate = async (heavy = false) => {
+        if (!check()) throw aborted();
+        const now = performance.now();
+        if (!heavy && now < s.sliceEnd && budget.canSpend(now)) return;
+        s.yielded++; await idle(heavy ? Math.max(.4, budget.paintCost) : .2, check);
+        s.sliceEnd = performance.now() + (inGame() ? budget.slice(performance.now()) : Math.min(4, budget.slack(performance.now()) * .5));
+      };
       try {
-        if (!s.paused && !isPrivate() && (s.dirty || !s.frame || start - (s.captured || 0) > 1000)) {
-          s.dirty = false;
-          const image = await renderer.domToCanvas(document.body, {
-            width: s.width, height: s.height, scale: s.scale, backgroundColor: '#18171c', timeout: 3000,
-            filter: node => !(node.nodeType === 1 && (['SCRIPT', 'IFRAME', 'AUDIO'].includes(node.tagName) || node.tagName === 'VIDEO' && node.readyState < 2 ||
+        const interval = active ? Math.max(2000, budget.quality.snapshot) : Math.max(250, budget.quality.snapshot / 4);
+        if (check() && (s.dirty || !s.frame || start - (s.captured || 0) > interval) && start - (s.attempted || -Infinity) >= interval) {
+          s.attempted = start; s.dirty = false;
+          await gate(true);
+          const options = { width: s.width, height: s.height, scale: s.scale, backgroundColor: '#18171c', timeout: 3000,
+            onBeforeWork: gate, onCloneNode: () => gate(true), onEmbedNode: () => gate(true),
+            filter: node => !(node.nodeType === 1 && (node.hidden || node.style?.display === 'none' || node.matches('#loading-screen.done, #drop-overlay:not(.show)') || ['SCRIPT', 'IFRAME', 'AUDIO'].includes(node.tagName) || node.tagName === 'VIDEO' && node.readyState < 2 ||
               node.matches('.admin-view-sharing, .admin-view-wrap, .lz-cursor, [data-admin-view-ignore]') ||
               node.closest('.login-panel, .setup-step-account, input[type=password], [data-private]') ||
-              active && node.tagName === 'CANVAS' && (node === GameplayScreen.renderer?.canvas || node === GameplayScreen.s?.renderer?.canvas))),
-          });
-          if (!s.stopped && valid() && !s.paused && !isPrivate() && s.epoch === epoch && mode() === view && s.width === innerWidth && s.height === innerHeight) {
-            s.frame = image; s.frameMode = view; s.captured = performance.now();
+              active && node.tagName === 'CANVAS' && node === GameplayScreen.renderer?.canvas)) };
+          if (!s.context) s.context = await renderer.createContext(document.body, options);
+          else Object.assign(s.context, options, { dpi: s.scale === 1 ? null : s.scale * 96 });
+          const image = await renderer.domToCanvas(s.context);
+          if (check() && s.width === innerWidth && s.height === innerHeight) {
+            s.frame = image; s.frameMode = view; s.captured = performance.now(); s.paintDirty = true; s.snapshots++;
+            if (s.context.requests.size > 128) { renderer.destroyContext(s.context); s.context = null; }
+            if (active) { s.activeFrame = image; s.activeGame = GameplayScreen.s; } queuePaint();
           }
         }
       } catch (e) {
-        if (valid()) owner.captureError = e.message || 'The game view could not render.';
-        if (!s.stopped && !s.frame && valid()) { owner.captureError = e.message || 'The game view could not render.'; if ((s.failures = (s.failures || 0) + 1) >= 3) AdminGameView.stop('The game view could not render. Please try again.'); }
-      } finally {
-        if (!s.stopped && valid()) s.timer = setTimeout(refresh, Math.max(active ? 850 : 170, 250 - (performance.now() - start)));
-      }
+        if (s.context) { renderer.destroyContext(s.context); s.context = null; }
+        if (e.name !== 'AbortError' && alive()) {
+          owner.captureError = e.message || 'The game view could not render.';
+          if (!s.frame && (s.failures = (s.failures || 0) + 1) >= 3) AdminGameView.stop('The game view could not render. Please try again.');
+        }
+      } finally { if (alive()) { wakeMenus(); s.timer = setTimeout(refresh, 250); } }
     };
-    const pointer = e => { s.cursor = { x: e.clientX, y: e.clientY }; };
-    const resize = () => { s.epoch++; size(); mask(); };
+    const stats = async () => {
+      if (!alive()) return;
+      try {
+        if (s.sender && !s.paused) for (const r of (await s.sender.getStats()).values()) if (r.type === 'outbound-rtp' && r.kind === 'video') {
+          const prev = s.encoderSample, frames = prev ? r.framesEncoded - prev.frames : 0;
+          budget.encoder(performance.now(), r.qualityLimitationReason === 'cpu', frames > 0 ? (r.totalEncodeTime - prev.time) * 1000 / frames : 0);
+          s.encoderSample = { frames: r.framesEncoded, time: r.totalEncodeTime };
+        }
+      } catch { /* optional encoder telemetry */ }
+      finally { if (alive()) s.statsTimer = setTimeout(stats, 2000); }
+    };
+    const pointer = e => { s.cursor = { x: e.clientX, y: e.clientY }; s.paintDirty = true; };
+    const resize = () => { s.epoch++; cancelWork(); dimensions(); s.frame = s.activeFrame = null; s.hud = null; s.dirty = true; s.attempted = -Infinity; mask(); };
+    const offScreen = Bus.on('screen:changed', () => { cancelWork(); s.dirty = true; s.attempted = -Infinity; wakeMenus(); });
     const observer = new MutationObserver(records => { if (records.some(r => !r.target.closest?.('.admin-view-sharing, .admin-view-wrap'))) s.dirty = true; });
     observer.observe(document.getElementById('app'), { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'value', 'src'] });
     document.addEventListener('pointermove', pointer, { passive: true }); window.addEventListener('resize', resize);
-    s.setPaused = paused => { if (paused !== s.paused) { s.paused = paused; s.epoch++; s.frame = null; s.dirty = true; mask(); } };
+    s.setPaused = paused => { if (paused !== s.paused) { s.paused = paused; s.epoch++; cancelWork(); s.frame = s.activeFrame = null; s.hud = null; s.dirty = true; s.attempted = -Infinity; mask(); } };
     s.stop = () => {
-      s.stopped = true; clearTimeout(s.timer); cancelAnimationFrame(s.animation); observer.disconnect();
+      s.stopped = true; cancelWork(); clearTimeout(s.timer); clearTimeout(s.statsTimer); cancelAnimationFrame(s.animation); observer.disconnect(); offScreen();
       document.removeEventListener('pointermove', pointer); window.removeEventListener('resize', resize);
-      stream.getTracks().forEach(t => t.stop()); canvas.width = canvas.height = 0; s.frame = null;
+      if (s.context) renderer.destroyContext(s.context);
+      stream.getTracks().forEach(t => t.stop()); canvas.width = canvas.height = 0; s.frame = s.activeFrame = s.context = s.background = s.hud = null;
     };
-    paint(); refresh();
+    wakeMenus(); refresh(); stats();
     return s;
   },
 };
@@ -34725,7 +34931,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '5625e0e9ce47';
+const APP_BUILD = '708fc86cf3ef';
 
 const App = {
   lastReport: null,
