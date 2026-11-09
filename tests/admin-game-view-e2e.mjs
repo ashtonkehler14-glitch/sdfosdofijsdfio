@@ -1,20 +1,23 @@
 // MINIFLARE_DIR=<dir> CHROMIUM_PATH=/usr/bin/chromium node tests/admin-game-view-e2e.mjs
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, dirname, extname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url), { chromium } = require('playwright');
 const { Miniflare } = createRequire(join(process.env.MINIFLARE_DIR || process.cwd(), 'package.json'))('miniflare');
 const root = join(dirname(fileURLToPath(import.meta.url)), '..'), code = 'K7QM3XRA9DPZW2HF';
+let savedDir;
 const mf = new Miniflare({
   modules: true, scriptPath: join(root, 'worker/index.js'), modulesRoot: root, modulesRules: [{ type: 'ESModule', include: ['**/*.js'] }],
   compatibilityDate: '2026-08-01', cf: false, host: '127.0.0.1', port: 0,
   durableObjects: { ROOMS: 'MatchRoom', MATCHMAKER: 'Matchmaker', VAULT: 'PlayerVault' }, bindings: { ADMIN_CODE: code, ADMIN_VIEW_ICE_SERVERS: process.env.ADMIN_VIEW_ICE_SERVERS || '[]' },
   serviceBindings: { ASSETS: async req => {
     const p = decodeURIComponent(new URL(req.url).pathname);
+    if (p === '/__test__/saved-builder') return new Response('<!doctype html><title>Saved build launcher</title>', { headers: { 'content-type': 'text/html' } });
     for (const f of [p === '/' ? join(root, 'index.html') : join(root, p), join(root, 'public', p)]) try {
-      return new Response(readFileSync(f), { headers: { 'content-type': ({ '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.json': 'application/json' })[extname(f)] || 'application/octet-stream' } });
+      return new Response(readFileSync(f), { headers: { 'content-type': ({ '.html': 'text/html', '.js': 'text/javascript', '.png': 'image/png', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.json': 'application/json', '.ttf': 'font/ttf', '.woff': 'font/woff', '.woff2': 'font/woff2' })[extname(f)] || 'application/octet-stream', 'access-control-allow-origin': '*' } });
     } catch { /* next */ }
     return new Response('not found', { status: 404 });
   } },
@@ -31,7 +34,21 @@ try {
     const context = await browser.newContext({ viewport: mobile ? { width: 844, height: 390 } : { width: 1440, height: 960 }, isMobile: mobile, hasTouch: mobile });
     await context.addInitScript(() => localStorage.setItem('am.noInstallPrompt', '1'));
     const page = await context.newPage(); page.on('pageerror', e => errors.push(e.message));
-    await page.goto(url); await page.waitForFunction(() => document.querySelector('#loading-screen.done'));
+    let where = url;
+    if (name === 'Player' && process.env.SOURCE_HTML) {
+      const html = await admin.evaluate(async () => {
+        // External font availability is unrelated to this integration test; all game assets still use HtmlFile.build.
+        const inline = HtmlFile.inlineFonts; HtmlFile.inlineFonts = async html => html;
+        try { return await (await HtmlFile.build()).text(); } finally { HtmlFile.inlineFonts = inline; }
+      });
+      if (process.env.SOURCE_HTML === 'blob') {
+        await page.goto(url + '/__test__/saved-builder');
+        where = await page.evaluate(html => URL.createObjectURL(new Blob([html], { type: 'text/html' })), html);
+      } else {
+        savedDir = mkdtempSync(join(tmpdir(), 'am-live-file-')); const file = join(savedDir, 'Ashtonk!mania.html'); writeFileSync(file, html); where = pathToFileURL(file).href;
+      }
+    }
+    await page.goto(where); await page.waitForFunction(() => document.querySelector('#loading-screen.done'));
     if (await page.$('.onboarding')) {
       if (await page.$('.setup-choice[data-id="new"]')) await page.click('.setup-choice[data-id="new"]');
       await page.fill('.onboarding .ob-name', name); await page.keyboard.press('Enter');
@@ -42,6 +59,7 @@ try {
     return page;
   }
   const admin = await device('Moderator'), player = await device('Player');
+  if (process.env.SOURCE_HTML) assert.equal(await player.evaluate(() => Host.standalone && !!Host.files?.['vendor/modern-screenshot.js'] && Host.online()), true, 'The watched source runs the real bundled standalone build with its game server');
   const visibleVideo = async () => admin.waitForFunction(() => {
     const menu = AshtonkMania.AdminGameView.current?.menu;
     if (menu?.active && !menu.paused && !menu.el.hidden && menu.updates > 0) return menu.iframe.contentDocument.body.textContent.trim().length > 0;
@@ -167,7 +185,7 @@ try {
   if (process.env.SHOT_DIR) await admin.screenshot({ path: join(process.env.SHOT_DIR, 'admin-live-game-view.png') });
   await player.evaluate(async () => {
     while (Overlays.top()) Overlays.top().close();
-    const blob = await (await fetch('/tests/fixtures/test-set.osz')).blob();
+    const blob = await (await fetch(Host.api('tests/fixtures/test-set.osz'))).blob();
     await AshtonkMania.App.importFiles([new File([blob], 'test-set.osz')]);
     while (Overlays.top()) Overlays.top().close();
     const A = AshtonkMania, map = [...A.BeatmapManager.maps.values()].find(m => m.keys === 4 && !m.problems.length);
@@ -260,7 +278,7 @@ try {
   console.log('PASS: automatic full-resolution fullscreen in-game WebRTC, adjacent admin button, direct joins, notification choice, zero browser prompts across rejoins, pause/resume, account privacy and player stop');
   for (const pg of [player, admin]) await pg.evaluate(async () => {
     while (Overlays.top()) Overlays.top().close();
-    const blob = await (await fetch('/tests/fixtures/test-set.osz')).blob();
+    const blob = await (await fetch(Host.api('tests/fixtures/test-set.osz'))).blob();
     await AshtonkMania.App.importFiles([new File([blob], 'test-set.osz')]);
     while (Overlays.top()) Overlays.top().close();
   });
@@ -293,4 +311,4 @@ try {
   await player.waitForFunction(() => !AshtonkMania.SpectatorChat.panel && AshtonkMania.Spectate.host.watchers === 0);
   console.log('PASS: player/viewer lounge-style shared chat, messages both ways, two direct retries without the song card, chat survives retry and closes on unwatch');
   assert.deepEqual(errors, []);
-} finally { await browser?.close(); await mf.dispose(); }
+} finally { await browser?.close(); await mf.dispose(); if (savedDir) rmSync(savedDir, { recursive: true, force: true }); }

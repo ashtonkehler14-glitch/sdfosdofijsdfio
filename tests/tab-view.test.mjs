@@ -9,7 +9,7 @@ function native() {
   const stream = { getVideoTracks: () => [track], getTracks: () => [track] };
   c.navigator = { mediaDevices: { getDisplayMedia: async options => { calls.push(['picker', options]); return stream; } } };
   c.CropTarget = { fromElement: async () => target }; c.BrowserCaptureMediaStreamTrack = function () {}; c.BrowserCaptureMediaStreamTrack.prototype.cropTo = () => {};
-  c.document = { documentElement: {} }; c.window = { addEventListener() {}, removeEventListener() {} }; c.innerWidth = 1440; c.innerHeight = 960;
+  c.document = { documentElement: {} }; c.location = { origin: 'https://game.test', protocol: 'https:' }; c.window = { addEventListener() {}, removeEventListener() {} }; c.innerWidth = 1440; c.innerHeight = 960;
   return { T, c, calls, track, target, create: onended => T.create(() => valid, () => privateNow, onended), cancel: () => { valid = false; }, privacy: x => { privateNow = x; } };
 }
 
@@ -61,6 +61,27 @@ test('a matching browser capture handle avoids a redundant full-document crop', 
   const s = await t.create();
   assert.equal(s.verification, 'handle'); assert.equal(t.track.enabled, false);
   s.stop(); assert.equal(configs.at(-1).handle, '');
+});
+
+test('local HTML uses a nonce-only handle because file origins cannot be an origin allowlist entry', async () => {
+  const t = native(), configs = [];
+  t.c.location = { origin: 'null', protocol: 'file:' }; t.c.MediaStreamTrack = function () {}; t.c.MediaStreamTrack.prototype.getCaptureHandle = () => {};
+  t.c.navigator.mediaDevices.setCaptureHandleConfig = value => configs.push(value);
+  t.track.getCaptureHandle = () => ({ handle: configs[0].handle });
+  t.track.cropTo = () => assert.fail('A matching local-document nonce already verifies the selected tab');
+  const s = await t.create();
+  try {
+    assert.equal(configs[0].exposeOrigin, false); assert.deepEqual(Array.from(configs[0].permittedOrigins), ['*']);
+    assert.equal(s.verification, 'handle'); assert.equal(s.track.enabled, false);
+  } finally { s.stop(); }
+});
+
+test('a local HTML capture still rejects another tab and stops its unshared stream', async () => {
+  const t = native();
+  t.c.location = { origin: 'file://', protocol: 'file:' }; t.c.MediaStreamTrack = function () {}; t.c.MediaStreamTrack.prototype.getCaptureHandle = () => {};
+  t.c.navigator.mediaDevices.setCaptureHandleConfig = () => {};
+  t.track.getCaptureHandle = () => ({ handle: 'not-this-file' });
+  await assert.rejects(t.create(), /current game tab/); assert.equal(t.track.stopped, true);
 });
 
 test('a capture handle from another tab or origin is rejected without falling back to a different surface', async () => {

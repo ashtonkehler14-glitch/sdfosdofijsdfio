@@ -132,8 +132,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: kbHint('Ctrl+F11 toggles it anywhere.') },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: false, hint: 'When a song can\'t keep up, the playfield is drawn at a lower resolution until it can.' },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Render scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Resolution scale for the whole game: menus, overlays, effects and gameplay. Layout size, hit positions and timing stay the same.' },
-  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no particles, hit lighting or stage light while playing, the menus without animations, blur, glow or moving backgrounds, and song pictures at a lower resolution.' },
-  { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.particles', l: 'Particles', t: 'bool', d: true },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no hit lighting or stage light while playing, the menus without animations, blur, glow or moving backgrounds, and song pictures at a lower resolution.' },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
   // ── Input
   { s: 'Input', g: 'Mouse', k: 'input.noWheelVolumeInGame', l: 'Disable mouse wheel adjusting volume during gameplay', t: 'bool', d: false },
@@ -233,7 +232,7 @@ for (const it of SETTINGS_SCHEMA) {
 const Settings = {
   values: {},
   schema: new Map(SETTINGS_SCHEMA.map(s => [s.k, s])),
-  PERF_OFF: new Set(['graphics.particles', 'gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'ui.parallax']),
+  PERF_OFF: new Set(['gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'ui.parallax']),
   _saveT: 0,
   async load() {
     const stored = await DB.kvGet('settings', {});
@@ -319,6 +318,7 @@ const Settings = {
     const out = {};
     for (const [k, v] of Object.entries(obj)) {
       if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+      if (k === 'graphics.particles') continue; // Removed hit-particle effect: discard its obsolete saved toggle.
       const s = this.schema.get(k);
       // (nothing at all where a number or an on/off goes is wrong too; a word's setting may be empty)
       if (s && s.d != null && (v == null ? typeof s.d === 'number' || typeof s.d === 'boolean' : typeof v !== typeof s.d || (typeof v === 'number' && !Number.isFinite(v)))) continue;

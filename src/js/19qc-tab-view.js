@@ -22,9 +22,13 @@ const TabViewCapture = {
     // Verify this tab using its per-request browser capture handle. This keeps the direct compositor path;
     // cropping the entire document is a compatibility fallback, since region capture can add GPU readbacks.
     let handle = '', stream, track, verification;
+    // Local HTML documents have an opaque/file origin, which is not a valid origin allowlist entry. Expose only
+    // a fresh, non-identifying nonce there; matching it still proves the chosen tab is this document. The browser
+    // picker and player controls remain mandatory. Website captures keep their exact-origin allowlist.
+    const opaqueOrigin = location.protocol === 'file:' || location.origin === 'null' || location.origin === 'file://';
     const clearHandle = () => { if (handle) try { navigator.mediaDevices.setCaptureHandleConfig({ handle: '', exposeOrigin: false, permittedOrigins: [] }); } catch {} };
     if (this.canVerifyHandle()) try {
-      handle = crypto.randomUUID(); navigator.mediaDevices.setCaptureHandleConfig({ handle, exposeOrigin: true, permittedOrigins: [location.origin] });
+      handle = crypto.randomUUID(); navigator.mediaDevices.setCaptureHandleConfig({ handle, exposeOrigin: !opaqueOrigin, permittedOrigins: opaqueOrigin ? ['*'] : [location.origin] });
     } catch { handle = ''; }
     try {
       // This call must stay in the player's click handler, before any asynchronous work consumes activation.
@@ -38,7 +42,8 @@ const TabViewCapture = {
       if (!valid()) { stream.getTracks().forEach(t => t.stop()); clearHandle(); return null; }
       if (!track || track.getSettings().displaySurface !== 'browser') throw new Error('Choose this game’s tab to share.');
       const identity = handle && track.getCaptureHandle?.();
-      if (identity?.handle === handle && identity.origin === location.origin) verification = 'handle';
+      const sameOrigin = identity && (opaqueOrigin ? identity.origin == null || identity.origin === 'null' || identity.origin === 'file://' : identity.origin === location.origin);
+      if (identity?.handle === handle && sameOrigin) verification = 'handle';
       else {
         if (identity?.handle || !this.canCrop() || typeof track.cropTo !== 'function') throw new Error('The selected tab is not this game.');
         await track.cropTo(await CropTarget.fromElement(document.documentElement)); verification = 'crop';

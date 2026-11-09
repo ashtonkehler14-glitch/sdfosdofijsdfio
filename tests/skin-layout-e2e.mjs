@@ -111,6 +111,14 @@ try {
   assert.equal(await page.evaluate(() => Settings.get('hud.layout').background.s), .85);
   await page.evaluate(() => { Settings.set('gameplay.judgementCounter', true); Settings.set('gameplay.unpauseDelay', 0); NeruCameo.make = () => null; const m = [...BeatmapManager.maps.values()].find(m => m.keys === 4 && !m.problems.length); Game.launch({ mapId: m.id, mods: ['NF'], mode: 'play' }); });
   await page.waitForFunction(() => GameplayScreen.s?.running && GameplayScreen.loaderGone && !!document.querySelector('.hud-jc'));
+  const hitFeedback = await page.evaluate(() => {
+    Settings.set('gameplay.hitLighting', true); Settings.values['graphics.particles'] = true;
+    const r = GameplayScreen.renderer; r.effects.length = 0; r._lastN = [];
+    r.onJudgement({ j: J.MARV, col: 0, err: 0, note: { isLN: false }, tail: false }, performance.now());
+    delete Settings.values['graphics.particles'];
+    return { effects: r.effects.map(e => e.type), settingPresent: Settings.schema.has('graphics.particles'), importedToggleKept: Object.hasOwn(Settings.clean({ 'graphics.particles': true }), 'graphics.particles'), presetToggle: Object.hasOwn(SETUP_DEVICES.pc.values(), 'graphics.particles') };
+  });
+  assert.deepEqual(hitFeedback, { effects: ['N'], settingPresent: false, importedToggleKept: false, presetToggle: false }, 'Legacy flags cannot recreate particles, and normal hit lighting still works');
   const peak = data => { const png = PNG.sync.read(data); let max = 0; for (let i = 0; i < png.data.length; i += 4) max = Math.max(max, png.data[i], png.data[i + 1], png.data[i + 2]); return max; };
   const normalCounter = peak(await page.locator('.hud-jc').screenshot());
   await page.evaluate(() => GameplayScreen.pause()); await page.waitForTimeout(250);
@@ -129,5 +137,5 @@ try {
   await page.evaluate(() => SkinEditor.close());
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await page.evaluate(async () => { Settings.set('graphics.renderScale', .5); await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); const b = document.querySelector('#app').getBoundingClientRect(); return Math.abs(b.width - innerWidth) < 2 && Math.abs(b.height - innerHeight) < 2; }), true);
-  assert.deepEqual(errors, []); console.log('PASS: advanced/basic editor, live background controls, keyboard/mobile toggle, retained edits and mode, imported skin graphics, pause/resume counter dimming and layout persistence');
+  assert.deepEqual(errors, []); console.log('PASS: advanced/basic editor, unified backgrounds, retained edits, imported skin graphics, pause/resume dimming, no hit particles and layout persistence');
 } finally { await browser?.close(); await new Promise(r => server.close(r)); }

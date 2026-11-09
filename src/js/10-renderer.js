@@ -77,7 +77,7 @@ class ManiaRenderer {
     // (desynchronized canvases can skip vsync and tear — a torn note looks like a stutter — so low latency is opt-in)
     this.ctx = canvas.getContext('2d', { alpha: true, desynchronized: !!Settings.get('graphics.lowLatency') });
     this.layout = null;
-    this.effects = [];          // lighting + particles
+    this.effects = [];          // hit lighting
     this.judgementFx = null;
     this.comboBump = 0;
     this.lastCombo = 0;
@@ -90,7 +90,7 @@ class ManiaRenderer {
     this._hudRects = {};
     this._spr = SPRITES.spr; this._crop = SPRITES.crop; this._noteRefW = 0;
     this.keyLight = new Array(layout.keys).fill(-1e9);
-    this.effects = []; this.judgementFx = null; this._lastN = []; this._pN = 0; this._missFx = []; this._cmb = null; this.lastCombo = 0;
+    this.effects = []; this.judgementFx = null; this._lastN = []; this._missFx = []; this._cmb = null; this.lastCombo = 0;
     this.resize(true);
   }
   dispose() { if (this._ro) this._ro.disconnect(); this._ro = null; }
@@ -576,7 +576,6 @@ class ManiaRenderer {
     }
     // lighting
     if (Settings.get('gameplay.hitLighting')) this._drawLighting(g, realNow);
-    this._drawParticles(realNow);
     // judgement & combo
     if (g.engine) {
       this._drawJudgement(realNow);
@@ -1051,17 +1050,6 @@ class ManiaRenderer {
       const el = thr > 0 && e.err != null && e.j !== J.MARV && Math.abs(e.err) >= thr ? (e.err < 0 ? 'EARLY' : 'LATE') : null;
       this.judgementFx = { j: e.j, t0: realNow, el };
     }
-    if (Settings.get('graphics.particles') && e.j <= J.GREAT) {
-      // at most ~96 particles alive at once, however dense the chart
-      const n = Math.min(e.j === J.MARV ? 7 : 4, Math.max(0, 96 - (this._pN || 0)));
-      this._pN = (this._pN || 0) + n;
-      for (let k = 0; k < n; k++) {
-        const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
-        const sp = (0.25 + Math.random() * 0.45) * this.s;
-        this.effects.push({ type: 'P', col: e.col, t0: realNow, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-          color: rgba(L.colours.light[e.col]), life: 380 + Math.random() * 200 });
-      }
-    }
   }
   onRelease(col, realNow) { this.keyLight[col] = realNow; }
 
@@ -1127,47 +1115,6 @@ class ManiaRenderer {
       return t.w * this.u * cw / 30;
     }
     return widths[c] > 0 ? widths[c] * this.s : this.colW[c] * 1.7; // built-in: the flash reaches a little past its column
-  }
-  _drawParticles(realNow) {
-    const ctx = this.ctx;
-    const fx = this.effects, batch = this._pBatch || (this._pBatch = new Map());
-    let keep = 0;
-    for (let i = 0; i < fx.length; i++) {
-      const e = fx[i];
-      if (e.type !== 'P') { fx[keep++] = e; continue; }
-      const el = Math.max(0, realNow - e.t0);
-      if (el > e.life) continue;
-      const x = this.colX[e.col] + this.colW[e.col] / 2 + e.vx * el;
-      let y = this.hitY + e.vy * el + 0.0006 * this.s * el * el;
-      if (this.up) y = this.H - y;
-      if (e.star) { ctx.globalAlpha = 1 - el / e.life; ctx.fillStyle = e.color; }
-      const r = (e.star ? 3.2 : 2) * this.s * 0.5 * (1 - el / e.life * 0.5);
-      if (e.star) {
-        ctx.beginPath();
-        for (let k = 0; k < 8; k++) { const a = k * Math.PI / 4 + el / 200, rr = k % 2 ? r * 0.4 : r * 1.6; ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); }
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      } else {
-        // squares are batched: one path per colour and fade step, filled once (they were one fill each — dozens of
-        // draws a frame on a dense chart)
-        const step = Math.min(5, Math.floor((el / e.life) * 6));
-        let steps = batch.get(e.color);
-        if (!steps) { steps = [0, 1, 2, 3, 4, 5].map(k => ({ color: e.color, a: 1 - (k + 0.5) / 6, xs: [] })); batch.set(e.color, steps); }
-        steps[step].xs.push(x - r, y - r, r * 2);
-      }
-      fx[keep++] = e;
-    }
-    fx.length = keep;
-    for (const steps of batch.values()) for (const b of steps) {
-      if (!b.xs.length) continue;
-      ctx.globalAlpha = b.a; ctx.fillStyle = b.color; ctx.beginPath();
-      for (let i = 0; i < b.xs.length; i += 3) ctx.rect(b.xs[i], b.xs[i + 1], b.xs[i + 2], b.xs[i + 2]);
-      ctx.fill();
-      b.xs.length = 0; // (kept for the next frame: no new arrays each frame)
-    }
-    ctx.globalAlpha = 1;
-    if (batch.size > 32) batch.clear();
-    this._pN = 0; for (let i = 0; i < keep; i++) if (fx[i].type === 'P') this._pN++;
   }
   /** osu!lazer's LegacyManiaJudgementPiece: in over 20 ms, held, out over 40 ms from 180 ms (220 ms in all, at the
    *  skin's ScorePosition). Hits pulse as stable's overlapping transforms do — 0.8→1 (40 ms), 0.85→0.7 (40 ms), held,

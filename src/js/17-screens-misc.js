@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.9c', title: 'Cleaner note hits', sections: [
+    { icon: 'keyboard', title: 'Gameplay', items: ['Removed hit particles and their setting'] },
+  ] },
   { id: '2026.11.9b', title: 'One background control', sections: [
     { icon: 'image', title: 'Skin editor', items: ['Background image, video and storyboard share one Background component in Advanced mode: move, resize or hide them together'] },
   ] },

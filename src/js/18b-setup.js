@@ -14,7 +14,7 @@ const SETUP_DEVICES = {
     // can't keep up — Automatic resolution, turned on here)
     values: () => ({ 'graphics.performanceMode': true, 'graphics.autoScale': true, 'gameplay.video': false, 'graphics.menuBlur': 12, 'ui.parallax': false }) },
   pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sec-graphics',
-    values: () => ({ 'graphics.performanceMode': false, 'graphics.particles': true, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
+    values: () => ({ 'graphics.performanceMode': false, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
       'graphics.autoScale': false, 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
 };
 
