@@ -61,10 +61,9 @@ try {
   assert.equal(await admin.evaluate(() => {
     const u = AshtonkMania.Presence.players.find(u => u.name === 'Player');
     const items = AshtonkMania.UserPanels.menuItems({ ...u, online: true }), at = items.findIndex(i => i.label === 'Spectate');
-    return at >= 0 && items[at + 1].label === 'Admin Spectate';
-  }), true, 'Admin Spectate is immediately beside regular Spectate');
-  await admin.evaluate(() => AshtonkMania.AdminGameView.requestInterface(AshtonkMania.Presence.players.find(u => u.name === 'Player')));
-  await admin.getByRole('button', { name: 'Spectate without extra notice', exact: true }).click();
+    return at >= 0 && items[at + 1].label === 'Live View' && !items.some(i => i.label === 'Admin Spectate' || i.label === 'Live interface view');
+  }), true, 'Live View is immediately beside regular Spectate');
+  await admin.evaluate(() => AshtonkMania.AdminGameView.request(AshtonkMania.Presence.players.find(u => u.name === 'Player')));
   assert.equal(await player.getByRole('button', { name: 'Share game tab', exact: true }).count(), 0, 'No recurring approval request');
   try { await admin.waitForFunction(() => document.querySelector('.admin-view-video')?.videoWidth > 0, null, { timeout: 30000 }); }
   catch (e) { for (const [label, pg] of [['player', player], ['admin', admin]]) console.error(label, JSON.stringify(await pg.evaluate(() => ({ captureError: AshtonkMania.AdminGameView.current?.captureError, messages: window.viewMessages, stops: window.viewStops, current: AshtonkMania.AdminGameView.current && { host: AshtonkMania.AdminGameView.current.host, session: AshtonkMania.AdminGameView.current.session, pc: AshtonkMania.AdminGameView.current.pc?.connectionState, ice: AshtonkMania.AdminGameView.current.pc?.iceConnectionState, handle: AshtonkMania.AdminGameView.handle }, toasts: document.querySelector('#toasts').textContent })), null, 2)); throw e; }
@@ -109,15 +108,22 @@ try {
     await A.Game.launch({ mapId: map.id, mods: ['NF'], mode: 'play' });
   });
   try { await player.waitForFunction(() => AshtonkMania.GameplayScreen.s?.running && AshtonkMania.AdminGameView.current?.capture?.liveFrameMode?.startsWith('gameplay/true')); } catch (e) { console.error('Gameplay capture state:', JSON.stringify(await player.evaluate(() => ({ screen: Screens.currentName, running: GameplayScreen.s?.running, state: GameplayScreen.s && { finished: GameplayScreen.s.finished, failed: GameplayScreen.s.failed }, mode: AdminGameView.current?.capture?.frameMode, capturedAgo: performance.now() - (AdminGameView.current?.capture?.captured || 0), videos: [...document.querySelectorAll('video')].map(v => ({ state: v.readyState, paused: v.paused })), private: AdminGameView.privateOpen(), error: AdminGameView.current?.captureError, overlays: Overlays.stack.length, label: AdminGameView.current?.label?.textContent })))); throw e; }
+  await player.waitForFunction(() => AshtonkMania.AdminGameView.current?.capture?.hudSnapshots > 0);
+  assert.equal(await player.evaluate(() => AshtonkMania.AdminGameView.current.capture.root === AshtonkMania.GameplayScreen.hud), true, 'Gameplay snapshots use only the HUD, never the whole document');
+  const lateBackground = await player.evaluate(() => {
+    const c = document.createElement('canvas'); c.width = c.height = 2; const x = c.getContext('2d'); x.fillStyle = '#192744'; x.fillRect(0, 0, 2, 2);
+    const url = c.toDataURL(); AshtonkMania.GameplayScreen.bgEl.style.backgroundImage = `url("${url}")`; return url;
+  });
+  await player.waitForFunction(url => AshtonkMania.AdminGameView.current.capture.background?.src === url, lateBackground);
+
   await visibleVideo();
   if (process.env.SHOT_DIR) await admin.screenshot({ path: join(process.env.SHOT_DIR, process.env.SOURCE_MOBILE ? 'admin-live-gameplay-mobile.png' : 'admin-live-gameplay.png') });
   await player.evaluate(() => AshtonkMania.Screens.go('songselect'));
   await admin.getByRole('button', { name: 'Stop watching', exact: true }).click();
   await player.waitForFunction(() => !AshtonkMania.AdminGameView.current);
   // More than the server's short rejoin cooldown has elapsed during the checks above.
-  await admin.evaluate(() => AshtonkMania.AdminGameView.requestInterface(AshtonkMania.Presence.players.find(u => u.name === 'Player')));
-  await admin.getByRole('button', { name: 'Notify and spectate', exact: true }).click();
-  await player.locator('#toasts').filter({ hasText: 'Admin spectating' }).waitFor();
+  await admin.evaluate(() => AshtonkMania.AdminGameView.start(AshtonkMania.Presence.players.find(u => u.name === 'Player'), true));
+  await player.locator('#toasts').filter({ hasText: 'Live View' }).waitFor();
   await visibleVideo();
   assert.equal(await player.evaluate(() => window.captureCalls), 0, 'Rejoining never asks the player to share a tab');
   await player.getByRole('button', { name: 'Stop sharing', exact: true }).click();

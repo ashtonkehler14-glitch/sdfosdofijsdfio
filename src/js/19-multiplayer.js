@@ -828,7 +828,7 @@ const Presence = {
     ws.onmessage = ev => {
       this._heard = Date.now();
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'welcome') { NetErr.clear(); this.me = m.you; setTimeout(() => Rankings.report(), 1500); setTimeout(() => Verified.catchUp(), 3000); /* (plays the server doesn't have yet: up they go) */ if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: t.silent ? 'adminSpecWatch' : 'watch', to: t.id }); } }
+      if (m.t === 'welcome') { NetErr.clear(); this.me = m.you; setTimeout(() => Rankings.report(), 1500); setTimeout(() => Verified.catchUp(), 3000); /* (plays the server doesn't have yet: up they go) */ if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
@@ -854,7 +854,7 @@ const Presence = {
         Bus.emit('presence:changed');
       }
       else if (m.t === 'specChat' || m.t === 'specChatHist') SpectatorChat.on(m);
-      else if (/^spec|^spectators$|^adminSpec/.test(m.t)) Spectate.on(m);
+      else if (/^spec|^spectators$/.test(m.t)) Spectate.on(m);
       else if (m.t === 'friends') Friends.sync(m);
       else if (m.t === 'friendReq') Friends.onRequest(m);
       else if (m.t === 'friendSent') Toast.ok('Friend request sent', `${m.name} can accept it from their online users list.`);
@@ -905,7 +905,6 @@ const Presence = {
       // but not stay; three in a row, and plain requests from now on)
       if (ws._open && !ws.http && MpNet.cutShort(ws, ev, this._openAt)) this.retry = 0;
       this.isAdmin = false;
-      if (typeof Spectate !== 'undefined') Spectate.host.moderators = 0;
       { const now = Date.now(), seen = this._seen || (this._seen = new Map()); for (const x of this.players) if (x.pid) seen.set(x.pid, now); }
       this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping); // (asks still queued go out on the next connection)
       // (spectating carries on after the reconnect: ask again)
@@ -1486,7 +1485,7 @@ const MultiplayerScreen = {
         !isMe && p.playing && !p.fin && Presence.isAdmin && p.pid ? h('button.btn.sm.mp-spec', { onclick: () => {
           const online = Presence.players.find(x => x.pid === p.pid);
           if (online) AdminGameView.request(online); else Toast.err('Player is offline');
-        } }, icon('film'), 'Admin Spectate') : null,
+        } }, icon('film'), 'Live View') : null,
         state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : state === 'reconnecting' ? 'sync' : state === 'quit' ? 'x' : 'check')), state) : null,
         // (lazer: the host's buttons at the panel's end — hand over the host, and kick (between matches))
         host && !isMe ? h('button.mp-pact', { title: `Give host to ${p.name}`, 'aria-label': `Give host to ${p.name}`, onclick: () => { UISounds.click(); Multiplayer.send({ t: 'giveHost', id: p.id }); } }, icon('crown')) : null,

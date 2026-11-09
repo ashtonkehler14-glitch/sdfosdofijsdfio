@@ -52,3 +52,10 @@ test('a 60 FPS limiter on a 144Hz display does not mistake its alternating inter
   }
   assert.equal(b.level, 5); assert.ok(Math.abs(b.targetMs - 1000 / 60) < .1);
 });
+
+test('recovering stream quality never reduces text resolution, frame rate or encoder allowance', () => {
+  for (let i = 1; i < Budget.TIERS.length; i++) {
+    const before = Budget.TIERS[i - 1], after = Budget.TIERS[i];
+    assert.ok(after.width >= before.width); assert.ok(after.fps >= before.fps); assert.ok(after.bitrate >= before.bitrate);
+  }
+});

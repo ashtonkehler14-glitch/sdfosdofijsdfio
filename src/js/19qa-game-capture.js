@@ -20,7 +20,7 @@ const GameViewCapture = {
     if (!canvas.captureStream || !ctx) throw new Error('This browser cannot stream the game view.');
     const budget = new GameViewBudget(), waiting = new Set();
     const s = { canvas, budget, paused: false, epoch: 0, frame: null, dirty: true, stopped: false, cursor: null,
-      paintedFrames: 0, snapshots: 0, yielded: 0, skipped: 0 };
+      paintedFrames: 0, snapshots: 0, hudSnapshots: 0, fullSnapshots: 0, yielded: 0, skipped: 0 };
     const alive = () => !s.stopped && valid();
     const aborted = () => Object.assign(new Error('Game-view work deferred.'), { name: 'AbortError' });
     const cancelWork = () => {
@@ -62,7 +62,7 @@ const GameViewCapture = {
         s.senderUpdates = (s.senderUpdates || Promise.resolve()).catch(() => {}).then(async () => {
           if (!alive()) return;
           const p = s.sender.getParameters();
-          if (p.encodings?.length) { p.encodings[0].maxBitrate = q.bitrate; p.encodings[0].maxFramerate = q.fps; p.degradationPreference = 'maintain-framerate'; await s.sender.setParameters(p); }
+          if (p.encodings?.length) { p.encodings[0].maxBitrate = q.bitrate; p.encodings[0].maxFramerate = q.fps; p.degradationPreference = 'maintain-resolution'; await s.sender.setParameters(p); }
         }).catch(() => {});
       }
       if (!s.manual) s.track.applyConstraints?.({ frameRate: { max: q.fps } }).catch(() => {});
@@ -72,41 +72,84 @@ const GameViewCapture = {
       if (!alive() || s.paused || isPrivate() || !s.frame && !running()) return;
       const start = performance.now();
       if (!budget.due(start)) return;
-      if (s.level !== budget.level) { dimensions(); s.level = budget.level; s.dirty = true; tune(); }
+      if (s.level !== budget.level) { dimensions(); s.level = budget.level; if (!running() || !s.activeFrame) s.dirty = true; tune(); }
       const game = GameplayScreen.s, currentView = mode();
-      const base = running() && s.activeGame === game ? s.activeFrame : s.frameMode === currentView ? s.frame : null;
-      if (base) ctx.drawImage(base, 0, 0, canvas.width, canvas.height);
+      const active = running() && !Overlays.top();
+      const base = active && s.activeGame === game ? s.activeFrame : s.frameMode === currentView && s.frameKind === 'ui' ? s.frame : null;
+      if (!active && base) ctx.drawImage(base, 0, 0, canvas.width, canvas.height);
       else {
         mask(false);
-        // A cheap live playfield is available immediately, even while a detailed UI snapshot waits for idle time.
-        if (running()) {
+        if (active) {
+          if (s.hudOpacity == null) s.hudOpacity = +getComputedStyle(GameplayScreen.hud).opacity;
           if (s.backgroundGame !== game) {
-            s.backgroundGame = game; s.background = null; s.hud = null;
-            const url = /^url\(["']?(.*?)["']?\)$/.exec(GameplayScreen.bgEl?.style.backgroundImage || '')?.[1];
-            if (url) { const image = new Image(); image.onload = () => { if (alive() && s.backgroundGame === game) s.background = image; }; image.src = url; }
+            s.backgroundGame = game; s.background = null; s.hud = null; s.layers = null; s.liveHud = null;
+            s.backgroundURL = null;
+          }
+          const backgroundURL = /^url\(["']?(.*?)["']?\)$/.exec(GameplayScreen.bgEl?.style.backgroundImage || '')?.[1] || '';
+          if (backgroundURL !== s.backgroundURL) {
+            s.backgroundURL = backgroundURL; s.background = null;
+            if (backgroundURL) { const image = new Image(); image.onload = () => { if (alive() && s.backgroundGame === game && s.backgroundURL === backgroundURL) s.background = image; }; image.src = backgroundURL; }
           }
           if (s.background) {
             const k = Math.max(canvas.width / s.background.width, canvas.height / s.background.height);
             ctx.drawImage(s.background, (canvas.width - s.background.width * k) / 2, (canvas.height - s.background.height * k) / 2, s.background.width * k, s.background.height * k);
-            ctx.fillStyle = `rgba(0,0,0,${GameplayScreen.baseDim ?? .7})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
           }
-        }
-      }
-      const source = running() && !Overlays.top() && GameplayScreen.renderer?.canvas;
-      if (source) {
-        const r = source.getBoundingClientRect();
-        if (r.width && r.height) try { ctx.drawImage(source, r.left * s.scale, r.top * s.scale, r.width * s.scale, r.height * s.scale); s.liveFrameMode = currentView; } catch { /* detached renderer */ }
-        if (!base) {
-          if (!s.hud) s.hud = [GameplayScreen.scoreEl, GameplayScreen.accEl, GameplayScreen.ppEl].map((el, kind) => {
+          const video = GameplayScreen.videoEl;
+          if (video?.readyState >= 2 && video.classList.contains('on')) ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = `rgba(0,0,0,${GameplayScreen.baseDim ?? .7})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
+          // Read geometry once per layout, not once per transmitted frame.
+          if (!s.layers) s.layers = [GameplayScreen.sbCanvas, GameplayScreen.renderer?.canvas, ...GameplayScreen.hud.querySelectorAll('canvas')].filter(Boolean).map(el => ({ el, hud: GameplayScreen.hud.contains(el), rect: el.getBoundingClientRect() }));
+          for (const layer of s.layers) {
+            if (layer.hud || !layer.rect.width || !layer.rect.height || !layer.el.width || !layer.el.height) continue;
+            const r = layer.rect;
+            try { ctx.drawImage(layer.el, r.left * s.scale, r.top * s.scale, r.width * s.scale, r.height * s.scale); } catch { /* detached canvas */ }
+          }
+          if (base) ctx.drawImage(base, 0, 0, canvas.width, canvas.height);
+          for (const layer of s.layers) if (layer.hud && layer.rect.width && layer.rect.height && layer.el.width && layer.el.height) {
+            const r = layer.rect, digits = layer.el.classList.contains('skin-digits'), width = digits ? parseFloat(layer.el.style.width) || r.width : r.width, height = digits ? parseFloat(layer.el.style.height) || r.height : r.height;
+            ctx.globalAlpha = s.hudOpacity;
+            try { ctx.drawImage(layer.el, (digits ? r.right - width : r.left) * s.scale, r.top * s.scale, width * s.scale, height * s.scale); } catch { /* detached HUD */ }
+            ctx.globalAlpha = 1;
+          }
+          s.liveFrameMode = currentView;
+          if (!s.hud) s.hud = [GameplayScreen.scoreEl, GameplayScreen.accEl, GameplayScreen.ppEl, ...(GameplayScreen.jc?.items || []).map(i => i.n), ...GameplayScreen.hud.querySelectorAll('.sp-times span')].map(el => {
             if (!el) return null;
             const rect = el.getBoundingClientRect(), style = getComputedStyle(el);
-            return { el, kind, rect, font: style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`, color: style.color };
+            return { el, rect, font: style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`, color: style.color, opacity: +style.opacity * s.hudOpacity, align: style.textAlign };
           }).filter(h => h && h.rect.width && h.rect.height);
           ctx.save(); ctx.scale(s.scale, s.scale); ctx.textBaseline = 'top';
-          for (let i = 0; i < s.hud.length; i++) {
-            const h = s.hud[i]; ctx.font = h.font; ctx.fillStyle = h.color;
-            const text = h.kind === 0 ? fmtScore(game.engine.score.scoreStd) : h.kind === 1 ? fmtAcc(game.engine.score.accuracy) : h.el.textContent;
-            ctx.fillText(text, h.rect.right - ctx.measureText(text).width, h.rect.top);
+          for (const h of s.hud) {
+            ctx.font = h.font; ctx.fillStyle = h.color; ctx.globalAlpha = h.opacity;
+            const text = h.el.textContent;
+            const w = ctx.measureText(text).width, x = h.align === 'center' ? h.rect.left + (h.rect.width - w) / 2 : h.align === 'right' || h.align === 'end' ? h.rect.right - w : h.rect.left;
+            ctx.fillText(text, x, h.rect.top);
+          }
+          ctx.restore();
+          if (!s.liveHud) {
+            const bar = (el, fill, kind) => {
+              if (!el) return null;
+              const rect = el.getBoundingClientRect(), style = getComputedStyle(el), ink = fill && getComputedStyle(fill);
+              return rect.width && rect.height ? { rect, kind, background: style.backgroundColor, colors: (ink?.backgroundImage.match(/rgba?\([^)]+\)/g) || [ink?.backgroundColor || '#fff']), opacity: s.hudOpacity } : null;
+            };
+            s.liveHud = [bar(GameplayScreen.hpEl?.querySelector('.hp-track'), GameplayScreen.hpFill, 'health'), bar(GameplayScreen.progEl?.parentElement, GameplayScreen.progEl, 'progress')].filter(Boolean);
+          }
+          ctx.save(); ctx.scale(s.scale, s.scale); ctx.globalAlpha = s.hudOpacity;
+          for (const b of s.liveHud) {
+            const r = b.rect, value = b.kind === 'health' ? Math.max(0, Math.min(1, GameplayScreen._hpQ / 400)) : Math.max(0, Math.min(1, GameplayScreen._pq / 400));
+            ctx.globalAlpha = b.opacity; ctx.fillStyle = b.background; ctx.fillRect(r.left, r.top, r.width, r.height);
+            const gradient = ctx.createLinearGradient(r.left, 0, r.right, 0), colors = b.kind === 'health' && GameplayScreen._hpLow ? ['#ff3355', '#ff9f8f'] : b.colors;
+            colors.forEach((c, i) => gradient.addColorStop(colors.length === 1 ? 0 : i / (colors.length - 1), c));
+            ctx.fillStyle = gradient; ctx.fillRect(r.left, r.top, r.width * value, r.height);
+          }
+          const pie = GameplayScreen.pieEl;
+          if (pie?.isConnected) {
+            if (!s.pieRect) s.pieRect = pie.getBoundingClientRect();
+            const r = s.pieRect, radius = r.width / 2, x = r.left + radius, y = r.top + r.height / 2, lead = GameplayScreen._lead;
+            if (r.width && r.height) {
+              ctx.fillStyle = lead ? 'rgba(126,224,122,.18)' : 'rgba(255,255,255,.14)'; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+              ctx.fillStyle = lead ? '#7ee07a' : 'rgba(255,255,255,.92)'; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (GameplayScreen._pieQ || 0) / 200); ctx.closePath(); ctx.fill();
+              ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
+            }
           }
           ctx.restore();
         }
@@ -137,7 +180,7 @@ const GameViewCapture = {
     s.gameFrameEnd = (ts, work, limit, drawn) => { if (alive()) { budget.sample(ts, work, limit, drawn); if (drawn) queuePaint(); } };
     const refresh = async () => {
       if (!alive()) return;
-      const start = performance.now(), epoch = s.epoch, view = mode(), active = !!running();
+      const start = performance.now(), epoch = s.epoch, view = mode(), active = !!running() && !Overlays.top();
       // A rate-limited encoder may drop a single transition frame. Keep a black heartbeat until sharing resumes.
       if (s.paused || isPrivate()) mask();
       const check = () => alive() && !s.paused && !isPrivate() && s.epoch === epoch && mode() === view;
@@ -149,23 +192,27 @@ const GameViewCapture = {
         s.sliceEnd = performance.now() + (inGame() ? budget.slice(performance.now()) : Math.min(4, budget.slack(performance.now()) * .5));
       };
       try {
-        const interval = active ? Math.max(2000, budget.quality.snapshot) : Math.max(250, budget.quality.snapshot / 4);
-        if (check() && (s.dirty || !s.frame || start - (s.captured || 0) > interval) && start - (s.attempted || -Infinity) >= interval) {
+        const interval = active ? Math.max(750, budget.quality.snapshot / 2) : Math.max(250, budget.quality.snapshot / 4);
+        if (check() && (s.dirty || !s.frame || s.frameMode !== view || !active && start - (s.captured || 0) > 5000) && start - (s.attempted || -Infinity) >= interval) {
           s.attempted = start; s.dirty = false;
           await gate(true);
-          const options = { width: s.width, height: s.height, scale: s.scale, backgroundColor: '#18171c', timeout: 3000,
+          const root = active ? GameplayScreen.hud : document.body;
+          const liveText = active ? [GameplayScreen.scoreEl, GameplayScreen.accEl, GameplayScreen.ppEl, ...(GameplayScreen.jc?.items || []).map(i => i.n), ...GameplayScreen.hud.querySelectorAll('.sp-times span'), GameplayScreen.hpEl, GameplayScreen.progEl?.parentElement, GameplayScreen.pieEl] : [];
+          const options = { width: s.width, height: s.height, scale: s.scale, backgroundColor: active ? 'rgba(0,0,0,0)' : '#18171c', timeout: 3000,
             onBeforeWork: gate, onCloneNode: () => gate(true), onEmbedNode: () => gate(true),
             filter: node => !(node.nodeType === 1 && (node.hidden || node.style?.display === 'none' || node.matches('#loading-screen.done, #drop-overlay:not(.show)') || ['SCRIPT', 'IFRAME', 'AUDIO'].includes(node.tagName) || node.tagName === 'VIDEO' && node.readyState < 2 ||
               node.matches('.admin-view-sharing, .admin-view-wrap, .lz-cursor, [data-admin-view-ignore]') ||
               node.closest('.login-panel, .setup-step-account, input[type=password], [data-private]') ||
-              active && node.tagName === 'CANVAS' && node === GameplayScreen.renderer?.canvas)) };
-          if (!s.context) s.context = await renderer.createContext(document.body, options);
+              active && (node.tagName === 'CANVAS' || liveText.includes(node) || node.matches('.hud-lb') && !Settings.get('gameplay.leaderboard') && !GameplayScreen._hudAll))) };
+          if (s.root !== root && s.context) { renderer.destroyContext(s.context); s.context = null; }
+          s.root = root;
+          if (!s.context) s.context = await renderer.createContext(root, options);
           else Object.assign(s.context, options, { dpi: s.scale === 1 ? null : s.scale * 96 });
           const image = await renderer.domToCanvas(s.context);
           if (check() && s.width === innerWidth && s.height === innerHeight) {
-            s.frame = image; s.frameMode = view; s.captured = performance.now(); s.paintDirty = true; s.snapshots++;
+            s.frame = image; s.frameMode = view; s.frameKind = active ? 'hud' : 'ui'; s.captured = performance.now(); s.paintDirty = true; s.snapshots++;
             if (s.context.requests.size > 128) { renderer.destroyContext(s.context); s.context = null; }
-            if (active) { s.activeFrame = image; s.activeGame = GameplayScreen.s; } queuePaint();
+            if (active) { s.activeFrame = image; s.activeGame = GameplayScreen.s; s.hudSnapshots++; s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; } else s.fullSnapshots++; queuePaint();
           }
         }
       } catch (e) {
@@ -188,14 +235,34 @@ const GameViewCapture = {
       finally { if (alive()) s.statsTimer = setTimeout(stats, 2000); }
     };
     const pointer = e => { s.cursor = { x: e.clientX, y: e.clientY }; s.paintDirty = true; };
-    const resize = () => { s.epoch++; cancelWork(); dimensions(); s.frame = s.activeFrame = null; s.hud = null; s.dirty = true; s.attempted = -Infinity; mask(); };
-    const offScreen = Bus.on('screen:changed', () => { cancelWork(); s.dirty = true; s.attempted = -Infinity; wakeMenus(); });
-    const observer = new MutationObserver(records => { if (records.some(r => !r.target.closest?.('.admin-view-sharing, .admin-view-wrap'))) s.dirty = true; });
+    const resize = () => { s.epoch++; cancelWork(); dimensions(); s.frame = s.activeFrame = null; s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; s.dirty = true; s.attempted = -Infinity; mask(); };
+    const offScreen = Bus.on('screen:changed', () => { s.epoch++; s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; cancelWork(); s.dirty = true; s.attempted = -Infinity; wakeMenus(); });
+    const observer = new MutationObserver(records => {
+      const active = running() && !Overlays.top(), hud = GameplayScreen.hud;
+      const fast = '.sc, .acc, .hud-pp, .hud-progress, .hud-pie, .hud-hp, .jc-n, .sp-times';
+      if (records.some(r => {
+        const el = r.target.nodeType === 1 ? r.target : r.target.parentElement;
+        if (!el || el.closest('.admin-view-sharing, .admin-view-wrap')) return false;
+        if (active) {
+          if (!hud?.contains(el)) return false;
+          if (r.type === 'childList' && [...r.addedNodes, ...r.removedNodes].some(n => n.nodeType === 1 && (n.tagName === 'CANVAS' || n.querySelector('canvas')))) s.layers = null;
+          if (el.closest(fast)) return false;
+          if (el === GameplayScreen.skipBtn && r.attributeName === 'style') {
+            if (s.skipVisible === GameplayScreen._canSkip) return false;
+            s.skipVisible = GameplayScreen._canSkip;
+          }
+        }
+        return true;
+      })) { s.dirty = true; s.hudOpacity = null; }
+    });
     observer.observe(document.getElementById('app'), { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'value', 'src'] });
+    const changed = () => { s.dirty = true; s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; };
+    document.addEventListener('scroll', changed, true); document.addEventListener('input', changed, true);
     document.addEventListener('pointermove', pointer, { passive: true }); window.addEventListener('resize', resize);
-    s.setPaused = paused => { if (paused !== s.paused) { s.paused = paused; s.epoch++; cancelWork(); s.frame = s.activeFrame = null; s.hud = null; s.dirty = true; s.attempted = -Infinity; mask(); } };
+    s.setPaused = paused => { if (paused !== s.paused) { s.paused = paused; s.epoch++; cancelWork(); s.frame = s.activeFrame = null; s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; s.dirty = true; s.attempted = -Infinity; mask(); } };
     s.stop = () => {
       s.stopped = true; cancelWork(); clearTimeout(s.timer); clearTimeout(s.statsTimer); cancelAnimationFrame(s.animation); observer.disconnect(); offScreen();
+      document.removeEventListener('scroll', changed, true); document.removeEventListener('input', changed, true);
       document.removeEventListener('pointermove', pointer); window.removeEventListener('resize', resize);
       if (s.context) renderer.destroyContext(s.context);
       stream.getTracks().forEach(t => t.stop()); canvas.width = canvas.height = 0; s.frame = s.activeFrame = s.context = s.background = s.hud = null;

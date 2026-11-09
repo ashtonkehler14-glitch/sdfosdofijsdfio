@@ -28760,7 +28760,7 @@ const Presence = {
     ws.onmessage = ev => {
       this._heard = Date.now();
       let m; try { m = JSON.parse(ev.data); } catch { return; }
-      if (m.t === 'welcome') { NetErr.clear(); this.me = m.you; setTimeout(() => Rankings.report(), 1500); setTimeout(() => Verified.catchUp(), 3000); /* (plays the server doesn't have yet: up they go) */ if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: t.silent ? 'adminSpecWatch' : 'watch', to: t.id }); } }
+      if (m.t === 'welcome') { NetErr.clear(); this.me = m.you; setTimeout(() => Rankings.report(), 1500); setTimeout(() => Verified.catchUp(), 3000); /* (plays the server doesn't have yet: up they go) */ if (this._rewatch) { const t = this._rewatch; this._rewatch = null; this.send({ t: 'watch', to: t.id }); } }
       else if (m.t === 'online') {
         const before = new Set(this.players.map(x => x.pid));
         this.players = Array.isArray(m.players) ? m.players : [];
@@ -28786,7 +28786,7 @@ const Presence = {
         Bus.emit('presence:changed');
       }
       else if (m.t === 'specChat' || m.t === 'specChatHist') SpectatorChat.on(m);
-      else if (/^spec|^spectators$|^adminSpec/.test(m.t)) Spectate.on(m);
+      else if (/^spec|^spectators$/.test(m.t)) Spectate.on(m);
       else if (m.t === 'friends') Friends.sync(m);
       else if (m.t === 'friendReq') Friends.onRequest(m);
       else if (m.t === 'friendSent') Toast.ok('Friend request sent', `${m.name} can accept it from their online users list.`);
@@ -28837,7 +28837,6 @@ const Presence = {
       // but not stay; three in a row, and plain requests from now on)
       if (ws._open && !ws.http && MpNet.cutShort(ws, ev, this._openAt)) this.retry = 0;
       this.isAdmin = false;
-      if (typeof Spectate !== 'undefined') Spectate.host.moderators = 0;
       { const now = Date.now(), seen = this._seen || (this._seen = new Map()); for (const x of this.players) if (x.pid) seen.set(x.pid, now); }
       this.ws = null; this.players = []; this._listed = false; clearInterval(this._ping); // (asks still queued go out on the next connection)
       // (spectating carries on after the reconnect: ask again)
@@ -29418,7 +29417,7 @@ const MultiplayerScreen = {
         !isMe && p.playing && !p.fin && Presence.isAdmin && p.pid ? h('button.btn.sm.mp-spec', { onclick: () => {
           const online = Presence.players.find(x => x.pid === p.pid);
           if (online) AdminGameView.request(online); else Toast.err('Player is offline');
-        } }, icon('film'), 'Admin Spectate') : null,
+        } }, icon('film'), 'Live View') : null,
         state ? h(`span.mp-pstate.${state}`, h('i', icon(state === 'playing' ? 'play' : state === 'reconnecting' ? 'sync' : state === 'quit' ? 'x' : 'check')), state) : null,
         // (lazer: the host's buttons at the panel's end — hand over the host, and kick (between matches))
         host && !isMe ? h('button.mp-pact', { title: `Give host to ${p.name}`, 'aria-label': `Give host to ${p.name}`, onclick: () => { UISounds.click(); Multiplayer.send({ t: 'giveHost', id: p.id }); } }, icon('crown')) : null,
@@ -31038,18 +31037,17 @@ const SPEC_DELAY = 600; // ms of song time the watcher stays behind the player (
 const Spectate = {
   target: null, // { id, name, pid, avatar, room }: who we're watching (room: from a multiplayer room)
   cur: null,    // their play now: { id, name, head, feed, at, ready, ended, quit, started }
-  host: { watchers: 0, moderators: 0, s: null, sent: 0, lastSend: 0 },
+  host: { watchers: 0, s: null, sent: 0, lastSend: 0 },
 
   // ── watching
-  watch(p, { silent = false } = {}) {
-    if (silent && !Presence.isAdmin) { Toast.err('Admin access required'); return; }
+  watch(p) {
     if (!p || !Presence.ws) { Toast.err('Can\'t spectate right now', 'You\'re not connected to the online service.'); return; }
     if (Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
-    if (this.target && (this.target.id !== p.id || !!this.target.silent !== silent)) Presence.send({ t: this.target.silent ? 'adminSpecStop' : 'unwatch', to: this.target.id });
-    const room = !silent && Multiplayer.inRoom();
-    this.target = { id: p.id, name: p.name, pid: p.pid || '', avatar: p.avatar || '', activity: p.activity || '', status: p.status || 'menu', silent, room };
+    if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
+    const room = Multiplayer.inRoom();
+    this.target = { id: p.id, name: p.name, pid: p.pid || '', avatar: p.avatar || '', activity: p.activity || '', status: p.status || 'menu', room };
     this.cur = null; this.set = null;
-    Presence.send({ t: silent ? 'adminSpecWatch' : 'watch', to: p.id, ...(!silent ? { chat: true } : {}) });
+    Presence.send({ t: 'watch', to: p.id, chat: true });
     if (typeof SpectatorChat !== 'undefined') SpectatorChat.refresh();
     if (!room) Screens.go('spectator');
     Presence.pushStatus();
@@ -31057,7 +31055,7 @@ const Spectate = {
   stop({ quiet = false } = {}) {
     const t = this.target;
     if (!t) return;
-    Presence.send({ t: t.silent ? 'adminSpecStop' : 'unwatch', to: t.id });
+    Presence.send({ t: 'unwatch', to: t.id });
     this.target = null; this.cur = null; this.set = null;
     RankedWatch.close(true);
     if (typeof SpectatorChat !== 'undefined') SpectatorChat.refresh();
@@ -31070,21 +31068,16 @@ const Spectate = {
     const t = this.target;
     if (!t || !t.lost) return;
     const p = Presence.players.find(x => x.pid === t.pid && x.id !== t.id);
-    if (p) this.watch(p, { silent: !!t.silent });
+    if (p) this.watch(p);
   },
   watchingNow() { return Screens.currentName === 'gameplay' && !!(GameplayScreen.s && GameplayScreen.s.spectate); },
   onResults() { return Screens.currentName === 'results' && !!(ResultsScreen.p && ResultsScreen.p.spectated); },
   on(m) {
-    if (m.t === 'specStream') { this.host.moderators = m.n || 0; if (m.full && this.host.s && GameplayScreen.s === this.host.s && !this.host.s.finished) this.upload(this.host.s); return; }
-    if (m.t === 'adminSpecError' || m.t === 'adminSpecEnd') {
-      if (this.target?.silent && this.target.id === m.id) { this.toScreen(); this.stop({ quiet: true }); Toast.show('Moderation spectate ended', m.reason); }
-      return;
-    }
     if (m.t === 'spectators') { this.onSpectators(m); return; }
     const t = this.target;
     if (!t || m.id !== t.id) return;
     // (in a Ranked Play match: their match screen, as they see it, between their songs — RankedWatch)
-    if ((m.t === 'specWait' || m.t === 'specStart' || m.t === 'specRoom') && !t.room && !t.silent && m.room != null) RankedWatch.open(m.room, m.pid || t.pid);
+    if ((m.t === 'specWait' || m.t === 'specStart' || m.t === 'specRoom') && !t.room && m.room != null) RankedWatch.open(m.room, m.pid || t.pid);
     if (m.t === 'specRoom') return;
     if (m.t === 'specActivity') {
       t.activity = m.activity; t.status = m.status;
@@ -31218,7 +31211,7 @@ const Spectate = {
     this.toScreen();
   },
   /** lazer's "Automatically download missing beatmaps" (off unless you turn it on). */
-  autoDownload() { const c = this.cur; if (c && !c.ended && (Settings.get('online.autoDownload') || RankedWatch.on || this.target?.silent) && !this.findMap(c.head)) this.download(); },
+  autoDownload() { const c = this.cur; if (c && !c.ended && (Settings.get('online.autoDownload') || RankedWatch.on) && !this.findMap(c.head)) this.download(); },
   download() {
     const c = this.cur, id = c && c.head.onlineSetId;
     if (!(id > 0) || this.findMap(c.head)) return;
@@ -31298,7 +31291,6 @@ const Spectate = {
   liveEl(s) {
     const c = s.spectate, title = Settings.get('ui.unicodeMetadata') && s.rec.titleUnicode ? s.rec.titleUnicode : s.rec.title;
     // The player and their spectators share the lounge-style chat; playback continues behind the panel.
-    if (this.target?.silent) return h('div.spec-live', h('span.spec-live-t', 'Moderation · Watching ', h('b', c.name), ' play ', h('b', title), h('b.spec-live-l', ' live')));
     this.msgDot = h('i.spec-msg-n');
     const btn = h('button.spec-msg', { title: 'Spectator chat (F8)', 'aria-label': 'Open spectator chat',
       onclick: e => { e.stopPropagation(); this.message(); } }, icon('chat'), h('span', 'Message'), this.msgDot);
@@ -31307,7 +31299,7 @@ const Spectate = {
   },
   /** The shared spectator chat: the player and everyone currently watching them. */
   message() {
-    if (!this.target?.silent) SpectatorChat.toggle();
+    SpectatorChat.toggle();
   },
   /** The chat button's dot: messages you haven't read yet. */
   paintMsgDot() {
@@ -31390,7 +31382,7 @@ const Spectate = {
   },
   hostTick(s, now) {
     const H = this.host;
-    if (H.s !== s || !(H.watchers + H.moderators) || s.finished) return;
+    if (H.s !== s || !H.watchers || s.finished) return;
     const t = performance.now();
     if (t - H.lastSend < 50) return; // (20 times a second: watchers stay close behind)
     H.lastSend = t;
@@ -31402,7 +31394,7 @@ const Spectate = {
    *  song, for anyone watching: it happens in their play too, as it gets there. Played so far goes first. */
   hostAct(s, k, t, extra = {}) {
     const H = this.host;
-    if (H.s !== s || !(H.watchers + H.moderators) || !Presence.ws) return;
+    if (H.s !== s || !H.watchers || !Presence.ws) return;
     if (k === 'sel') { if (H.sel === extra.sel) return; H.sel = extra.sel; } else H.sel = null;
     const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100), at = t == null ? this.songTime(s) : t;
     H.sent = s.events.length; H.lastSend = performance.now();
@@ -31412,7 +31404,7 @@ const Spectate = {
   hostEnd(s, quit) {
     const H = this.host;
     if (H.s !== s) return;
-    if ((H.watchers + H.moderators) && !quit) { const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100); H.sent = s.events.length; Presence.send({ t: 'frames', ev, at: s.endTime + 5000 }); }
+    if (H.watchers && !quit) { const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100); H.sent = s.events.length; Presence.send({ t: 'frames', ev, at: s.endTime + 5000 }); }
     H.s = null;
     Presence.send({ t: 'playEnd', quit: !!quit, ...(s.spectatorRetry ? { retry: true } : {}) });
   },
@@ -31473,10 +31465,10 @@ const SpectatorScreen = {
     const t = Spectate.target;
     const msg = h('button.spm-msg', { title: 'Spectator chat', onclick: () => Spectate.message() }, icon('chat'), 'Message');
     clearEl(box).append(
-      h('div.spm-t', t?.silent ? 'Admin Spectate · Gameplay' : 'Spectator Mode'),
+      h('div.spm-t', 'Spectator Mode'),
       h('div.spm-row', this.userEl, h('span.spm-arrow', icon('back')), this.mapEl),
       this.autoRow(),
-      h('div.spm-acts', this.btn, ...(t?.silent ? [] : [msg])));
+      h('div.spm-acts', this.btn, msg));
     this.paintUser(); this.paintMap();
   },
   /** lazer's UserGridPanel of who you're watching (offline: as the online list shows someone who's gone). */
@@ -31610,7 +31602,7 @@ const UserPanels = {
     const me = u.id && u.id === Presence.me, items = [{ label: 'View profile', icon: 'user', onClick: () => this.profile(u) }];
     if (me) return items;
     if (this.canSpectate(u)) items.push({ label: 'Spectate', icon: 'film', onClick: () => Spectate.watch(u) });
-    if (this.canSpectate(u) && Presence.isAdmin) items.push({ label: 'Admin Spectate', icon: 'film', onClick: () => AdminGameView.request(u) }, { label: 'Live interface view', icon: 'film', onClick: () => AdminGameView.requestInterface(u) });
+    if (this.canSpectate(u) && Presence.isAdmin) items.push({ label: 'Live View', icon: 'film', onClick: () => AdminGameView.request(u) });
     if (u.online && u.pid && Friends.has(u.pid)) items.push({ label: 'Send message', icon: 'chat', onClick: () => Chat.message(u) });
     if (this.canInvite(u)) items.push({ label: 'Invite to room', icon: 'multi', onClick: () => { Presence.invite(u.id); Toast.ok('Invited', u.name); } });
     if (Friends.has(u.pid)) items.push({ sep: true }, { label: 'Remove friend', icon: 'x', danger: true, onClick: () => Friends.toggle(u) });
@@ -31667,7 +31659,7 @@ const UserPanels = {
     const friend = Friends.has(u.pid), me = u.id && u.id === Presence.me;
     const acts = [];
     if (this.canSpectate(u)) acts.push({ label: 'Spectate', primary: true, onClick: () => Spectate.watch(u) });
-    if (this.canSpectate(u) && Presence.isAdmin) acts.push({ label: 'Admin Spectate', onClick: () => AdminGameView.request(u) });
+    if (this.canSpectate(u) && Presence.isAdmin) acts.push({ label: 'Live View', onClick: () => AdminGameView.request(u) });
     if (this.canInvite(u)) acts.push({ label: 'Invite to room', primary: !acts.length, onClick: () => { Presence.invite(u.id); Toast.ok('Invited', u.name); } });
     if (!me && !friend && u.online && u.id) acts.push(Friends.incoming(u.pid) ? { label: 'Accept friend request', primary: true, onClick: () => Friends.answer(u.pid, true) }
       : Friends.requested(u.pid) ? { label: 'Friend request sent', close: false } : { label: 'Add friend', primary: !acts.length, onClick: () => Friends.toggle(u) });
@@ -34426,22 +34418,14 @@ const AdminGameView = {
     window.addEventListener('pagehide', () => this.stop());
   },
   send(t, extra = {}) { const s = this.current; if (s?.session) Presence.send({ t, session: s.session, ...extra }); },
-  // The main action uses replay rendering on the viewer: no player-side screenshots or encoder.
   request(u) {
     if (!Staff.on() || !Presence.ws || !u?.id || u.id === Presence.me) return;
-    if (this.current) { Toast.err('Game view already open', 'Stop the live interface view first.'); return; }
-    Spectate.watch(u, { silent: true });
-  },
-  requestInterface(u) {
-    if (!Staff.on() || !Presence.ws || !u?.id || u.id === Presence.me) return;
-    if (this.current) { Toast.err('Game view already open', 'Finish the current request or share first.'); return; }
-    if (typeof RTCPeerConnection === 'undefined') { Toast.err('Game view unavailable', 'This browser does not support live game views.'); return; }
-    Dialog.popup(`Admin Spectate · ${u.name || 'Player'}`, 'Send the player a notification when you start viewing? The game-sharing indicator remains visible.',
-      [{ label: 'Notify and spectate', cls: 'ok', onClick: () => this.start(u, true) }, { label: 'Spectate without extra notice', cls: 'ok', onClick: () => this.start(u, false) }, { label: 'Cancel', cls: 'cancel', cancel: true }], { icon: 'film' });
+    if (this.current) { Toast.err('Live View already open', 'Finish the current view first.'); return; }
+    if (typeof RTCPeerConnection === 'undefined') { Toast.err('Live View unavailable', 'This browser does not support live game views.'); return; }
+    this.start(u, false);
   },
   start(u, notify) {
     if (!Staff.on() || this.current || !Presence.ws) return;
-    if (Spectate.target?.silent) { Spectate.toScreen(); Spectate.stop({ quiet: true }); }
     const s = this.current = { host: false, name: u.name || 'Player', session: null };
     this.viewer(s);
     s.timer = setTimeout(() => { if (this.current === s) this.stop('The request timed out.'); }, 95000);
@@ -34450,7 +34434,7 @@ const AdminGameView = {
   viewer(s) {
     s.video = h('video.admin-view-video', { autoplay: true, muted: true, playsinline: true, 'aria-label': 'Live player game view' });
     s.status = h('span', { role: 'status', 'aria-live': 'polite' }, 'Connecting to the player’s game…');
-    const panel = h('div.admin-view-panel.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Admin game view' },
+    const panel = h('div.admin-view-panel.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Live View' },
       h('div.admin-view-heading', h('b', s.name), h('span', 'Live game · View only')),
       h('div.admin-view-stage', s.video), h('div.admin-view-footer', s.status, h('button.btn', { onclick: () => this.stop() }, 'Stop watching')));
     s.overlay = makeOverlay(panel, { cls: 'admin-view-wrap', backdrop: false, onClose: () => { if (this.current === s) this.stop(); } });
@@ -34460,7 +34444,7 @@ const AdminGameView = {
     if (m.t === 'adminViewReady' && m.host) {
       if (this.current || typeof RTCPeerConnection === 'undefined') { Presence.send({ t: 'adminViewStop', session: m.session }); return; }
       const source = this.current = { host: true, session: m.session, name: m.name || 'Admin' };
-      if (m.notify) Toast.show('Admin spectating', `${source.name} is viewing your game.`);
+      if (m.notify) Toast.show('Live View', `${source.name} is viewing your game.`);
       this.share(source).then(() => {
         if (this.current !== source) return;
         source.timer = setTimeout(() => { if (this.current === source) this.stop('The 30-minute game view ended.'); }, 30 * 60000);
@@ -34595,9 +34579,9 @@ const AdminGameView = {
 /* Stream quality is expendable. The player's configured frame limit and display cadence are not. */
 class GameViewBudget {
   static TIERS = [
-    { fps: 2, width: 480, bitrate: 180000, snapshot: 6000 },
-    { fps: 5, width: 640, bitrate: 400000, snapshot: 4000 },
-    { fps: 10, width: 854, bitrate: 800000, snapshot: 3000 },
+    { fps: 2, width: 854, bitrate: 450000, snapshot: 6000 },
+    { fps: 5, width: 854, bitrate: 650000, snapshot: 4000 },
+    { fps: 10, width: 1024, bitrate: 1000000, snapshot: 3000 },
     { fps: 15, width: 1024, bitrate: 1400000, snapshot: 2200 },
     { fps: 24, width: 1280, bitrate: 2600000, snapshot: 1500 },
     { fps: 30, width: 1920, bitrate: 5000000, snapshot: 1000 },
@@ -34690,7 +34674,7 @@ const GameViewCapture = {
     if (!canvas.captureStream || !ctx) throw new Error('This browser cannot stream the game view.');
     const budget = new GameViewBudget(), waiting = new Set();
     const s = { canvas, budget, paused: false, epoch: 0, frame: null, dirty: true, stopped: false, cursor: null,
-      paintedFrames: 0, snapshots: 0, yielded: 0, skipped: 0 };
+      paintedFrames: 0, snapshots: 0, hudSnapshots: 0, fullSnapshots: 0, yielded: 0, skipped: 0 };
     const alive = () => !s.stopped && valid();
     const aborted = () => Object.assign(new Error('Game-view work deferred.'), { name: 'AbortError' });
     const cancelWork = () => {
@@ -34732,7 +34716,7 @@ const GameViewCapture = {
         s.senderUpdates = (s.senderUpdates || Promise.resolve()).catch(() => {}).then(async () => {
           if (!alive()) return;
           const p = s.sender.getParameters();
-          if (p.encodings?.length) { p.encodings[0].maxBitrate = q.bitrate; p.encodings[0].maxFramerate = q.fps; p.degradationPreference = 'maintain-framerate'; await s.sender.setParameters(p); }
+          if (p.encodings?.length) { p.encodings[0].maxBitrate = q.bitrate; p.encodings[0].maxFramerate = q.fps; p.degradationPreference = 'maintain-resolution'; await s.sender.setParameters(p); }
         }).catch(() => {});
       }
       if (!s.manual) s.track.applyConstraints?.({ frameRate: { max: q.fps } }).catch(() => {});
@@ -34742,41 +34726,84 @@ const GameViewCapture = {
       if (!alive() || s.paused || isPrivate() || !s.frame && !running()) return;
       const start = performance.now();
       if (!budget.due(start)) return;
-      if (s.level !== budget.level) { dimensions(); s.level = budget.level; s.dirty = true; tune(); }
+      if (s.level !== budget.level) { dimensions(); s.level = budget.level; if (!running() || !s.activeFrame) s.dirty = true; tune(); }
       const game = GameplayScreen.s, currentView = mode();
-      const base = running() && s.activeGame === game ? s.activeFrame : s.frameMode === currentView ? s.frame : null;
-      if (base) ctx.drawImage(base, 0, 0, canvas.width, canvas.height);
+      const active = running() && !Overlays.top();
+      const base = active && s.activeGame === game ? s.activeFrame : s.frameMode === currentView && s.frameKind === 'ui' ? s.frame : null;
+      if (!active && base) ctx.drawImage(base, 0, 0, canvas.width, canvas.height);
       else {
         mask(false);
-        // A cheap live playfield is available immediately, even while a detailed UI snapshot waits for idle time.
-        if (running()) {
+        if (active) {
+          if (s.hudOpacity == null) s.hudOpacity = +getComputedStyle(GameplayScreen.hud).opacity;
           if (s.backgroundGame !== game) {
-            s.backgroundGame = game; s.background = null; s.hud = null;
-            const url = /^url\(["']?(.*?)["']?\)$/.exec(GameplayScreen.bgEl?.style.backgroundImage || '')?.[1];
-            if (url) { const image = new Image(); image.onload = () => { if (alive() && s.backgroundGame === game) s.background = image; }; image.src = url; }
+            s.backgroundGame = game; s.background = null; s.hud = null; s.layers = null; s.liveHud = null;
+            s.backgroundURL = null;
+          }
+          const backgroundURL = /^url\(["']?(.*?)["']?\)$/.exec(GameplayScreen.bgEl?.style.backgroundImage || '')?.[1] || '';
+          if (backgroundURL !== s.backgroundURL) {
+            s.backgroundURL = backgroundURL; s.background = null;
+            if (backgroundURL) { const image = new Image(); image.onload = () => { if (alive() && s.backgroundGame === game && s.backgroundURL === backgroundURL) s.background = image; }; image.src = backgroundURL; }
           }
           if (s.background) {
             const k = Math.max(canvas.width / s.background.width, canvas.height / s.background.height);
             ctx.drawImage(s.background, (canvas.width - s.background.width * k) / 2, (canvas.height - s.background.height * k) / 2, s.background.width * k, s.background.height * k);
-            ctx.fillStyle = `rgba(0,0,0,${GameplayScreen.baseDim ?? .7})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
           }
-        }
-      }
-      const source = running() && !Overlays.top() && GameplayScreen.renderer?.canvas;
-      if (source) {
-        const r = source.getBoundingClientRect();
-        if (r.width && r.height) try { ctx.drawImage(source, r.left * s.scale, r.top * s.scale, r.width * s.scale, r.height * s.scale); s.liveFrameMode = currentView; } catch { /* detached renderer */ }
-        if (!base) {
-          if (!s.hud) s.hud = [GameplayScreen.scoreEl, GameplayScreen.accEl, GameplayScreen.ppEl].map((el, kind) => {
+          const video = GameplayScreen.videoEl;
+          if (video?.readyState >= 2 && video.classList.contains('on')) ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          ctx.fillStyle = `rgba(0,0,0,${GameplayScreen.baseDim ?? .7})`; ctx.fillRect(0, 0, canvas.width, canvas.height);
+          // Read geometry once per layout, not once per transmitted frame.
+          if (!s.layers) s.layers = [GameplayScreen.sbCanvas, GameplayScreen.renderer?.canvas, ...GameplayScreen.hud.querySelectorAll('canvas')].filter(Boolean).map(el => ({ el, hud: GameplayScreen.hud.contains(el), rect: el.getBoundingClientRect() }));
+          for (const layer of s.layers) {
+            if (layer.hud || !layer.rect.width || !layer.rect.height || !layer.el.width || !layer.el.height) continue;
+            const r = layer.rect;
+            try { ctx.drawImage(layer.el, r.left * s.scale, r.top * s.scale, r.width * s.scale, r.height * s.scale); } catch { /* detached canvas */ }
+          }
+          if (base) ctx.drawImage(base, 0, 0, canvas.width, canvas.height);
+          for (const layer of s.layers) if (layer.hud && layer.rect.width && layer.rect.height && layer.el.width && layer.el.height) {
+            const r = layer.rect, digits = layer.el.classList.contains('skin-digits'), width = digits ? parseFloat(layer.el.style.width) || r.width : r.width, height = digits ? parseFloat(layer.el.style.height) || r.height : r.height;
+            ctx.globalAlpha = s.hudOpacity;
+            try { ctx.drawImage(layer.el, (digits ? r.right - width : r.left) * s.scale, r.top * s.scale, width * s.scale, height * s.scale); } catch { /* detached HUD */ }
+            ctx.globalAlpha = 1;
+          }
+          s.liveFrameMode = currentView;
+          if (!s.hud) s.hud = [GameplayScreen.scoreEl, GameplayScreen.accEl, GameplayScreen.ppEl, ...(GameplayScreen.jc?.items || []).map(i => i.n), ...GameplayScreen.hud.querySelectorAll('.sp-times span')].map(el => {
             if (!el) return null;
             const rect = el.getBoundingClientRect(), style = getComputedStyle(el);
-            return { el, kind, rect, font: style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`, color: style.color };
+            return { el, rect, font: style.font || `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`, color: style.color, opacity: +style.opacity * s.hudOpacity, align: style.textAlign };
           }).filter(h => h && h.rect.width && h.rect.height);
           ctx.save(); ctx.scale(s.scale, s.scale); ctx.textBaseline = 'top';
-          for (let i = 0; i < s.hud.length; i++) {
-            const h = s.hud[i]; ctx.font = h.font; ctx.fillStyle = h.color;
-            const text = h.kind === 0 ? fmtScore(game.engine.score.scoreStd) : h.kind === 1 ? fmtAcc(game.engine.score.accuracy) : h.el.textContent;
-            ctx.fillText(text, h.rect.right - ctx.measureText(text).width, h.rect.top);
+          for (const h of s.hud) {
+            ctx.font = h.font; ctx.fillStyle = h.color; ctx.globalAlpha = h.opacity;
+            const text = h.el.textContent;
+            const w = ctx.measureText(text).width, x = h.align === 'center' ? h.rect.left + (h.rect.width - w) / 2 : h.align === 'right' || h.align === 'end' ? h.rect.right - w : h.rect.left;
+            ctx.fillText(text, x, h.rect.top);
+          }
+          ctx.restore();
+          if (!s.liveHud) {
+            const bar = (el, fill, kind) => {
+              if (!el) return null;
+              const rect = el.getBoundingClientRect(), style = getComputedStyle(el), ink = fill && getComputedStyle(fill);
+              return rect.width && rect.height ? { rect, kind, background: style.backgroundColor, colors: (ink?.backgroundImage.match(/rgba?\([^)]+\)/g) || [ink?.backgroundColor || '#fff']), opacity: s.hudOpacity } : null;
+            };
+            s.liveHud = [bar(GameplayScreen.hpEl?.querySelector('.hp-track'), GameplayScreen.hpFill, 'health'), bar(GameplayScreen.progEl?.parentElement, GameplayScreen.progEl, 'progress')].filter(Boolean);
+          }
+          ctx.save(); ctx.scale(s.scale, s.scale); ctx.globalAlpha = s.hudOpacity;
+          for (const b of s.liveHud) {
+            const r = b.rect, value = b.kind === 'health' ? Math.max(0, Math.min(1, GameplayScreen._hpQ / 400)) : Math.max(0, Math.min(1, GameplayScreen._pq / 400));
+            ctx.globalAlpha = b.opacity; ctx.fillStyle = b.background; ctx.fillRect(r.left, r.top, r.width, r.height);
+            const gradient = ctx.createLinearGradient(r.left, 0, r.right, 0), colors = b.kind === 'health' && GameplayScreen._hpLow ? ['#ff3355', '#ff9f8f'] : b.colors;
+            colors.forEach((c, i) => gradient.addColorStop(colors.length === 1 ? 0 : i / (colors.length - 1), c));
+            ctx.fillStyle = gradient; ctx.fillRect(r.left, r.top, r.width * value, r.height);
+          }
+          const pie = GameplayScreen.pieEl;
+          if (pie?.isConnected) {
+            if (!s.pieRect) s.pieRect = pie.getBoundingClientRect();
+            const r = s.pieRect, radius = r.width / 2, x = r.left + radius, y = r.top + r.height / 2, lead = GameplayScreen._lead;
+            if (r.width && r.height) {
+              ctx.fillStyle = lead ? 'rgba(126,224,122,.18)' : 'rgba(255,255,255,.14)'; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.fill();
+              ctx.fillStyle = lead ? '#7ee07a' : 'rgba(255,255,255,.92)'; ctx.beginPath(); ctx.moveTo(x, y); ctx.arc(x, y, radius, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * (GameplayScreen._pieQ || 0) / 200); ctx.closePath(); ctx.fill();
+              ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2); ctx.stroke();
+            }
           }
           ctx.restore();
         }
@@ -34807,7 +34834,7 @@ const GameViewCapture = {
     s.gameFrameEnd = (ts, work, limit, drawn) => { if (alive()) { budget.sample(ts, work, limit, drawn); if (drawn) queuePaint(); } };
     const refresh = async () => {
       if (!alive()) return;
-      const start = performance.now(), epoch = s.epoch, view = mode(), active = !!running();
+      const start = performance.now(), epoch = s.epoch, view = mode(), active = !!running() && !Overlays.top();
       // A rate-limited encoder may drop a single transition frame. Keep a black heartbeat until sharing resumes.
       if (s.paused || isPrivate()) mask();
       const check = () => alive() && !s.paused && !isPrivate() && s.epoch === epoch && mode() === view;
@@ -34819,23 +34846,27 @@ const GameViewCapture = {
         s.sliceEnd = performance.now() + (inGame() ? budget.slice(performance.now()) : Math.min(4, budget.slack(performance.now()) * .5));
       };
       try {
-        const interval = active ? Math.max(2000, budget.quality.snapshot) : Math.max(250, budget.quality.snapshot / 4);
-        if (check() && (s.dirty || !s.frame || start - (s.captured || 0) > interval) && start - (s.attempted || -Infinity) >= interval) {
+        const interval = active ? Math.max(750, budget.quality.snapshot / 2) : Math.max(250, budget.quality.snapshot / 4);
+        if (check() && (s.dirty || !s.frame || s.frameMode !== view || !active && start - (s.captured || 0) > 5000) && start - (s.attempted || -Infinity) >= interval) {
           s.attempted = start; s.dirty = false;
           await gate(true);
-          const options = { width: s.width, height: s.height, scale: s.scale, backgroundColor: '#18171c', timeout: 3000,
+          const root = active ? GameplayScreen.hud : document.body;
+          const liveText = active ? [GameplayScreen.scoreEl, GameplayScreen.accEl, GameplayScreen.ppEl, ...(GameplayScreen.jc?.items || []).map(i => i.n), ...GameplayScreen.hud.querySelectorAll('.sp-times span'), GameplayScreen.hpEl, GameplayScreen.progEl?.parentElement, GameplayScreen.pieEl] : [];
+          const options = { width: s.width, height: s.height, scale: s.scale, backgroundColor: active ? 'rgba(0,0,0,0)' : '#18171c', timeout: 3000,
             onBeforeWork: gate, onCloneNode: () => gate(true), onEmbedNode: () => gate(true),
             filter: node => !(node.nodeType === 1 && (node.hidden || node.style?.display === 'none' || node.matches('#loading-screen.done, #drop-overlay:not(.show)') || ['SCRIPT', 'IFRAME', 'AUDIO'].includes(node.tagName) || node.tagName === 'VIDEO' && node.readyState < 2 ||
               node.matches('.admin-view-sharing, .admin-view-wrap, .lz-cursor, [data-admin-view-ignore]') ||
               node.closest('.login-panel, .setup-step-account, input[type=password], [data-private]') ||
-              active && node.tagName === 'CANVAS' && node === GameplayScreen.renderer?.canvas)) };
-          if (!s.context) s.context = await renderer.createContext(document.body, options);
+              active && (node.tagName === 'CANVAS' || liveText.includes(node) || node.matches('.hud-lb') && !Settings.get('gameplay.leaderboard') && !GameplayScreen._hudAll))) };
+          if (s.root !== root && s.context) { renderer.destroyContext(s.context); s.context = null; }
+          s.root = root;
+          if (!s.context) s.context = await renderer.createContext(root, options);
           else Object.assign(s.context, options, { dpi: s.scale === 1 ? null : s.scale * 96 });
           const image = await renderer.domToCanvas(s.context);
           if (check() && s.width === innerWidth && s.height === innerHeight) {
-            s.frame = image; s.frameMode = view; s.captured = performance.now(); s.paintDirty = true; s.snapshots++;
+            s.frame = image; s.frameMode = view; s.frameKind = active ? 'hud' : 'ui'; s.captured = performance.now(); s.paintDirty = true; s.snapshots++;
             if (s.context.requests.size > 128) { renderer.destroyContext(s.context); s.context = null; }
-            if (active) { s.activeFrame = image; s.activeGame = GameplayScreen.s; } queuePaint();
+            if (active) { s.activeFrame = image; s.activeGame = GameplayScreen.s; s.hudSnapshots++; s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; } else s.fullSnapshots++; queuePaint();
           }
         }
       } catch (e) {
@@ -34858,14 +34889,34 @@ const GameViewCapture = {
       finally { if (alive()) s.statsTimer = setTimeout(stats, 2000); }
     };
     const pointer = e => { s.cursor = { x: e.clientX, y: e.clientY }; s.paintDirty = true; };
-    const resize = () => { s.epoch++; cancelWork(); dimensions(); s.frame = s.activeFrame = null; s.hud = null; s.dirty = true; s.attempted = -Infinity; mask(); };
-    const offScreen = Bus.on('screen:changed', () => { cancelWork(); s.dirty = true; s.attempted = -Infinity; wakeMenus(); });
-    const observer = new MutationObserver(records => { if (records.some(r => !r.target.closest?.('.admin-view-sharing, .admin-view-wrap'))) s.dirty = true; });
+    const resize = () => { s.epoch++; cancelWork(); dimensions(); s.frame = s.activeFrame = null; s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; s.dirty = true; s.attempted = -Infinity; mask(); };
+    const offScreen = Bus.on('screen:changed', () => { s.epoch++; s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; cancelWork(); s.dirty = true; s.attempted = -Infinity; wakeMenus(); });
+    const observer = new MutationObserver(records => {
+      const active = running() && !Overlays.top(), hud = GameplayScreen.hud;
+      const fast = '.sc, .acc, .hud-pp, .hud-progress, .hud-pie, .hud-hp, .jc-n, .sp-times';
+      if (records.some(r => {
+        const el = r.target.nodeType === 1 ? r.target : r.target.parentElement;
+        if (!el || el.closest('.admin-view-sharing, .admin-view-wrap')) return false;
+        if (active) {
+          if (!hud?.contains(el)) return false;
+          if (r.type === 'childList' && [...r.addedNodes, ...r.removedNodes].some(n => n.nodeType === 1 && (n.tagName === 'CANVAS' || n.querySelector('canvas')))) s.layers = null;
+          if (el.closest(fast)) return false;
+          if (el === GameplayScreen.skipBtn && r.attributeName === 'style') {
+            if (s.skipVisible === GameplayScreen._canSkip) return false;
+            s.skipVisible = GameplayScreen._canSkip;
+          }
+        }
+        return true;
+      })) { s.dirty = true; s.hudOpacity = null; }
+    });
     observer.observe(document.getElementById('app'), { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['class', 'style', 'hidden', 'value', 'src'] });
+    const changed = () => { s.dirty = true; s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; };
+    document.addEventListener('scroll', changed, true); document.addEventListener('input', changed, true);
     document.addEventListener('pointermove', pointer, { passive: true }); window.addEventListener('resize', resize);
-    s.setPaused = paused => { if (paused !== s.paused) { s.paused = paused; s.epoch++; cancelWork(); s.frame = s.activeFrame = null; s.hud = null; s.dirty = true; s.attempted = -Infinity; mask(); } };
+    s.setPaused = paused => { if (paused !== s.paused) { s.paused = paused; s.epoch++; cancelWork(); s.frame = s.activeFrame = null; s.hud = s.layers = s.liveHud = s.pieRect = s.hudOpacity = null; s.dirty = true; s.attempted = -Infinity; mask(); } };
     s.stop = () => {
       s.stopped = true; cancelWork(); clearTimeout(s.timer); clearTimeout(s.statsTimer); cancelAnimationFrame(s.animation); observer.disconnect(); offScreen();
+      document.removeEventListener('scroll', changed, true); document.removeEventListener('input', changed, true);
       document.removeEventListener('pointermove', pointer); window.removeEventListener('resize', resize);
       if (s.context) renderer.destroyContext(s.context);
       stream.getTracks().forEach(t => t.stop()); canvas.width = canvas.height = 0; s.frame = s.activeFrame = s.context = s.background = s.hud = null;
@@ -34881,7 +34932,6 @@ const SpectatorChat = {
   id: null, lines: [], unread: 0, panel: null,
   context() {
     if (!Presence.ws) return null;
-    if (Spectate.target?.silent) return null;
     if (Spectate.target) return { id: Spectate.target.id, name: Spectate.target.name, host: false };
     return Spectate.host.watchers > 0 ? { id: Presence.me, name: ProfileManager.profile.name, host: true } : null;
   },
@@ -34969,7 +35019,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'f07360c45b26';
+const APP_BUILD = '25636a5b7547';
 
 const App = {
   lastReport: null,

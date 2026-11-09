@@ -1,9 +1,9 @@
 /* Stream quality is expendable. The player's configured frame limit and display cadence are not. */
 class GameViewBudget {
   static TIERS = [
-    { fps: 2, width: 480, bitrate: 180000, snapshot: 6000 },
-    { fps: 5, width: 640, bitrate: 400000, snapshot: 4000 },
-    { fps: 10, width: 854, bitrate: 800000, snapshot: 3000 },
+    { fps: 2, width: 854, bitrate: 450000, snapshot: 6000 },
+    { fps: 5, width: 854, bitrate: 650000, snapshot: 4000 },
+    { fps: 10, width: 1024, bitrate: 1000000, snapshot: 3000 },
     { fps: 15, width: 1024, bitrate: 1400000, snapshot: 2200 },
     { fps: 24, width: 1280, bitrate: 2600000, snapshot: 1500 },
     { fps: 30, width: 1920, bitrate: 5000000, snapshot: 1000 },

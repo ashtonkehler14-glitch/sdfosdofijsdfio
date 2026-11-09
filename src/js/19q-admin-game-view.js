@@ -7,22 +7,14 @@ const AdminGameView = {
     window.addEventListener('pagehide', () => this.stop());
   },
   send(t, extra = {}) { const s = this.current; if (s?.session) Presence.send({ t, session: s.session, ...extra }); },
-  // The main action uses replay rendering on the viewer: no player-side screenshots or encoder.
   request(u) {
     if (!Staff.on() || !Presence.ws || !u?.id || u.id === Presence.me) return;
-    if (this.current) { Toast.err('Game view already open', 'Stop the live interface view first.'); return; }
-    Spectate.watch(u, { silent: true });
-  },
-  requestInterface(u) {
-    if (!Staff.on() || !Presence.ws || !u?.id || u.id === Presence.me) return;
-    if (this.current) { Toast.err('Game view already open', 'Finish the current request or share first.'); return; }
-    if (typeof RTCPeerConnection === 'undefined') { Toast.err('Game view unavailable', 'This browser does not support live game views.'); return; }
-    Dialog.popup(`Admin Spectate · ${u.name || 'Player'}`, 'Send the player a notification when you start viewing? The game-sharing indicator remains visible.',
-      [{ label: 'Notify and spectate', cls: 'ok', onClick: () => this.start(u, true) }, { label: 'Spectate without extra notice', cls: 'ok', onClick: () => this.start(u, false) }, { label: 'Cancel', cls: 'cancel', cancel: true }], { icon: 'film' });
+    if (this.current) { Toast.err('Live View already open', 'Finish the current view first.'); return; }
+    if (typeof RTCPeerConnection === 'undefined') { Toast.err('Live View unavailable', 'This browser does not support live game views.'); return; }
+    this.start(u, false);
   },
   start(u, notify) {
     if (!Staff.on() || this.current || !Presence.ws) return;
-    if (Spectate.target?.silent) { Spectate.toScreen(); Spectate.stop({ quiet: true }); }
     const s = this.current = { host: false, name: u.name || 'Player', session: null };
     this.viewer(s);
     s.timer = setTimeout(() => { if (this.current === s) this.stop('The request timed out.'); }, 95000);
@@ -31,7 +23,7 @@ const AdminGameView = {
   viewer(s) {
     s.video = h('video.admin-view-video', { autoplay: true, muted: true, playsinline: true, 'aria-label': 'Live player game view' });
     s.status = h('span', { role: 'status', 'aria-live': 'polite' }, 'Connecting to the player’s game…');
-    const panel = h('div.admin-view-panel.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Admin game view' },
+    const panel = h('div.admin-view-panel.ov', { role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Live View' },
       h('div.admin-view-heading', h('b', s.name), h('span', 'Live game · View only')),
       h('div.admin-view-stage', s.video), h('div.admin-view-footer', s.status, h('button.btn', { onclick: () => this.stop() }, 'Stop watching')));
     s.overlay = makeOverlay(panel, { cls: 'admin-view-wrap', backdrop: false, onClose: () => { if (this.current === s) this.stop(); } });
@@ -41,7 +33,7 @@ const AdminGameView = {
     if (m.t === 'adminViewReady' && m.host) {
       if (this.current || typeof RTCPeerConnection === 'undefined') { Presence.send({ t: 'adminViewStop', session: m.session }); return; }
       const source = this.current = { host: true, session: m.session, name: m.name || 'Admin' };
-      if (m.notify) Toast.show('Admin spectating', `${source.name} is viewing your game.`);
+      if (m.notify) Toast.show('Live View', `${source.name} is viewing your game.`);
       this.share(source).then(() => {
         if (this.current !== source) return;
         source.timer = setTimeout(() => { if (this.current === source) this.stop('The 30-minute game view ended.'); }, 30 * 60000);

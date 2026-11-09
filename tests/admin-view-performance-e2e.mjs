@@ -54,15 +54,15 @@ try {
       A.Game.launch({ mapId: m.id, mods: ['AT'], mode: 'play' });
     });
     await page.waitForFunction(() => AshtonkMania.GameplayScreen.s?.running);
-    await page.waitForTimeout(800); const start = await page.evaluate(() => performance.now());
-    await page.waitForTimeout(6000);
+    await page.waitForTimeout(Number(process.env.WARMUP_MS || 800)); const start = await page.evaluate(() => performance.now());
+    await page.waitForTimeout(Number(process.env.SAMPLE_MS || 6000));
     const metrics = await page.evaluate(({ start, legacy }) => {
       const frames = window.perfTimes.filter(x => x.ts >= start), dt = frames.slice(1).map((f, i) => f.ts - frames[i].ts).sort((a, b) => a - b);
       const cap = AdminGameView.current.capture;
       const r = { legacy, fps: frames.length > 1 ? (frames.length - 1) * 1000 / (frames.at(-1).ts - frames[0].ts) : 0,
         p95FrameMs: dt[Math.floor(dt.length * .95)], longTasks: window.perfLong.filter(e => e.start >= start).length,
         longTaskMs: window.perfLong.filter(e => e.start >= start).reduce((n, e) => n + e.duration, 0), limit: Settings.get('graphics.fpsLimit'),
-        streamFps: cap.budget?.quality.fps || 30, streamWidth: cap.canvas.width, snapshotYields: cap.yielded || 0, manualFrames: !!cap.manual, snapshots: cap.snapshots || null, paintedFrames: cap.paintedFrames || 0 };
+        streamFps: cap.budget?.quality.fps || 30, streamWidth: cap.canvas.width, snapshotYields: cap.yielded || 0, manualFrames: !!cap.manual, snapshots: cap.snapshots || null, hudSnapshots: cap.hudSnapshots || 0, fullSnapshots: cap.fullSnapshots || 0, paintedFrames: cap.paintedFrames || 0 };
       AdminGameView.stop(); window.perfObserver.disconnect(); return r;
     }, { start, legacy });
     assert.equal(metrics.limit, 60); assert.ok(metrics.fps > 0);
