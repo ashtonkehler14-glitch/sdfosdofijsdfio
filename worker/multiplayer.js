@@ -1127,11 +1127,11 @@ export class PresenceLogic {
     this.anns = []; this.reports = []; this.repAt = new Map();
     // lazer's rankings (performance): each player's own totals by public id, kept in storage (rk:<pid>)
     this.ranks = new Map(); this.persistRank = null;
-    // lazer's daily challenge: one beatmap a day (US Central time), picked by the server itself (Matchmaker.pickDaily —
+    // lazer's weekly challenge: one beatmap a week (Monday midnight US Central time), picked by the server itself (Matchmaker.pickDaily —
     // never by a player's game), and each player's best score on it; `persistDaily` keeps it. `hist`: the last weeks'
-    // beatmaps, not picked again soon. `dailyError`: why today's couldn't be picked yet (shown on the screen)
+    // beatmaps, not picked again soon. `dailyError`: why this week's couldn't be picked yet (shown on the screen)
     this.daily = { day: '', map: null, scores: [], hist: [] }; this.persistDaily = null; this.dailyError = null;
-    // each player's daily challenge record (lazer's profile box): days played, the current and best daily streak
+    // each player's weekly challenge record (lazer's profile box): weeks played, the current and best weekly streak
     this.dailyStats = new Map(); this.persistDailyStats = null;
     // lazer's global beatmap leaderboards: each beatmap's (by its .osu file's hash) best score per player, top 100
     this.boards = new Map(); this.persistBoard = null;
@@ -1268,7 +1268,7 @@ export class PresenceLogic {
       pp: Math.round(b.pp || 0), score: b.score || 0, acc: b.acc || 0, grade: b.grade || '', mods: Array.isArray(b.mods) ? b.mods : [], date: b.date || 0 })).sort((a, b) => b.pp - a.pp || b.score - a.score).slice(0, 100) : [];
     const sessions = [...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id, u]) => ({ id, name: u.name, status: u.status, vis: u.vis }));
     return { ...this.adminRow(pid), admin: this.isAdmin(pid), rank: mine ? [...this.ranks.values()].filter(x => x.pp > r.pp && !this.isBanned(x.pid)).length + 1 : 0, acc: r ? r.acc || 0 : 0,
-      devices: this.keyHashes(pid).length, friends: (this.friends.get(pid) || new Map()).size, sessions, bests, daily: this.dailyStats.get(pid) || null,
+      devices: this.keyHashes(pid).length, friends: (this.friends.get(pid) || new Map()).size, sessions, bests, daily: this.dailyStatsOf(pid),
       firsts: Object.keys(this.firsts.get(pid) || {}).length, notes: this.notes.get(pid) || [],
       reports: this.reports.filter(x => x.pid === pid).slice(-20).reverse(), reported: this.reports.filter(x => x.by && x.by.pid === pid).length };
   }
@@ -1317,7 +1317,7 @@ export class PresenceLogic {
     return text.replace(new RegExp(w.map(esc).join('|'), 'gi'), m => '*'.repeat(m.length));
   }
   /** Banned (for `days`, or for good): they're taken offline now and can't come back online, and their scores stop
-   *  showing on the boards, the rankings and the daily challenge (kept, in case of an unban). Returns { out, gone }. */
+   *  showing on the boards, the rankings and the weekly challenge (kept, in case of an unban). Returns { out, gone }. */
   adminBan(pid, { days = 0, reason = '' } = {}) {
     const v = { until: days > 0 ? this.now() + Math.min(3650, days) * 86400000 : 0, reason: str(reason, 200), at: this.now(), name: this.adminRow(pid).name };
     // (banned for good: their account is deleted — scores, profile, friends — and they're off every leaderboard; the
@@ -1477,7 +1477,7 @@ export class PresenceLogic {
   /** When an admin last took this player's score on `key` off (0: never) — a play from before then stays off. */
   removedAt(pid, key) { const t = this.tombs.get(pid); return t ? Math.max(t.all || 0, (t.keys && t.keys[key]) || 0) : 0; }
   /** Every score of theirs gone: off every board (the ones read in — Matchmaker reads in all of theirs first), their
-   *  ranking, their daily challenge scores and record, and their first places. */
+   *  ranking, their weekly challenge scores and record, and their first places. */
   adminWipe(pid) {
     this.tomb(pid, null);
     for (const [key, list] of this.boards) if (list.some(x => x.pid === pid)) {
@@ -1695,7 +1695,7 @@ export class PresenceLogic {
     return { ok: true, pid, merged: merge, name: (r && r.name) || (pf && pf.name) || '', out };
   }
   /** Everything the server keeps about one player (`from`) moved to another (`to`): their best plays, rank, places on the
-   *  beatmap boards and first places, daily challenge record and today's score, playlist scores, friends and friend
+   *  beatmap boards and first places, weekly challenge record and today's score, playlist scores, friends and friend
    *  requests, tag votes and profile. `from` is gone afterwards. The boards and tags it's on, and both players' best
    *  plays, must be loaded first (Matchmaker.preloadPlayer). */
   mergePlayer(from, to) {
@@ -1745,11 +1745,13 @@ export class PresenceLogic {
       if (this.persistFirsts) this.persistFirsts(from, {});
       if (Object.keys(fb).length) { this.firsts.set(to, fb); if (this.persistFirsts) this.persistFirsts(to, fb); }
     }
-    // the daily challenge: days played added up, the best streak, and the streak of whichever played last
-    const da = this.dailyStats.get(from);
+    // the weekly challenge: weeks played added up, the best streak, and the streak of whichever played last
+    const weekly = this.dailyStats.get(from)?.period === 'week' || this.dailyStats.get(to)?.period === 'week';
+    const da = weekly ? this.weeklyStats(from) : this.dailyStats.get(from);
     if (da) {
-      const db = this.dailyStats.get(to), last = !db || String(da.last || '') > String(db.last || '') ? da : db;
+      const db = weekly ? this.weeklyStats(to) : this.dailyStats.get(to), last = !db || String(da.last || '') > String(db.last || '') ? da : db;
       const m = db ? { plays: (db.plays || 0) + (da.plays || 0), best: Math.max(db.best || 0, da.best || 0), current: last.current || 0, last: last.last || '' } : da;
+      if (weekly) { m.period = 'week'; if (da.dailyHistory || db?.dailyHistory) { const a = da.dailyHistory || {}, b = db?.dailyHistory || {}, latest = (a.last || '') > (b.last || '') ? a : b; m.dailyHistory = { plays: (a.plays || 0) + (b.plays || 0), best: Math.max(a.best || 0, b.best || 0), current: latest.current || 0, last: latest.last || '' }; } }
       this.dailyStats.set(to, m); this.dailyStats.delete(from);
       if (this.persistDailyStats) { this.persistDailyStats(to, m); }
       if (this.dropPlayer) this.dropPlayer(from, 'daily');
@@ -1925,7 +1927,7 @@ export class PresenceLogic {
       this.savePlaylist(pl);
       for (const [x, ux] of this.users) if (ux.pid === pid) out.push({ to: x, msg: this.plMsg(pl, pid) });
     }
-    // the daily challenge: only today's issued beatmap (its beatmap id read from the verified file itself)
+    // the weekly challenge: only this week's issued beatmap (its beatmap id read from the verified file itself)
     const d = this.dailyNow();
     const dailyOk = !!(daily && d.map && daily.day === d.day && r.beatmapId === d.map.onlineId);
     if (dailyOk) {
@@ -1991,23 +1993,32 @@ export class PresenceLogic {
     return { t: 'lb', key, scope: scope === 'friends' ? 'friends' : 'global', total: list.length, you: at < 0 ? null : row(list[at], at + 1), scores: list.slice(0, 50).map((s, i) => row(s, i + 1)) };
   }
   loadDailyStats(all) { for (const [pid, v] of Object.entries(all || {})) if (v && typeof v === 'object') this.dailyStats.set(pid, v); }
-  /** A player's daily record as of today (a streak broken by a missed day reads 0). */
+  /** A player's weekly record (a streak broken by a missed week reads 0). */
   dailyStatsOf(pid) {
-    const v = this.dailyStats.get(pid);
+    const v = this.weeklyStats(pid);
     if (!v) return null;
-    const today = PresenceLogic.dayOf(this.now()), yesterday = PresenceLogic.prevDay(today);
+    const today = PresenceLogic.weekOf(this.now()), yesterday = PresenceLogic.prevWeek(today);
     return { ...v, current: v.last === today || v.last === yesterday ? v.current : 0 };
   }
+  // Retain the old daily record without counting days as weeks.
+  weeklyStats(pid) {
+    let v = this.dailyStats.get(pid);
+    if (v && v.period !== 'week') {
+      v = { period: 'week', plays: 0, current: 0, best: 0, last: '', dailyHistory: v };
+      this.dailyStats.set(pid, v);
+      if (this.persistDailyStats) this.persistDailyStats(pid, v);
+    }
+    return v;
+  }
   countDailyDay(pid, day) {
-    const v = this.dailyStats.get(pid) || { plays: 0, current: 0, best: 0, last: '' };
+    const v = this.weeklyStats(pid) || { period: 'week', plays: 0, current: 0, best: 0, last: '' };
     if (v.last === day) return;
-    const yesterday = PresenceLogic.prevDay(day);
+    const yesterday = PresenceLogic.prevWeek(day);
     v.current = v.last === yesterday ? v.current + 1 : 1; v.best = Math.max(v.best, v.current); v.plays++; v.last = day;
     this.dailyStats.set(pid, v);
     if (this.persistDailyStats) this.persistDailyStats(pid, v);
   }
-  /** The daily challenge's day, in US Central time (America/Chicago, daylight saving included): it turns over at
-   *  midnight there. */
+  /** A calendar date in US Central time (America/Chicago, daylight saving included). */
   static dayOf(t) {
     const p = PresenceLogic._central(t);
     return `${p.year}-${p.month}-${p.day}`;
@@ -2027,13 +2038,31 @@ export class PresenceLogic {
     let u = L - off(L); u = L - off(u);
     return u;
   }
+  /** A challenge runs Monday midnight to Monday midnight in US Central time, including DST changes. */
+  static weekOf(t) {
+    const date = new Date(PresenceLogic.dayOf(t) + 'T12:00:00Z');
+    date.setUTCDate(date.getUTCDate() - (date.getUTCDay() + 6) % 7);
+    return date.toISOString().slice(0, 10);
+  }
+  static prevWeek(week) { return new Date(Date.parse(week + 'T12:00:00Z') - 7 * 86400000).toISOString().slice(0, 10); }
+  static weekEnd(week) {
+    const sunday = new Date(Date.parse(week + 'T12:00:00Z') + 6 * 86400000).toISOString().slice(0, 10);
+    return PresenceLogic.dayEnd(sunday);
+  }
   dailyNow() {
-    const day = PresenceLogic.dayOf(this.now());
-    // (a new challenge at 12am Central — one saved under any other day, including a UTC one from before, makes way)
-    if (this.daily.day !== day) { this.daily = { day, map: null, scores: [], hist: (this.daily.hist || []).slice(-60) }; this.dailyError = null; this.saveDaily(); }
+    const day = PresenceLogic.weekOf(this.now());
+    const old = this.daily;
+    // On upgrade keep this week's active beatmap and board; older challenges rotate normally.
+    if (old.period !== 'week' && /^\d{4}-\d{2}-\d{2}$/.test(old.day) && Number.isFinite(Date.parse(old.day + 'T12:00:00Z')) && old.day <= PresenceLogic.dayOf(this.now()) && PresenceLogic.weekOf(Date.parse(old.day + 'T12:00:00Z')) === day) {
+      this.daily = { ...old, period: 'week', day };
+      for (const s of old.scores) this.countDailyDay(s.pid, day);
+      this.saveDaily();
+    } else if (old.period !== 'week' || old.day !== day) {
+      this.daily = { period: 'week', day, map: null, scores: [], hist: (old.hist || []).slice(-60) }; this.dailyError = null; this.saveDaily();
+    }
     return this.daily;
   }
-  /** The daily challenge's beatmaps to pick from in one page of osu!'s listing: ranked (or approved) 4K difficulties of
+  /** The weekly challenge's beatmaps to pick from in one page of osu!'s listing: ranked (or approved) 4K difficulties of
    *  3.5–5.5 stars — none of the last weeks' — with what the challenge shows of them, as osu! has them. */
   static dailyCandidates(data, recent = []) {
     const out = [], seen = new Set(recent.map(Number));
@@ -2048,7 +2077,7 @@ export class PresenceLogic {
     }
     return out;
   }
-  /** Today's beatmap is `m` (from osu!'s listing, or set by the server's owner): everyone online is told. */
+  /** This week's beatmap is `m` (from osu!'s listing, or set by the server's owner): everyone online is told. */
   setDailyMap(m) {
     const d = this.dailyNow(), onlineSetId = Math.floor(Number(m && m.onlineSetId)), onlineId = Math.floor(Number(m && m.onlineId)), keys = Number(m && m.keys);
     if (!(onlineSetId > 0 && onlineId > 0 && keys >= 1 && keys <= 10)) return [];
@@ -2060,7 +2089,7 @@ export class PresenceLogic {
     this.saveDaily();
     return this.dailyBroadcast();
   }
-  /** The day's challenge, to everyone online (each with their own place on it). */
+  /** The week's challenge, to everyone online (each with their own place on it). */
   dailyBroadcast() { return [...this.users.keys()].map(x => ({ to: x, msg: this.dailyMsg(this.users.get(x).pid) })); }
   saveDaily() { if (this.persistDaily) this.persistDaily(this.daily); }
   /** A score as shown: with its player's current name and picture (a rename shows on scores set before it). */
@@ -2071,13 +2100,13 @@ export class PresenceLogic {
   }
   dailyMsg(pid) {
     const d = this.dailyNow(), sorted = d.scores.filter(s => !this.isBanned(s.pid)).sort((a, b) => b.score - a.score || b.acc - a.acc || a.at - b.at);
-    const at = sorted.findIndex(s => s.pid === pid), end = PresenceLogic.dayEnd(d.day);
+    const at = sorted.findIndex(s => s.pid === pid), end = PresenceLogic.weekEnd(d.day);
     // lazer's score breakdown (how many scores fall in each 100,000) and event feed (the newest scores, with their place)
     const bins = new Array(11).fill(0);
     for (const x of sorted) bins[Math.min(10, Math.floor((x.score || 0) / 100000))]++;
     const recent = [...sorted.map((x, i) => ({ x, rank: i + 1 }))].sort((a, b) => b.x.at - a.x.at).slice(0, 8)
       .map(({ x, rank }) => ({ ...this.current({ pid: x.pid, name: x.name, avatar: x.avatar }), pid: x.pid, score: x.score, rank, at: x.at }));
-    return { t: 'daily', day: d.day, endsAt: end, map: d.map, error: d.map ? null : this.dailyError, total: sorted.length, bins, recent, you: at < 0 ? null : { ...this.current(sorted[at]), rank: at + 1 }, stats: this.dailyStatsOf(pid),
+    return { t: 'daily', period: 'week', day: d.day, startsAt: PresenceLogic.weekEnd(PresenceLogic.prevWeek(d.day)), endsAt: end, map: d.map, error: d.map ? null : this.dailyError, total: sorted.length, bins, recent, you: at < 0 ? null : { ...this.current(sorted[at]), rank: at + 1 }, stats: this.dailyStatsOf(pid),
       scores: sorted.slice(0, 50).map((s, i) => ({ ...this.current(s), rank: i + 1 })) };
   }
   static CHAT_KEEP = 100;
@@ -2207,7 +2236,7 @@ export class PresenceLogic {
   static MAX_EV = 240000; // a play's inputs kept for late watchers (t, col, down — ~80,000 key events)
   // (lazer's user status: "Appear offline" keeps a player off the list — and out of reach for spectating and invites)
   // (`role`: an admin's, the owner's — their name and picture in Neru's colours wherever they show)
-  list() { return [...this.users.entries()].filter(([, u]) => u.vis !== 'offline').map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size, dnd: u.vis === 'dnd' || undefined, role: (u.pid && this.roleOf(u.pid)) || undefined })); }
+  list() { return [...this.users.entries()].filter(([, u]) => u.vis !== 'offline').map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, ...(u.activity ? { activity: u.activity } : {}), avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size, dnd: u.vis === 'dnd' || undefined, role: (u.pid && this.roleOf(u.pid)) || undefined })); }
   join(id, msg) {
     // the same browser tab reconnecting replaces its old entry straight away (no ghost of yourself)
     const cid = str(msg && msg.cid, 40), gone = [], out = [];
@@ -2225,7 +2254,7 @@ export class PresenceLogic {
     if (given && str(msg && msg.name, 24) !== given) out.push({ to: id, msg: { t: 'renamed', name: given } });
     if (nrec && !nrec.name) { this.names.delete(pid); if (this.persistMod) this.persistMod('nm', pid, null); }
     this.users.set(id, { name: given || str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), kh: pid ? sha256hex(String(msg.key || '')) : '', avatar: pid && this.noAvatar.has(pid) ? '' : cleanAvatar(msg && msg.avatar), cid,
-      pid, song: null, seen: this.now(), vis: cleanVis(msg && msg.vis),
+      pid, song: null, activity: cleanActivity(msg && msg.activity), seen: this.now(), vis: cleanVis(msg && msg.vis),
       play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null, rp: '' });
     this.dropped = gone;
     const me = this.users.get(id);
@@ -2372,8 +2401,10 @@ export class PresenceLogic {
       // (the Ranked Play match they're in: only their spectators are told, to watch it as they see it)
       const rp = typeof msg.rp === 'string' && /^[A-Z0-9]{4,10}$/.test(msg.rp) ? msg.rp : '';
       if (rp !== u.rp) { u.rp = rp; told.push(...[...u.watchers].map(w => ({ to: w, msg: { t: 'specRoom', id, pid: u.pid, room: rp } }))); }
-      if (st === u.status && name === u.name && av === u.avatar && JSON.stringify(song) === JSON.stringify(u.song)) return told;
-      u.status = st; u.name = name; u.avatar = av; u.song = song;
+      const activity = cleanActivity(msg.activity);
+      if (activity !== u.activity || st !== u.status) told.push(...[...u.watchers].map(w => ({ to: w, msg: { t: 'specActivity', id, status: st, activity } })));
+      if (st === u.status && activity === u.activity && name === u.name && av === u.avatar && JSON.stringify(song) === JSON.stringify(u.song)) return told;
+      u.status = st; u.activity = activity; u.name = name; u.avatar = av; u.song = song;
       return [...told, this.broadcast()];
     }
     // ── chat: a line in #lobby, or a private message to a friend (every tab of both of you)
@@ -2495,7 +2526,7 @@ export class PresenceLogic {
       const first = !tu.watchers.size;
       tu.watchers.add(id); u.watching = to;
       if (msg.chat === true) out.push({ to: id, msg: { t: 'specChatHist', id: to, lines: tu.specLines || [] } });
-      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name, pid: tu.pid, room: tu.rp || '' } }, { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
+      if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name, pid: tu.pid, room: tu.rp || '', status: tu.status, activity: tu.activity || '' } }, { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
       // mid-play: what's kept so far, or (nobody was watching, so nothing was streamed) ask the player for all of it
       out.push({ to: id, msg: { t: 'specStart', id: to, name: tu.name, head: tu.play, ev: tu.hist ? tu.ev : [], at: tu.t, hist: tu.hist, pid: tu.pid, room: tu.rp || '' } });
       out.push({ to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu), full: first || !tu.hist } });
@@ -2546,6 +2577,7 @@ const cleanHead = h => {
   };
 };
 const cleanVis = v => v === 'dnd' || v === 'offline' ? v : 'online';
+const cleanActivity = s => ['home', 'songselect', 'gameplay', 'results', 'beatmaps', 'explore', 'dashboard', 'spectator', 'rankings', 'daily', 'multiplayer', 'collections', 'profile', 'stats', 'replays', 'skins', 'changelog'].includes(s) ? s : '';
 const cleanStatus = s => ['menu', 'room', 'ranked', 'playing', 'watching'].includes(s) ? s : 'menu';
 
 /** Quick match: the first caller hosts a fresh room and waits; the next caller is sent to that room.
@@ -2669,7 +2701,7 @@ export class Matchmaker {
       }
       // (an admin moderating from the game: the admin panel's own actions, checked as from the panel)
       if (msg.t === 'staff') { this.staffFromGame(id, msg).catch(e => console.error('staff', e)); return; }
-      // (no beatmap for today yet: the server picks one, and everyone online gets it)
+      // (no beatmap for this week yet: the server picks one, and everyone online gets it)
       if (msg.t === 'daily' && !this.presence.dailyNow().map) this.pickDaily({ retry: !!msg.retry });
       this.send(this.presence.message(id, msg));
     };
@@ -2678,10 +2710,10 @@ export class Matchmaker {
     return { message: data => { try { onMessage({ data }); } catch (e) { console.error('presence message', e); } }, gone,
       touch: () => { const u = joined && this.presence.users.get(id); if (u) u.seen = this.presence.now(); } };
   }
-  /** Today's daily challenge beatmap, picked here — never by a player's game, which could pick any beatmap and say
+  /** This week's challenge beatmap, picked here — never by a player's game, which could pick any beatmap and say
    *  anything about it: a ranked 4K beatmap of 3.5–5.5 stars from osu!'s listing (in a random order, so it isn't always
    *  the same few), none of the last weeks'. Once at a time; after a failure, not again for a minute (or half that when
-   *  a player asks again). `force`: a new one even if today has one (the server's owner, from the admin panel). */
+   *  a player asks again). `force`: a new one even if this week has one (the server's owner, from the admin panel). */
   pickDaily({ force = false, retry = false } = {}) {
     const P = this.presence;
     if (P.dailyNow().map && !force) return Promise.resolve();
@@ -2753,7 +2785,7 @@ export class Matchmaker {
     const who = p => ({ pid: p, name: P.adminRow(p).name || p });
     const noPlayer = () => json({ error: 'No such player.' }, 400);
     // who's acting: the owner (their code is ADMIN_CODE), or an admin the owner made (their pid). Admins moderate players;
-    // making and unmaking admins, wiping a player, the daily challenge and the log are the owner's — and nobody but the
+    // making and unmaking admins, wiping a player, the weekly challenge and the log are the owner's — and nobody but the
     // owner acts on an admin
     const actor = actorHdr, owner = actor === 'owner';
     const PRE = new Set(['try', 'device', 'signedIn', 'staffCode', 'isStaff']);
@@ -2763,7 +2795,7 @@ export class Matchmaker {
       if (!owner && pid && P.isStaff(pid) && ['ban', 'mute', 'rename', 'removeScore', 'wipe', 'warn', 'noAvatar'].includes(action)) return json({ error: 'Only the owner can do that to an admin.' }, 403);
     }
 
-    const daily = () => { const d = P.dailyNow(); return { day: d.day, map: d.map, scores: d.scores.length, error: d.map ? null : P.dailyError, endsAt: PresenceLogic.dayEnd(d.day) }; };
+    const daily = () => { const d = P.dailyNow(); return { day: d.day, map: d.map, scores: d.scores.length, error: d.map ? null : P.dailyError, endsAt: PresenceLogic.weekEnd(d.day) }; };
     switch (action) {
       // signing in with the code: tries per address, and everyone's (the Worker compares the code itself)
       case 'try': return json({ ok: this.allowTry('adm:' + ip, 8) && this.allowTry('adm:all', 60) });
@@ -2997,7 +3029,7 @@ export class Matchmaker {
       case 'dailyPick': {
         await this.pickDaily({ force: true });
         const d = daily();
-        log('Picked a new daily challenge beatmap', { map: d.map ? `${d.map.artist} - ${d.map.title} [${d.map.version}]` : '', error: d.error || undefined });
+        log('Picked a new weekly challenge beatmap', { map: d.map ? `${d.map.artist} - ${d.map.title} [${d.map.version}]` : '', error: d.error || undefined });
         return json({ ok: !!d.map && !d.error, daily: d, error: d.error || undefined });
       }
       case 'dailySet': {
@@ -3012,10 +3044,10 @@ export class Matchmaker {
           m = { onlineSetId: x.beatmapset_id || set.id, onlineId: x.id, keys: Math.round(Number(x.cs)), title: set.title, artist: set.artist, version: x.version, creator: set.creator, stars: x.difficulty_rating, length: (Number(x.total_length) || 0) * 1000 };
         }
         const out = P.setDailyMap(m);
-        if (!out.length && !P.dailyNow().map) return json({ error: 'That beatmap can\'t be the daily challenge.' }, 400);
+        if (!out.length && !P.dailyNow().map) return json({ error: 'That beatmap can\'t be the weekly challenge.' }, 400);
         this.send(out);
         const d = daily();
-        log('Set the daily challenge beatmap', { map: d.map ? `${d.map.artist} - ${d.map.title} [${d.map.version}]` : '' });
+        log('Set the weekly challenge beatmap', { map: d.map ? `${d.map.artist} - ${d.map.title} [${d.map.version}]` : '' });
         return json({ ok: true, daily: d });
       }
       case 'log': return json({ log: (this.adminLog || []).slice().reverse() });
@@ -3750,7 +3782,7 @@ export async function handleMultiplayer(request, env, url) {
     if (j.res) return j.res;
     j.r = await rankedOnly(j.r, j.md5, env);
     if (j.r?.rankingUnavailable) return json({ error: j.r.error }, 503);
-    // (a daily challenge play on a beatmap whose file doesn't say its id — older ones don't: found from the file's MD5,
+    // (a weekly challenge play on a beatmap whose file doesn't say its id — older ones don't: found from the file's MD5,
     // or it could never match the day's beatmap)
     if (j.r && !j.r.error && j.body.daily && !(j.r.beatmapId > 0) && /^[a-f0-9]{32}$/.test(j.md5 || '')) {
       try { const b = await officialGet(`beatmaps/lookup?checksum=${j.md5}`, env, fetch, 7 * 86400000); if (b && b.id > 0) j.r = { ...j.r, beatmapId: b.id }; } catch { /* not found */ }

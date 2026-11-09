@@ -197,7 +197,7 @@ const HomeScreen = {
         ['solo', 'solo', 'user', '#6644cc', ['KeyP'], 'play', 'play', 'l', solo],
         ['multi', 'multi', 'online', '#5e3fba', ['KeyM'], 'play', 'play', null, () => this.setState('multi')],
         // lazer's DailyChallengeButton: (94, 63, 186), D
-        ['daily', 'daily challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
+        ['daily', 'weekly challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
         // your beatmaps: import them, extract them (.osz) and edit collections
         ['beatmaps', 'beatmap', 'beatmap', '#eeaa00', ['KeyB'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('beatmaps'))],
         // skins: preview and import them, and edit the one you use (its layout editor)
@@ -208,15 +208,15 @@ const HomeScreen = {
       ],
     };
   },
-  /** The daily challenge button: the day's beatmap cover and the time left (hh:mm:ss), as lazer's. */
+  /** The weekly challenge button: this week's beatmap cover and the time left (days and hh:mm:ss), as lazer's. */
   paintDaily() {
     const b = this.btns && this.btns.find(x => x.dataset.id === 'daily'), d = Daily.data;
     if (!b) return;
     const cv = b.querySelector('.lz-cover'), cd = b.querySelector('.lz-countdown');
     if (d && d.map && cv && cv._set !== d.map.onlineSetId) { cv._set = d.map.onlineSetId; OnlineBeatmaps.loadCover(cv, d.map.onlineSetId, ['card@2x', 'card', 'cover']); }
     if (cd) {
-      const left = d && d.map ? Math.max(0, d.endsAt - Date.now()) : 0, s = Math.floor(left / 1000);
-      cd.textContent = left ? `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : '';
+      const left = d && d.map ? Math.max(0, d.endsAt - Date.now()) : 0;
+      cd.textContent = left ? Daily.remaining(left) : '';
     }
   },
   buildButtons() {

@@ -1,25 +1,29 @@
-/* osu!lazer's daily challenge: one beatmap for everyone each day (turning over at midnight US Central time, decided by the server), with a leaderboard of each player's best score
- * on it, reached from the Play menu. The server keeps the day's beatmap and scores, and picks the beatmap itself (a
+/* osu!lazer's weekly challenge: one beatmap for everyone each week (turning over at Monday midnight US Central time, decided by the server), with a leaderboard of each player's best score
+ * on it, reached from the Play menu. The server keeps the week's beatmap and scores, and picks the beatmap itself (a
  * ranked 4K beatmap of 3.5–5.5 stars from osu!'s listing, at random) — no player's game has a say in it. */
 
 const Daily = {
   data: null,
+  remaining(ms) {
+    const s = Math.floor(Math.max(0, ms) / 1000), days = Math.floor(s / 86400);
+    return `${days ? days + 'd ' : ''}${String(Math.floor(s / 3600) % 24).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  },
   on(m) {
-    // lazer's NewDailyChallengeNotification, once a day
+    // lazer's NewDailyChallengeNotification, once a week
     if (m.map) { let seen = null; try { seen = localStorage.getItem('am.dailySeen'); } catch {}
       if (seen !== m.day) { try { localStorage.setItem('am.dailySeen', m.day); } catch {}
-        if (seen !== null || this.data) Toast.show('Today\'s daily challenge is now live!', kbHint('Click here to play.', 'Tap here to play.'), { timeout: 8000, onClick: () => Screens.go('daily'), hold: true }); } }
+        if (seen !== null || this.data) Toast.show('A new weekly challenge is now live!', kbHint('Click here to play.', 'Tap here to play.'), { timeout: 8000, onClick: () => Screens.go('daily'), hold: true }); } }
     this.data = m;
     Bus.emit('daily', m);
   },
-  /** The day's challenge (the server picks its beatmap if it has none yet); `retry`: after it said it couldn't. */
+  /** The week's challenge (the server picks its beatmap if it has none yet); `retry`: after it said it couldn't. */
   ask(retry = false) { Presence.start(); Presence.send(retry ? { t: 'daily', retry: true } : { t: 'daily' }); },
-  // (a passed play of the day's beatmap counts once the server has judged it — Verified, with `daily`)
+  // (a passed play of the week's beatmap counts once the server has judged it — Verified, with `daily`)
 };
 
 const DailyScreen = {
   enter() {
-    const { el, page } = pageShell('daily challenge', 'a new beatmap every day — set your best score on it', [], { icon: 'calendar', hue: 'plum', wide: true });
+    const { el, page } = pageShell('weekly challenge', 'a new beatmap every Monday — set your best score before the week ends', [], { icon: 'calendar', hue: 'plum', wide: true });
     this.page = page;
     this._unsub = [Bus.on('daily', () => this.render()), Bus.on('library:changed', () => this.render()), Bus.on('presence:changed', () => { if (!Daily.data) { Daily.ask(); this.render(); } })];
     Daily.ask();
@@ -33,9 +37,8 @@ const DailyScreen = {
     const d = Daily.data;
     if (!d || !this.timeEl) return;
     const left = Math.max(0, d.endsAt - Date.now());
-    const s = Math.floor(left / 1000), hh = Math.floor(s / 3600), mm = Math.floor(s / 60) % 60, ss = s % 60;
-    this.timeEl.textContent = `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-    if (this.timeBar) this.timeBar.style.transform = `scaleX(${(left / 86400000).toFixed(4)})`;
+    this.timeEl.textContent = Daily.remaining(left);
+    if (this.timeBar) this.timeBar.style.transform = `scaleX(${Math.min(1, left / Math.max(1, d.endsAt - (d.startsAt || d.endsAt - 7 * 86400000))).toFixed(4)})`;
     if (left <= 0 && !this._rolled) { this._rolled = true; setTimeout(() => { this._rolled = false; Daily.ask(); }, 1500); }
   },
   render() {
@@ -44,10 +47,10 @@ const DailyScreen = {
     if (!d || !d.map) {
       this.timeEl = null; this.cardEl = null;
       const failed = d && d.error;
-      clearEl(this.page).append(!Presence.ws || Presence.ws.readyState !== 1 && !Presence.connecting() ? offlineState('Today\'s challenge')
-        : failed ? stateCard('calendar', 'Couldn\'t pick today\'s beatmap', `${d.error} The server tries again in a moment.`,
+      clearEl(this.page).append(!Presence.ws || Presence.ws.readyState !== 1 && !Presence.connecting() ? offlineState('This week\'s challenge')
+        : failed ? stateCard('calendar', 'Couldn\'t pick this week\'s beatmap', `${d.error} The server tries again in a moment.`,
           { action: h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Daily.data = { ...d, error: null }; Daily.ask(true); this.render(); } }, icon('sync'), 'Try again') })
-        : h('div.rk-empty', h('span.spinner'), d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
+        : h('div.rk-empty', h('span.spinner'), d ? 'Picking this week\'s beatmap…' : 'Loading the weekly challenge…'));
       return;
     }
     const m = d.map, local = Multiplayer.localMap(m), f = this.fetch && this.fetch.id === m.onlineSetId ? this.fetch : null;
@@ -64,20 +67,20 @@ const DailyScreen = {
     const board = d.scores.length
       ? h('div.rk-table.dc-table', h('div.rk-row.rk-head.dc-row', h('span'), h('span'), h('span.hl', 'Score'), h('span', 'Accuracy'), h('span', 'Max Combo'), h('span', 'Rank'), h('span', 'Mods')),
         ...d.scores.map(row), ...(d.you && d.you.rank > 50 ? [h('div.rk-sep', '…'), row(d.you)] : []))
-      : stateCard('trophy', 'No scores yet today', 'Be the first!', { cls: '.compact' });
+      : stateCard('trophy', 'No scores yet this week', 'Be the first!', { cls: '.compact' });
     const head = h('h3.dc-h', 'Leaderboard', h('span', ` ${fmtInt(d.total)} player${d.total === 1 ? '' : 's'}`));
     const cols = h('div.dc-cols', h('div.dc-main', head, board), this.side(d));
     if (this.cardEl.parentNode === this.page) { while (this.cardEl.nextSibling) this.cardEl.nextSibling.remove(); this.page.append(cols); }
     else clearEl(this.page).append(this.cardEl, cols);
     this.tickTime();
-    // (you're first today: Neru peeks up, sunglasses on)
+    // (you're first this week: Neru peeks up, sunglasses on)
     if (d.scores[0] && d.scores[0].pid === me && d.total > 1 && typeof NeruEggs !== 'undefined') NeruEggs.topOfTheBoard(`daily${d.day || ''}`, Screens.currentName);
   },
-  /** lazer's daily challenge side panels: total passes, the score breakdown (scores per 100,000, yours lit) and the
+  /** lazer's weekly challenge side panels: total passes, the score breakdown (scores per 100,000, yours lit) and the
    *  event feed (the newest scores and where they placed). */
   side(d) {
     const bins = d.bins || [], max = Math.max(1, ...bins), mine = d.you ? Math.min(10, Math.floor(d.you.score / 100000)) : -1;
-    const ago = t => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)}m ago` : `${Math.floor(s / 3600)}h ago`; };
+    const ago = t => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)}m ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago` : `${Math.floor(s / 86400)}d ago`; };
     return h('div.dc-side',
       h('div.dc-panel', h('div.dc-ph', 'Total passes'), h('div.dc-big', fmtInt(d.total || 0))),
       bins.length ? h('div.dc-panel', h('div.dc-ph', 'Score breakdown'),
@@ -94,7 +97,7 @@ const DailyScreen = {
     this.timeEl = h('b'); this.timeBar = h('i');
     return h('div.dc-card', cover,
       h('div.dc-info',
-        h('div.dc-kicker', 'Today\'s beatmap'),
+        h('div.dc-kicker', 'This week\'s beatmap'),
         h('div.dc-title', m.title), h('div.dc-artist', m.artist),
         h('div.dc-meta', starBadge(m.stars || 0), h('span.dc-ver', m.version), h('span.dc-keys', `${m.keys}K`), m.length ? h('span', icon('clock'), fmtTime(m.length)) : null, m.creator ? h('span.dc-by', 'mapped by ', h('b', m.creator)) : null),
         h('div.dc-time', h('span', 'Time remaining'), this.timeEl, h('div.dc-tbar', this.timeBar)),
@@ -102,7 +105,7 @@ const DailyScreen = {
           h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: MODS.filter(x => x.unranked).map(x => x.id), onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods'),
           play)));
   },
-  /** The mods picked in song select, less the ones a daily challenge score can't have (Auto, Cinema, Muted, Wind Up / Down,
+  /** The mods picked in song select, less the ones a weekly challenge score can't have (Auto, Cinema, Muted, Wind Up / Down,
    *  Adaptive Speed: the server doesn't count those, so one picked earlier mustn't come along unseen). */
   mods() { return (Settings.get('songselect.mods') || []).filter(x => !(MOD_BY_ID.get(x) || {}).unranked); },
   async play() {
@@ -120,7 +123,7 @@ const DailyScreen = {
       this.fetch = null;
       local = Multiplayer.localMap(m);
       this.render();
-      if (!local) { Toast.err('Couldn\'t find the daily beatmap', 'It downloaded, but that difficulty isn\'t in the set.'); return; }
+      if (!local) { Toast.err('Couldn\'t find the weekly beatmap', 'It downloaded, but that difficulty isn\'t in the set.'); return; }
       if (Screens.currentName !== 'daily') return;
     }
     Game.launch({ mapId: local.id, mods: this.mods(), daily: { day: d.day, onlineId: m.onlineId }, back: { name: 'daily' } });

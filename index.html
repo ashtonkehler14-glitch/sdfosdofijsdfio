@@ -15932,7 +15932,7 @@ const HomeScreen = {
         ['solo', 'solo', 'user', '#6644cc', ['KeyP'], 'play', 'play', 'l', solo],
         ['multi', 'multi', 'online', '#5e3fba', ['KeyM'], 'play', 'play', null, () => this.setState('multi')],
         // lazer's DailyChallengeButton: (94, 63, 186), D
-        ['daily', 'daily challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
+        ['daily', 'weekly challenge', 'calendar', '#5e3fba', ['KeyD'], 'play', 'play', null, () => this.enterMode(() => Screens.go('daily'))],
         // your beatmaps: import them, extract them (.osz) and edit collections
         ['beatmaps', 'beatmap', 'beatmap', '#eeaa00', ['KeyB'], 'edit', 'edit', 'l', () => this.enterMode(() => Screens.go('beatmaps'))],
         // skins: preview and import them, and edit the one you use (its layout editor)
@@ -15943,15 +15943,15 @@ const HomeScreen = {
       ],
     };
   },
-  /** The daily challenge button: the day's beatmap cover and the time left (hh:mm:ss), as lazer's. */
+  /** The weekly challenge button: this week's beatmap cover and the time left (days and hh:mm:ss), as lazer's. */
   paintDaily() {
     const b = this.btns && this.btns.find(x => x.dataset.id === 'daily'), d = Daily.data;
     if (!b) return;
     const cv = b.querySelector('.lz-cover'), cd = b.querySelector('.lz-countdown');
     if (d && d.map && cv && cv._set !== d.map.onlineSetId) { cv._set = d.map.onlineSetId; OnlineBeatmaps.loadCover(cv, d.map.onlineSetId, ['card@2x', 'card', 'cover']); }
     if (cd) {
-      const left = d && d.map ? Math.max(0, d.endsAt - Date.now()) : 0, s = Math.floor(left / 1000);
-      cd.textContent = left ? `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}` : '';
+      const left = d && d.map ? Math.max(0, d.endsAt - Date.now()) : 0;
+      cd.textContent = left ? Daily.remaining(left) : '';
     }
   },
   buildButtons() {
@@ -24599,7 +24599,7 @@ const ProfileScreen = {
     return el;
   },
   leave() { (this._unsub || []).forEach(f => f()); },
-  /** lazer's DailyChallengeStatsDisplay: "Daily Challenge" and the days played in the colour of their tier; the
+  /** lazer's DailyChallengeStatsDisplay: "Weekly Challenge" and the weeks played in the colour of their tier; the
    *  tooltip has the streaks. Hidden until you've played one. */
   paintDaily() {
     const el = this.dailyEl, v = this.remote ? this.remote.daily : Daily.data && Daily.data.stats;
@@ -24607,12 +24607,12 @@ const ProfileScreen = {
     el.hidden = !(v && v.plays);
     if (el.hidden) return;
     const tier = n => n >= 360 ? 'lustrous' : n >= 240 ? 'radiant' : n >= 120 ? 'rhodium' : n >= 60 ? 'platinum' : n >= 30 ? 'gold' : n >= 10 ? 'silver' : n >= 5 ? 'bronze' : 'iron';
-    const d = n => `${fmtInt(n)}d`;
-    clearEl(el).append(h('span.pf-daily-t', 'Daily Challenge'), h(`b.tier-${tier(Math.floor(v.plays / 3))}`, d(v.plays)),
+    const d = n => `${fmtInt(n)}w`;
+    clearEl(el).append(h('span.pf-daily-t', 'Weekly Challenge'), h(`b.tier-${tier(Math.floor(v.plays / 3))}`, d(v.plays)),
       h('div.pf-daily-tip',
         h('div', h('span', 'Total participation'), h(`b.tier-${tier(Math.floor(v.plays / 3))}`, d(v.plays))),
-        h('div', h('span', 'Current daily streak'), h(`b.tier-${tier(v.current)}`, d(v.current))),
-        h('div', h('span', 'Best daily streak'), h(`b.tier-${tier(v.best)}`, d(v.best)))));
+        h('div', h('span', 'Current weekly streak'), h(`b.tier-${tier(v.current)}`, d(v.current))),
+        h('div', h('span', 'Best weekly streak'), h(`b.tier-${tier(v.best)}`, d(v.best)))));
   },
   paintGlobal() { const b = this.globalEl && this.globalEl.querySelector('b'); if (b) b.textContent = this.globalRank ? `#${fmtInt(this.globalRank)}` : '—'; },
   /** Everything the profile shows, from this browser's scores — also sent up so other players can open it. */
@@ -24773,7 +24773,7 @@ const ProfileScreen = {
     const sections = [ranks(), rec(), medals()].filter(Boolean);
     let pinned = null; // (a clicked tab stays lit until you scroll yourself, even if its section can't reach the top)
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); const sc = el.closest('.screen-body'); if (sc) settleOn(sc, () => el.scrollIntoView({ block: 'start' })); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
-    // (the level and daily challenge sit at the cover's bottom right, beside the name: one block, not a strip of its own)
+    // (the level and weekly challenge sit at the cover's bottom right, beside the name: one block, not a strip of its own)
     top.querySelector('.pf-top-in').append(centre);
     const header = h('div.pf-header', top, detail); ProfileAppearance.paint(header, appearance);
     page.append(header, tabs, ...sections);
@@ -25064,6 +25064,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8h', title: 'A week to beat it', sections: [
+    { icon: 'calendar', title: 'Weekly challenge', items: ['One shared beatmap for the whole week, with a new challenge every Monday at midnight US Central time', 'Weekly leaderboards, countdowns and participation streaks'] },
+    { icon: 'film', title: 'Spectating', items: ['Between songs, regular spectate shows where the player is, including song select, menus and results, instead of their previous song'] },
+  ] },
   { id: '2026.11.8g', title: 'Music on your terms', sections: [
     { icon: 'music', title: 'Audio', items: ['Turn off Autoplay menu music and previews in Settings → Audio to keep menus quiet; Play and Next still work, and gameplay music is unchanged'] },
     { icon: 'trophy', title: 'Rankings', items: ['Imported songs are checked against the explorer: unchanged ranked or approved difficulties can earn ranked scores', 'Existing scores from difficulties that cannot be verified are removed from rankings and beatmap leaderboards; local scores stay saved'] },
@@ -28645,6 +28649,14 @@ const Presence = {
     if (Screens.currentName === 'spectator' || (Screens.currentName === 'results' && typeof Spectate !== 'undefined' && Spectate.target)) return 'watching';
     return Multiplayer.inRoom() ? (Multiplayer.isRP() ? 'ranked' : 'room') : 'menu';
   },
+  // Only a menu identifier is shared, never the contents of a screen or dialog.
+  activity() { return Screens.currentName || 'home'; },
+  activityText(p = {}) {
+    if (p.status === 'ranked') return 'In a Ranked Play match';
+    if (p.status === 'room') return 'In a multiplayer room';
+    if (p.status === 'watching') return 'Spectating';
+    return { home: 'In menus', songselect: 'In song select', results: 'Viewing results', beatmaps: 'Browsing their beatmap library', explore: 'Browsing beatmap explorer', dashboard: 'In the lounge', daily: 'Viewing the weekly challenge', rankings: 'Viewing rankings', collections: 'Browsing collections', profile: 'Viewing a profile', stats: 'Viewing a profile', replays: 'Browsing replays', skins: 'Browsing skins', changelog: 'Reading the update log', gameplay: 'In gameplay' }[p.activity] || 'In menus';
+  },
   /** What's being played (shown on the online list). */
   song() {
     const s = Screens.currentName === 'gameplay' && GameplayScreen.s;
@@ -28727,8 +28739,8 @@ const Presence = {
       // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
       const pid = this.pid(), key = this.key();
-      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid, key, vis: Settings.get('online.status') || 'online' }));
-      this._song = null; this.pushStatus();
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, activity: this.activity(), avatar: this._av, cid: this.cid, pid, key, vis: Settings.get('online.status') || 'online' }));
+      this._song = null; this._activity = null; this.pushStatus();
       { const q = this._q; this._q = null; if (q) for (const m of q) this.send(m); }
       Rankings.report(); // (your totals for the rankings)
       // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's
@@ -28948,12 +28960,12 @@ const Presence = {
     if (((this.ws && this.ws.readyState === 0) || (!this.ws && this.started && !this.away)) && m && m.t !== 'ping' && m.t !== 'status' && m.t !== 'hello') { (this._q ||= []).push(m); if (this._q.length > 20) this._q.shift(); }
   },
   pushStatus() {
-    const st = this.status(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '', song = this.song(), sk = JSON.stringify(song);
+    const st = this.status(), activity = this.activity(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '', song = this.song(), sk = JSON.stringify(song);
     // (your Ranked Play match: anyone spectating you watches it as you see it — RankedWatch)
     const rp = Multiplayer.inRoom() && Multiplayer.isRP() && Multiplayer.code || '';
-    if (st === this._sent && name === this._name && av === this._av && sk === this._song && rp === this._rp) return;
-    this._sent = st; this._name = name; this._av = av; this._song = sk; this._rp = rp;
-    this.send({ t: 'status', status: st, name, avatar: av, song, rp });
+    if (st === this._sent && name === this._name && av === this._av && sk === this._song && rp === this._rp && activity === this._activity) return;
+    this._sent = st; this._name = name; this._av = av; this._song = sk; this._rp = rp; this._activity = activity;
+    this.send({ t: 'status', status: st, activity, name, avatar: av, song, rp });
   },
   others() { return this.players.filter(p => p.id !== this.me); },
   /** Is a list of online players on screen (the invite dialog) — or an invite waiting for someone's song to end? */
@@ -31033,7 +31045,7 @@ const Spectate = {
     if (Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
     if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
     const room = Multiplayer.inRoom();
-    this.target = { id: p.id, name: p.name, pid: p.pid || '', avatar: p.avatar || '', room };
+    this.target = { id: p.id, name: p.name, pid: p.pid || '', avatar: p.avatar || '', activity: p.activity || '', status: p.status || 'menu', room };
     this.cur = null; this.set = null;
     Presence.send({ t: 'watch', to: p.id, chat: true });
     if (typeof SpectatorChat !== 'undefined') SpectatorChat.refresh();
@@ -31067,8 +31079,14 @@ const Spectate = {
     // (in a Ranked Play match: their match screen, as they see it, between their songs — RankedWatch)
     if ((m.t === 'specWait' || m.t === 'specStart' || m.t === 'specRoom') && !t.room && m.room != null) RankedWatch.open(m.room, m.pid || t.pid);
     if (m.t === 'specRoom') return;
+    if (m.t === 'specActivity') {
+      t.activity = m.activity; t.status = m.status;
+      SpectatorScreen.paintMap();
+      return;
+    }
     if (m.t === 'specWait') {
       if (t.room) { this.stop({ quiet: true }); Toast.show(`${t.name} isn't playing right now`); return; }
+      t.activity = m.activity || t.activity; t.status = m.status || t.status;
       this.cur = null; SpectatorScreen.paint();
       return;
     }
@@ -31470,9 +31488,10 @@ const SpectatorScreen = {
     if (!el || !this.btn) return;
     this.btn.disabled = !Spectate.canStart();
     if (!t) { clearEl(el); return; }
-    if (!c) {
-      clearEl(el).append(h('div.spm-idle', t.lost ? [h('span.spinner'), h('span', `${t.name} went offline — waiting for them to come back…`)] : [icon('clock'), h('span', `Waiting for ${t.name} to play…`)]));
-      this._mapSig = null;
+    if (!c || c.ended) {
+      const activity = Presence.activityText(t);
+      clearEl(el).append(h('div.spm-idle', t.lost ? [h('span.spinner'), h('span', `${t.name} went offline — waiting for them to come back…`)] : [icon('clock'), h('span', `${activity} · Waiting for ${t.name} to play…`)]));
+      this._mapSig = this.mapSig(c);
       return;
     }
     const st = c.head.onlineSetId > 0 ? ExplorerScreen.downloads.get(c.head.onlineSetId) : null;
@@ -31483,7 +31502,7 @@ const SpectatorScreen = {
   /** A download's progress, as it goes (the card is built again only when its state changes). */
   paintProgress() {
     const c = Spectate.cur;
-    if (!c || !this.mapEl) return;
+    if (!c || c.ended || !this.mapEl) return;
     if (this.mapSig(c) !== this._mapSig) { this.paintMap(); return; }
     const st = c.head.onlineSetId > 0 ? ExplorerScreen.downloads.get(c.head.onlineSetId) : null;
     if (st && st.state === 'downloading') for (const x of this.mapEl.querySelectorAll('.ex-thumbprog, .ex-side-btn.busy')) x.style.setProperty('--p', `${Math.round((st.progress || 0) * 100)}%`);
@@ -32552,7 +32571,7 @@ for (const ev of ['scores:changed', 'profile:changed', 'library:changed']) Bus.o
 
 /** Online scores: a passed play goes to the game server as it finished — its score, accuracy, grade and pp, taken as
  *  they are (acceptPlay, src/js/09c-verify.js) — with the beatmap file, whose hash is the beatmap's id; that's what the
- *  rankings, the leaderboards and the daily challenge show. Signed with this player's secret key (Presence.key). */
+ *  rankings, the leaderboards and the weekly challenge show. Signed with this player's secret key (Presence.key). */
 const Verified = {
   /** What's sent of a play: its result (`score`) — or, without one, its key presses, for the server to judge. */
   what({ score, mods, modConfig, seed, events }) { return score ? { result: this.result(score) } : { play: { mods, modConfig, seed, events: [...(events || [])] } }; },
@@ -32600,7 +32619,7 @@ const Verified = {
     let r = null;
     for (let i = 0; !r; i++) {
       // (429: another score of yours went up seconds ago — the server takes one every few seconds — so this one waits)
-      try { r = await fetch(Host.api('api/mp/score'), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(30000) }); if ((r.status >= 500 || r.status === 429) && Date.now() < until) r = null; } catch (e) { if (Date.now() >= until) { console.warn('score not sent', e); if (daily) Toast.err('Your daily challenge score wasn\'t sent', 'Check your connection.'); return null; } }
+      try { r = await fetch(Host.api('api/mp/score'), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(30000) }); if ((r.status >= 500 || r.status === 429) && Date.now() < until) r = null; } catch (e) { if (Date.now() >= until) { console.warn('score not sent', e); if (daily) Toast.err('Your weekly challenge score wasn\'t sent', 'Check your connection.'); return null; } }
       if (!r) await new Promise(res => { const t = setTimeout(done, Math.min(15000, 1000 * 2 ** i)); function done() { clearTimeout(t); removeEventListener('online', done); res(); } addEventListener('online', done); });
     }
     try {
@@ -32608,11 +32627,11 @@ const Verified = {
       if (!r.ok || !d || !d.ok) {
         console.warn('score not counted online:', d && d.error);
         if (background) return { ok: false, error: (d && d.error) || `The server answered ${r.status}.` }; // (the catch-up says why)
-        if (daily) Toast.err('Your daily challenge score wasn\'t counted', (d && d.error) || 'The server couldn\'t check the play — try again.');
+        if (daily) Toast.err('Your weekly challenge score wasn\'t counted', (d && d.error) || 'The server couldn\'t check the play — try again.');
         return null;
       }
-      if (daily && d.daily === 'day') Toast.err('Your daily challenge score wasn\'t counted', 'The daily challenge changed to a new day while you played.');
-      else if (daily && d.daily === 'map') Toast.err('Your daily challenge score wasn\'t counted', 'That isn\'t today\'s daily challenge beatmap.');
+      if (daily && d.daily === 'day') Toast.err('Your weekly challenge score wasn\'t counted', 'The weekly challenge changed to a new week while you played.');
+      else if (daily && d.daily === 'map') Toast.err('Your weekly challenge score wasn\'t counted', 'That isn\'t the current weekly challenge beatmap.');
       if (d.rankStatus && rec) await BeatmapStatus.keepMapStatus(rec, d.rankStatus).catch(e => console.warn('beatmap status not saved locally', e));
       if (background) return d;
       this.last = { d, at: Date.now(), sent };
@@ -32791,28 +32810,32 @@ Bus.on('myBests', m => {
 });
 
 /* ===== 19h-daily.js ===== */
-/* osu!lazer's daily challenge: one beatmap for everyone each day (turning over at midnight US Central time, decided by the server), with a leaderboard of each player's best score
- * on it, reached from the Play menu. The server keeps the day's beatmap and scores, and picks the beatmap itself (a
+/* osu!lazer's weekly challenge: one beatmap for everyone each week (turning over at Monday midnight US Central time, decided by the server), with a leaderboard of each player's best score
+ * on it, reached from the Play menu. The server keeps the week's beatmap and scores, and picks the beatmap itself (a
  * ranked 4K beatmap of 3.5–5.5 stars from osu!'s listing, at random) — no player's game has a say in it. */
 
 const Daily = {
   data: null,
+  remaining(ms) {
+    const s = Math.floor(Math.max(0, ms) / 1000), days = Math.floor(s / 86400);
+    return `${days ? days + 'd ' : ''}${String(Math.floor(s / 3600) % 24).padStart(2, '0')}:${String(Math.floor(s / 60) % 60).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+  },
   on(m) {
-    // lazer's NewDailyChallengeNotification, once a day
+    // lazer's NewDailyChallengeNotification, once a week
     if (m.map) { let seen = null; try { seen = localStorage.getItem('am.dailySeen'); } catch {}
       if (seen !== m.day) { try { localStorage.setItem('am.dailySeen', m.day); } catch {}
-        if (seen !== null || this.data) Toast.show('Today\'s daily challenge is now live!', kbHint('Click here to play.', 'Tap here to play.'), { timeout: 8000, onClick: () => Screens.go('daily'), hold: true }); } }
+        if (seen !== null || this.data) Toast.show('A new weekly challenge is now live!', kbHint('Click here to play.', 'Tap here to play.'), { timeout: 8000, onClick: () => Screens.go('daily'), hold: true }); } }
     this.data = m;
     Bus.emit('daily', m);
   },
-  /** The day's challenge (the server picks its beatmap if it has none yet); `retry`: after it said it couldn't. */
+  /** The week's challenge (the server picks its beatmap if it has none yet); `retry`: after it said it couldn't. */
   ask(retry = false) { Presence.start(); Presence.send(retry ? { t: 'daily', retry: true } : { t: 'daily' }); },
-  // (a passed play of the day's beatmap counts once the server has judged it — Verified, with `daily`)
+  // (a passed play of the week's beatmap counts once the server has judged it — Verified, with `daily`)
 };
 
 const DailyScreen = {
   enter() {
-    const { el, page } = pageShell('daily challenge', 'a new beatmap every day — set your best score on it', [], { icon: 'calendar', hue: 'plum', wide: true });
+    const { el, page } = pageShell('weekly challenge', 'a new beatmap every Monday — set your best score before the week ends', [], { icon: 'calendar', hue: 'plum', wide: true });
     this.page = page;
     this._unsub = [Bus.on('daily', () => this.render()), Bus.on('library:changed', () => this.render()), Bus.on('presence:changed', () => { if (!Daily.data) { Daily.ask(); this.render(); } })];
     Daily.ask();
@@ -32826,9 +32849,8 @@ const DailyScreen = {
     const d = Daily.data;
     if (!d || !this.timeEl) return;
     const left = Math.max(0, d.endsAt - Date.now());
-    const s = Math.floor(left / 1000), hh = Math.floor(s / 3600), mm = Math.floor(s / 60) % 60, ss = s % 60;
-    this.timeEl.textContent = `${hh}:${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-    if (this.timeBar) this.timeBar.style.transform = `scaleX(${(left / 86400000).toFixed(4)})`;
+    this.timeEl.textContent = Daily.remaining(left);
+    if (this.timeBar) this.timeBar.style.transform = `scaleX(${Math.min(1, left / Math.max(1, d.endsAt - (d.startsAt || d.endsAt - 7 * 86400000))).toFixed(4)})`;
     if (left <= 0 && !this._rolled) { this._rolled = true; setTimeout(() => { this._rolled = false; Daily.ask(); }, 1500); }
   },
   render() {
@@ -32837,10 +32859,10 @@ const DailyScreen = {
     if (!d || !d.map) {
       this.timeEl = null; this.cardEl = null;
       const failed = d && d.error;
-      clearEl(this.page).append(!Presence.ws || Presence.ws.readyState !== 1 && !Presence.connecting() ? offlineState('Today\'s challenge')
-        : failed ? stateCard('calendar', 'Couldn\'t pick today\'s beatmap', `${d.error} The server tries again in a moment.`,
+      clearEl(this.page).append(!Presence.ws || Presence.ws.readyState !== 1 && !Presence.connecting() ? offlineState('This week\'s challenge')
+        : failed ? stateCard('calendar', 'Couldn\'t pick this week\'s beatmap', `${d.error} The server tries again in a moment.`,
           { action: h('button.btn.sm.off-retry', { onclick: () => { UISounds.click(); Daily.data = { ...d, error: null }; Daily.ask(true); this.render(); } }, icon('sync'), 'Try again') })
-        : h('div.rk-empty', h('span.spinner'), d ? 'Picking today\'s beatmap…' : 'Loading the daily challenge…'));
+        : h('div.rk-empty', h('span.spinner'), d ? 'Picking this week\'s beatmap…' : 'Loading the weekly challenge…'));
       return;
     }
     const m = d.map, local = Multiplayer.localMap(m), f = this.fetch && this.fetch.id === m.onlineSetId ? this.fetch : null;
@@ -32857,20 +32879,20 @@ const DailyScreen = {
     const board = d.scores.length
       ? h('div.rk-table.dc-table', h('div.rk-row.rk-head.dc-row', h('span'), h('span'), h('span.hl', 'Score'), h('span', 'Accuracy'), h('span', 'Max Combo'), h('span', 'Rank'), h('span', 'Mods')),
         ...d.scores.map(row), ...(d.you && d.you.rank > 50 ? [h('div.rk-sep', '…'), row(d.you)] : []))
-      : stateCard('trophy', 'No scores yet today', 'Be the first!', { cls: '.compact' });
+      : stateCard('trophy', 'No scores yet this week', 'Be the first!', { cls: '.compact' });
     const head = h('h3.dc-h', 'Leaderboard', h('span', ` ${fmtInt(d.total)} player${d.total === 1 ? '' : 's'}`));
     const cols = h('div.dc-cols', h('div.dc-main', head, board), this.side(d));
     if (this.cardEl.parentNode === this.page) { while (this.cardEl.nextSibling) this.cardEl.nextSibling.remove(); this.page.append(cols); }
     else clearEl(this.page).append(this.cardEl, cols);
     this.tickTime();
-    // (you're first today: Neru peeks up, sunglasses on)
+    // (you're first this week: Neru peeks up, sunglasses on)
     if (d.scores[0] && d.scores[0].pid === me && d.total > 1 && typeof NeruEggs !== 'undefined') NeruEggs.topOfTheBoard(`daily${d.day || ''}`, Screens.currentName);
   },
-  /** lazer's daily challenge side panels: total passes, the score breakdown (scores per 100,000, yours lit) and the
+  /** lazer's weekly challenge side panels: total passes, the score breakdown (scores per 100,000, yours lit) and the
    *  event feed (the newest scores and where they placed). */
   side(d) {
     const bins = d.bins || [], max = Math.max(1, ...bins), mine = d.you ? Math.min(10, Math.floor(d.you.score / 100000)) : -1;
-    const ago = t => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)}m ago` : `${Math.floor(s / 3600)}h ago`; };
+    const ago = t => { const s = Math.max(0, Math.round((Date.now() - t) / 1000)); return s < 60 ? 'just now' : s < 3600 ? `${Math.floor(s / 60)}m ago` : s < 86400 ? `${Math.floor(s / 3600)}h ago` : `${Math.floor(s / 86400)}d ago`; };
     return h('div.dc-side',
       h('div.dc-panel', h('div.dc-ph', 'Total passes'), h('div.dc-big', fmtInt(d.total || 0))),
       bins.length ? h('div.dc-panel', h('div.dc-ph', 'Score breakdown'),
@@ -32887,7 +32909,7 @@ const DailyScreen = {
     this.timeEl = h('b'); this.timeBar = h('i');
     return h('div.dc-card', cover,
       h('div.dc-info',
-        h('div.dc-kicker', 'Today\'s beatmap'),
+        h('div.dc-kicker', 'This week\'s beatmap'),
         h('div.dc-title', m.title), h('div.dc-artist', m.artist),
         h('div.dc-meta', starBadge(m.stars || 0), h('span.dc-ver', m.version), h('span.dc-keys', `${m.keys}K`), m.length ? h('span', icon('clock'), fmtTime(m.length)) : null, m.creator ? h('span.dc-by', 'mapped by ', h('b', m.creator)) : null),
         h('div.dc-time', h('span', 'Time remaining'), this.timeEl, h('div.dc-tbar', this.timeBar)),
@@ -32895,7 +32917,7 @@ const DailyScreen = {
           h('button.btn.dc-mods', { onclick: () => { UISounds.click(); ModSelect.open({ disabled: MODS.filter(x => x.unranked).map(x => x.id), onClose: () => this.render() }); } }, icon('mods'), mods.length ? mods.join(' ') : 'Mods'),
           play)));
   },
-  /** The mods picked in song select, less the ones a daily challenge score can't have (Auto, Cinema, Muted, Wind Up / Down,
+  /** The mods picked in song select, less the ones a weekly challenge score can't have (Auto, Cinema, Muted, Wind Up / Down,
    *  Adaptive Speed: the server doesn't count those, so one picked earlier mustn't come along unseen). */
   mods() { return (Settings.get('songselect.mods') || []).filter(x => !(MOD_BY_ID.get(x) || {}).unranked); },
   async play() {
@@ -32913,7 +32935,7 @@ const DailyScreen = {
       this.fetch = null;
       local = Multiplayer.localMap(m);
       this.render();
-      if (!local) { Toast.err('Couldn\'t find the daily beatmap', 'It downloaded, but that difficulty isn\'t in the set.'); return; }
+      if (!local) { Toast.err('Couldn\'t find the weekly beatmap', 'It downloaded, but that difficulty isn\'t in the set.'); return; }
       if (Screens.currentName !== 'daily') return;
     }
     Game.launch({ mapId: local.id, mods: this.mods(), daily: { day: d.day, onlineId: m.onlineId }, back: { name: 'daily' } });
@@ -34931,7 +34953,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '708fc86cf3ef';
+const APP_BUILD = '012243d9d178';
 
 const App = {
   lastReport: null,

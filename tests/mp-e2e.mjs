@@ -285,21 +285,21 @@ await shot(alice, 'mp-profile-other');
 check('profiles are kept simple: best performance, recent plays and medals — no first place ranks', await alice.evaluate(() => !/First place ranks/.test(document.querySelector('.screen-body').textContent) && [...document.querySelectorAll('.pf-tabs .ov-tab')].every(t => /^(ranks|recent|medals)$/.test(t.textContent))));
 await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'rankings', null, { timeout: 5000 });
 await alice.evaluate(() => AshtonkMania.Screens.back()); await alice.waitForFunction(() => AshtonkMania.Screens.currentName === 'multiplayer', null, { timeout: 5000 });
-// lazer's daily challenge: one beatmap a day for everyone, and a leaderboard of each player's best score
+// lazer's weekly challenge: one beatmap a day for everyone, and a leaderboard of each player's best score
 // (the server picks it from osu!'s listing, which the tests can't reach: the owner sets it from the admin panel)
 const adminLogin = await fetch(url + 'admin/api/login', { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin': '1' }, body: JSON.stringify({ code: 'K7QM-3XRA-9DPZ-W2HF' }) });
 const adminCookie = (adminLogin.headers.get('set-cookie') || '').split(';')[0];
 const dailySet = await (await fetch(url + 'admin/api/dailySet', { method: 'POST', headers: { 'content-type': 'application/json', 'x-admin': '1', cookie: adminCookie },
   body: JSON.stringify({ map: { onlineSetId: 424242, onlineId: 777, keys: 4, title: 'Daily Song', artist: 'Daily Artist', version: 'Daily Hard', creator: 'Mapper', stars: 4.2, length: 95000 } }) })).json();
-check('daily challenge: the server\'s owner sets the day\'s beatmap from the admin panel', !!dailySet.ok, JSON.stringify(dailySet).slice(0, 200));
+check('weekly challenge: the server\'s owner sets the day\'s beatmap from the admin panel', !!dailySet.ok, JSON.stringify(dailySet).slice(0, 200));
 await alice.evaluate(() => AshtonkMania.Screens.go('daily'));
 await alice.waitForFunction(() => document.querySelector('.dc-title'), null, { timeout: 8000 });
 const dmap = await alice.evaluate(() => AshtonkMania.Daily.data.map);
-check('daily challenge: the day\'s beatmap with the time remaining and Play', await alice.evaluate(() => document.querySelector('.dc-title').textContent.length > 0 && /^\d+:\d\d:\d\d$/.test(document.querySelector('.dc-time b').textContent) && !!document.querySelector('.dc-play')), JSON.stringify(dmap));
+check('weekly challenge: the day\'s beatmap with the time remaining and Play', await alice.evaluate(() => document.querySelector('.dc-title').textContent.length > 0 && /^(?:\d+d )?\d+:\d\d:\d\d$/.test(document.querySelector('.dc-time b').textContent) && !!document.querySelector('.dc-play')), JSON.stringify(dmap));
 {
   // mods a daily score can't have (Wind Up here), picked earlier in song select, don't come along
   const dm = await alice.evaluate(async () => { const S = AshtonkMania.Settings; S.set('songselect.mods', ['WU', 'HD']); AshtonkMania.DailyScreen.render(); await new Promise(r => setTimeout(r, 100)); const out = { mods: AshtonkMania.DailyScreen.mods(), btn: document.querySelector('.dc-mods').textContent.trim() }; S.set('songselect.mods', []); AshtonkMania.DailyScreen.render(); return out; });
-  check('daily challenge: mods its scores can\'t have (Wind Up) picked in song select are left out', JSON.stringify(dm.mods) === '["HD"]' && dm.btn === 'HD', JSON.stringify(dm));
+  check('weekly challenge: mods its scores can\'t have (Wind Up) picked in song select are left out', JSON.stringify(dm.mods) === '["HD"]' && dm.btn === 'HD', JSON.stringify(dm));
 }
 await bob.evaluate(m => { const D = AshtonkMania.Daily; D.ask(); }, dmap);
 await bob.waitForFunction(() => AshtonkMania.Daily.data && AshtonkMania.Daily.data.map, null, { timeout: 5000 });

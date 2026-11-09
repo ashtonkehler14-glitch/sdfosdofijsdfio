@@ -79,7 +79,7 @@ const Spectate = {
     if (Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
     if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
     const room = Multiplayer.inRoom();
-    this.target = { id: p.id, name: p.name, pid: p.pid || '', avatar: p.avatar || '', room };
+    this.target = { id: p.id, name: p.name, pid: p.pid || '', avatar: p.avatar || '', activity: p.activity || '', status: p.status || 'menu', room };
     this.cur = null; this.set = null;
     Presence.send({ t: 'watch', to: p.id, chat: true });
     if (typeof SpectatorChat !== 'undefined') SpectatorChat.refresh();
@@ -113,8 +113,14 @@ const Spectate = {
     // (in a Ranked Play match: their match screen, as they see it, between their songs — RankedWatch)
     if ((m.t === 'specWait' || m.t === 'specStart' || m.t === 'specRoom') && !t.room && m.room != null) RankedWatch.open(m.room, m.pid || t.pid);
     if (m.t === 'specRoom') return;
+    if (m.t === 'specActivity') {
+      t.activity = m.activity; t.status = m.status;
+      SpectatorScreen.paintMap();
+      return;
+    }
     if (m.t === 'specWait') {
       if (t.room) { this.stop({ quiet: true }); Toast.show(`${t.name} isn't playing right now`); return; }
+      t.activity = m.activity || t.activity; t.status = m.status || t.status;
       this.cur = null; SpectatorScreen.paint();
       return;
     }
@@ -516,9 +522,10 @@ const SpectatorScreen = {
     if (!el || !this.btn) return;
     this.btn.disabled = !Spectate.canStart();
     if (!t) { clearEl(el); return; }
-    if (!c) {
-      clearEl(el).append(h('div.spm-idle', t.lost ? [h('span.spinner'), h('span', `${t.name} went offline — waiting for them to come back…`)] : [icon('clock'), h('span', `Waiting for ${t.name} to play…`)]));
-      this._mapSig = null;
+    if (!c || c.ended) {
+      const activity = Presence.activityText(t);
+      clearEl(el).append(h('div.spm-idle', t.lost ? [h('span.spinner'), h('span', `${t.name} went offline — waiting for them to come back…`)] : [icon('clock'), h('span', `${activity} · Waiting for ${t.name} to play…`)]));
+      this._mapSig = this.mapSig(c);
       return;
     }
     const st = c.head.onlineSetId > 0 ? ExplorerScreen.downloads.get(c.head.onlineSetId) : null;
@@ -529,7 +536,7 @@ const SpectatorScreen = {
   /** A download's progress, as it goes (the card is built again only when its state changes). */
   paintProgress() {
     const c = Spectate.cur;
-    if (!c || !this.mapEl) return;
+    if (!c || c.ended || !this.mapEl) return;
     if (this.mapSig(c) !== this._mapSig) { this.paintMap(); return; }
     const st = c.head.onlineSetId > 0 ? ExplorerScreen.downloads.get(c.head.onlineSetId) : null;
     if (st && st.state === 'downloading') for (const x of this.mapEl.querySelectorAll('.ex-thumbprog, .ex-side-btn.busy')) x.style.setProperty('--p', `${Math.round((st.progress || 0) * 100)}%`);

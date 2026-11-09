@@ -316,7 +316,7 @@ const badges = p => [p.owner || p.admin ? rolePill('Owner', '#ffcc22') : p.role 
 let ME = { owner: true };
 
 let lastQuery = '';
-const TABS = [['overview', 'Overview'], ['reports', 'Reports'], ['players', 'Players'], ['announce', 'Announcements'], ['chat', 'Chat'], ['boards', 'Leaderboards'], ['playlists', 'Playlists'], ['daily', 'Daily challenge'], ['log', 'Log']];
+const TABS = [['overview', 'Overview'], ['reports', 'Reports'], ['players', 'Players'], ['announce', 'Announcements'], ['chat', 'Chat'], ['boards', 'Leaderboards'], ['playlists', 'Playlists'], ['daily', 'Weekly challenge'], ['log', 'Log']];
 let OPEN = 0; // (reports waiting: shown on their tab)
 const tabBtns = () => tabsEl.replaceChildren(...tabs().map(([k, l]) => h('button' + (k === tab ? '.on' : ''), { onclick: () => go(k), 'aria-current': k === tab ? 'page' : null }, l, k === 'reports' && OPEN ? h('span.pill.bad', String(OPEN)) : null)));
 const tabs = () => ME.owner ? TABS : TABS.filter(([k]) => k !== 'daily' && k !== 'log');
@@ -326,7 +326,7 @@ const replaceMain = (...nodes) => main.replaceChildren(...nodes.filter(n => n !=
 // (a player found from any page: their name or id, Enter)
 const findBox = h('input.find', { placeholder: 'Find a player…', 'aria-label': 'Find a player' });
 findBox.addEventListener('keydown', e => { if (e.key === 'Enter' && findBox.value.trim()) { lastQuery = findBox.value.trim(); findBox.value = ''; findBox.blur(); go('players'); } });
-const TITLES = { overview: ['Overview', 'Everything happening in your game, in one place.', '◈', 'wink'], reports: ['Reports', 'Review what players have sent in.', '⚑', 'worried'], players: ['Players', 'Find a player, manage their profile and help them sign in.', '◉', 'point'], announce: ['Announcements', 'Share the latest news with everyone online.', '◇', 'cheer'], chat: ['Chat', 'Keep the lounge welcoming.', '☷', 'phone'], boards: ['Leaderboards', 'Look up a beatmap and review its scores.', '♜', 'cool'], playlists: ['Playlists', 'The community’s song collections.', '♫', 'dance'], daily: ['Daily challenge', 'Choose the next challenge.', '☆', 'sassy'], log: ['Log', 'A record of changes made to the game.', '☰', 'bored'] };
+const TITLES = { overview: ['Overview', 'Everything happening in your game, in one place.', '◈', 'wink'], reports: ['Reports', 'Review what players have sent in.', '⚑', 'worried'], players: ['Players', 'Find a player, manage their profile and help them sign in.', '◉', 'point'], announce: ['Announcements', 'Share the latest news with everyone online.', '◇', 'cheer'], chat: ['Chat', 'Keep the lounge welcoming.', '☷', 'phone'], boards: ['Leaderboards', 'Look up a beatmap and review its scores.', '♜', 'cool'], playlists: ['Playlists', 'The community’s song collections.', '♫', 'dance'], daily: ['Weekly challenge', 'Choose the next challenge.', '☆', 'sassy'], log: ['Log', 'A record of changes made to the game.', '☰', 'bored'] };
 const heroTitle = h('h2'), heroSub = h('p'), heroIcon = h('span.hero-icon', { 'aria-hidden': 'true' });
 const neruPic = h('img', { src: '/neru-wink.png', alt: '', draggable: false });
 const neru = h('button.panel-neru', { 'aria-label': 'Neru', title: 'Neru is keeping an eye on things' }, neruPic);
@@ -377,7 +377,7 @@ async function overview() {
     h('div.card', h('div.row', h('span.muted', 'Signed in as'), ME.owner ? rolePill('Owner', '#ffcc22') : [h('b', ME.name || ME.pid), ME.role ? rolePill(ME.role.name, ME.role.colour) : null], h('span.grow'),
       h('button.small', { onclick: () => go('announce') }, 'Announce…'))),
     todo.length ? h('div.todos', todo) : null,
-    h('div.grid', [['Online now', d.online.length], ['Open reports', OPEN], ['Players', d.players], ['Ranked players', d.ranked], ['Players with a code', d.codes], ['Open rooms', d.rooms.length], ['Open playlists', d.playlists], ['Daily challenge scores', d.dailyScores], ['Banned', d.bans], ['Muted', d.mutes]].map(([l, v]) => h('div.tile', h('b', fmt(v)), h('span', l)))),
+    h('div.grid', [['Online now', d.online.length], ['Open reports', OPEN], ['Players', d.players], ['Ranked players', d.ranked], ['Players with a code', d.codes], ['Open rooms', d.rooms.length], ['Open playlists', d.playlists], ['Weekly challenge scores', d.dailyScores], ['Banned', d.bans], ['Muted', d.mutes]].map(([l, v]) => h('div.tile', h('b', fmt(v)), h('span', l)))),
     d.owner ? null : h('div.card', h('p.warn', 'No player has the code in ADMIN_CODE yet: sign in to the game with it (Your code) so the game knows you\\'re the owner.')),
     h('div.cols',
       h('div.card', h('h2', 'Online now'), d.online.length ? h('table', h('tr', h('th', 'Player'), h('th.doing', 'Doing'), h('th')), d.online.map(u => h('tr.click', { onclick: () => u.pid && openPlayer(u.pid) },
@@ -387,7 +387,7 @@ async function overview() {
           h('button.small', { title: 'Send them a message', onclick: async e => { e.stopPropagation(); const t = prompt('A message for ' + u.name + ' (a notice they have to close):'); if (!t) return; await run(() => api('warn', { pid: u.pid, text: t }), 'Sent'); } }, 'Message'),
           h('button.small', { title: 'Mute for 10 minutes', onclick: async e => { e.stopPropagation(); await run(() => api('mute', { pid: u.pid, minutes: 10, reason: '' }), u.name + ' muted for 10 minutes'); } }, 'Mute 10m')] : null)))) : h('div.empty', 'Nobody is online.')),
       h('div',
-        h('div.card', h('h2', 'Daily challenge'), map ? h('div', h('b', map.artist + ' - ' + map.title), h('div.muted', '[' + map.version + '] · ' + map.stars + '★ · ' + map.keys + 'K · ' + d.daily.scores + ' scores')) : h('p.' + (d.daily.error ? 'bad' : 'muted'), d.daily.error || 'Not picked yet (picked when the first player opens it).'),
+        h('div.card', h('h2', 'Weekly challenge'), map ? h('div', h('b', map.artist + ' - ' + map.title), h('div.muted', '[' + map.version + '] · ' + map.stars + '★ · ' + map.keys + 'K · ' + d.daily.scores + ' scores')) : h('p.' + (d.daily.error ? 'bad' : 'muted'), d.daily.error || 'Not picked yet (picked when the first player opens it).'),
           h('div.row.mt', h('button.small', { onclick: () => go('daily') }, 'Change…'))),
         h('div.card', h('h2', 'Open rooms'), h('p.muted.small', 'Rooms listed in the lounge (private rooms and Ranked Play matches aren\\'t).'),
           d.rooms.length ? h('table', d.rooms.map(r => h('tr', h('td', r.name || r.code, h('div.muted.small', r.code + (r.map ? ' · ' + r.map.artist + ' - ' + r.map.title : ''))), h('td.muted', (r.players || 0) + '/' + (r.size || '?')), h('td.muted', r.state || ''),
@@ -447,7 +447,7 @@ async function openPlayer(pid, inPlace) {
         h('span', 'Player id'), h('div', p.pid), h('span', 'Online'), h('div', p.online ? h('b.good', 'now (' + p.sessions.length + ' tab' + (p.sessions.length === 1 ? '' : 's') + ')') : 'last seen ' + ago(p.seen)),
         h('span', 'Global rank'), h('div', p.rank ? '#' + fmt(p.rank) : '—'), h('span', 'pp'), h('div', fmt(p.pp)), h('span', 'Accuracy'), h('div', p.acc ? pct(p.acc) : '—'), h('span', 'Ranked plays'), h('div', fmt(p.plays)),
         h('span', 'First places'), h('div', fmt(p.firsts)), h('span', 'Friends'), h('div', fmt(p.friends)), h('span', 'Devices'), h('div', fmt(p.devices) + (p.code ? ' · has a code' : '')),
-        h('span', 'Daily challenge'), h('div', p.daily ? p.daily.days + ' days played · best streak ' + (p.daily.best || 0) : '—'),
+        h('span', 'Weekly challenge'), h('div', p.daily ? p.daily.days + ' weeks played · best streak ' + (p.daily.best || 0) : '—'),
         p.banned ? [h('span', 'Banned'), h('div.bad', until(p.banned))] : null, p.muted ? [h('span', 'Muted'), h('div.warn', until(p.muted))] : null)), playerCodeBox(p), ...side),
       h('div.card.actions', h('h2', 'Actions'), profileTagsBox(p, act),
         p.admin ? h('p.muted', 'This is the owner (the ADMIN_CODE player).') : !ME.owner && p.role ? h('p.muted', 'An admin: only the owner can act on them.') : [
@@ -466,10 +466,10 @@ async function openPlayer(pid, inPlace) {
           h('div', h('h3', 'Profile picture'), h('p.muted.small', p.noAvatar ? 'Taken down: none of theirs shows until you allow pictures again.' : 'Take down a picture that isn\\'t OK: it goes everywhere it shows, and they can\\'t put another up until you allow it.'),
             p.noAvatar ? h('button', { onclick: act('noAvatar', () => ({ on: false }), 'Pictures allowed again') }, 'Allow pictures again')
             : h('button', { onclick: act('noAvatar', () => ({ on: true }), 'Picture taken down', 'Take down the profile picture of ' + (p.name || p.pid) + '?') }, 'Take picture down'))],
-        h('div', h('h3', 'Scores'), h('p.muted.small', ME.owner ? 'Take one play off below, or all of them.' : 'Take a play off below.'), !ME.owner ? null : h('button.danger', { onclick: act('wipe', () => ({}), 'Every score wiped', 'Wipe every score of ' + (p.name || p.pid) + '? Their rankings, leaderboard scores and daily challenge scores go for good.') }, 'Wipe every score')),
+        h('div', h('h3', 'Scores'), h('p.muted.small', ME.owner ? 'Take one play off below, or all of them.' : 'Take a play off below.'), !ME.owner ? null : h('button.danger', { onclick: act('wipe', () => ({}), 'Every score wiped', 'Wipe every score of ' + (p.name || p.pid) + '? Their rankings, leaderboard scores and weekly challenge scores go for good.') }, 'Wipe every score')),
         ME.owner && p.code && !p.admin ? h('div', h('h3', 'Code'), h('p.muted.small', 'If their code got out: it stops working. Their devices stay signed in, and they can make a new one.'), h('button', { onclick: act('revokeCode', () => ({}), 'Code reset', 'Reset the code of ' + (p.name || p.pid) + '?') }, 'Reset their code')) : null)),
     ME.owner && !p.admin && !p.deleted ? h('div.card.danger-zone', h('h2', 'Delete player'),
-      h('p.muted', 'Deletes ' + (p.name || p.pid) + ' from the server for good: their profile, every score (rankings, beatmap boards, daily challenge), friends, code and devices, saved settings and skin, and their lines in #lobby. Their game starts over as a new player; what\\'s on their own device (beatmaps, skins) stays there.'),
+      h('p.muted', 'Deletes ' + (p.name || p.pid) + ' from the server for good: their profile, every score (rankings, beatmap boards, weekly challenge), friends, code and devices, saved settings and skin, and their lines in #lobby. Their game starts over as a new player; what\\'s on their own device (beatmaps, skins) stays there.'),
       p.role ? h('p.warn.small', 'They\\'re an admin: take admin away first.') : h('button.danger', { onclick: async () => {
         const typed = prompt('This can\\'t be undone. Type DELETE to delete ' + (p.name || p.pid) + '.');
         if (typed == null) return;
@@ -575,13 +575,13 @@ async function chat() {
 async function daily() {
   const d = (await api('overview')).daily, m = d.map;
   const id = h('input.grow', { placeholder: 'Beatmap id (the number after # in its osu! address)', inputmode: 'numeric' });
-  const set = async () => { if (!id.value.trim()) return; if (m && d.scores && !confirm('Today\\'s ' + d.scores + ' scores are for the current beatmap: changing it starts its board over. Change it?')) return; await run(() => api('dailySet', { id: id.value.trim() }), 'Daily challenge set'); daily(); };
+  const set = async () => { if (!id.value.trim()) return; if (m && d.scores && !confirm('This week\\'s ' + d.scores + ' scores are for the current beatmap: changing it starts its board over. Change it?')) return; await run(() => api('dailySet', { id: id.value.trim() }), 'Weekly challenge set'); daily(); };
   id.addEventListener('keydown', e => { if (e.key === 'Enter') set(); });
-  replaceMain(h('div.card', h('h2', 'Today (' + d.day + ')'),
+  replaceMain(h('div.card', h('h2', 'Week of (' + d.day + ')'),
     m ? h('div.kv', h('span', 'Beatmap'), h('b', m.artist + ' - ' + m.title), h('span', 'Difficulty'), h('div', m.version + ' · ' + m.stars + '★ · ' + m.keys + 'K'), h('span', 'Mapper'), h('div', m.creator || '—'),
       h('span', 'osu!'), h('div', 'set ' + m.onlineSetId + ', beatmap ' + m.onlineId), h('span', 'Scores'), h('div', fmt(d.scores)), h('span', 'Ends'), h('div', when(d.endsAt)))
-      : h('p.' + (d.error ? 'bad' : 'muted'), d.error || 'Not picked yet: the server picks one when the first player opens the daily challenge.'),
-    h('h3', 'Change it'), h('div.row', h('button', { onclick: async () => { if (m && d.scores && !confirm('Pick another? Today\\'s scores are for the current beatmap.')) return; await run(() => api('dailyPick'), 'Picked a new one'); daily(); } }, 'Pick another at random')),
+      : h('p.' + (d.error ? 'bad' : 'muted'), d.error || 'Not picked yet: the server picks one when the first player opens the weekly challenge.'),
+    h('h3', 'Change it'), h('div.row', h('button', { onclick: async () => { if (m && d.scores && !confirm('Pick another? This week\\'s scores are for the current beatmap.')) return; await run(() => api('dailyPick'), 'Picked a new one'); daily(); } }, 'Pick another at random')),
     h('div.row.mt', id, h('button.primary', { onclick: set }, 'Set'))));
 }
 

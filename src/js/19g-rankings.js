@@ -17,7 +17,7 @@ for (const ev of ['scores:changed', 'profile:changed', 'library:changed']) Bus.o
 
 /** Online scores: a passed play goes to the game server as it finished — its score, accuracy, grade and pp, taken as
  *  they are (acceptPlay, src/js/09c-verify.js) — with the beatmap file, whose hash is the beatmap's id; that's what the
- *  rankings, the leaderboards and the daily challenge show. Signed with this player's secret key (Presence.key). */
+ *  rankings, the leaderboards and the weekly challenge show. Signed with this player's secret key (Presence.key). */
 const Verified = {
   /** What's sent of a play: its result (`score`) — or, without one, its key presses, for the server to judge. */
   what({ score, mods, modConfig, seed, events }) { return score ? { result: this.result(score) } : { play: { mods, modConfig, seed, events: [...(events || [])] } }; },
@@ -65,7 +65,7 @@ const Verified = {
     let r = null;
     for (let i = 0; !r; i++) {
       // (429: another score of yours went up seconds ago — the server takes one every few seconds — so this one waits)
-      try { r = await fetch(Host.api('api/mp/score'), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(30000) }); if ((r.status >= 500 || r.status === 429) && Date.now() < until) r = null; } catch (e) { if (Date.now() >= until) { console.warn('score not sent', e); if (daily) Toast.err('Your daily challenge score wasn\'t sent', 'Check your connection.'); return null; } }
+      try { r = await fetch(Host.api('api/mp/score'), { method: 'POST', headers: { 'content-type': 'application/json' }, body, signal: timeoutSignal(30000) }); if ((r.status >= 500 || r.status === 429) && Date.now() < until) r = null; } catch (e) { if (Date.now() >= until) { console.warn('score not sent', e); if (daily) Toast.err('Your weekly challenge score wasn\'t sent', 'Check your connection.'); return null; } }
       if (!r) await new Promise(res => { const t = setTimeout(done, Math.min(15000, 1000 * 2 ** i)); function done() { clearTimeout(t); removeEventListener('online', done); res(); } addEventListener('online', done); });
     }
     try {
@@ -73,11 +73,11 @@ const Verified = {
       if (!r.ok || !d || !d.ok) {
         console.warn('score not counted online:', d && d.error);
         if (background) return { ok: false, error: (d && d.error) || `The server answered ${r.status}.` }; // (the catch-up says why)
-        if (daily) Toast.err('Your daily challenge score wasn\'t counted', (d && d.error) || 'The server couldn\'t check the play — try again.');
+        if (daily) Toast.err('Your weekly challenge score wasn\'t counted', (d && d.error) || 'The server couldn\'t check the play — try again.');
         return null;
       }
-      if (daily && d.daily === 'day') Toast.err('Your daily challenge score wasn\'t counted', 'The daily challenge changed to a new day while you played.');
-      else if (daily && d.daily === 'map') Toast.err('Your daily challenge score wasn\'t counted', 'That isn\'t today\'s daily challenge beatmap.');
+      if (daily && d.daily === 'day') Toast.err('Your weekly challenge score wasn\'t counted', 'The weekly challenge changed to a new week while you played.');
+      else if (daily && d.daily === 'map') Toast.err('Your weekly challenge score wasn\'t counted', 'That isn\'t the current weekly challenge beatmap.');
       if (d.rankStatus && rec) await BeatmapStatus.keepMapStatus(rec, d.rankStatus).catch(e => console.warn('beatmap status not saved locally', e));
       if (background) return d;
       this.last = { d, at: Date.now(), sent };

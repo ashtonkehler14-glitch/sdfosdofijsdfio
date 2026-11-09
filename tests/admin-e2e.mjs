@@ -333,12 +333,12 @@ try {
   check('…and the deleted id can\'t be taken again', reuse.status >= 400, String(reuse.status));
   await cara.context().close();
 
-  // the daily challenge
+  // the weekly challenge
   const ds = await api('dailySet', { map: { onlineSetId: 424242, onlineId: 777, keys: 4, title: 'Daily Song', artist: 'Daily Artist', version: 'Daily Hard', creator: 'Mapper', stars: 4.2, length: 95000 } });
-  check('Daily challenge: the owner sets the day\'s beatmap', ds.ok && ds.daily.map.title === 'Daily Song', JSON.stringify(ds).slice(0, 120));
+  check('Weekly challenge: the owner sets the day\'s beatmap', ds.ok && ds.daily.map.title === 'Daily Song', JSON.stringify(ds).slice(0, 120));
   await panel.evaluate(() => { location.hash = 'overview'; }); await panel.waitForTimeout(800); await shot(panel, 'admin-overview');
   const log = await api('log');
-  check('the admin log has every change', ['Signed in', 'Renamed', 'Deleted a chat line', 'Announced', 'Took an announcement down', 'Dealt with a report', 'Wrote a note', 'Changed #lobby\'s rules', 'Muted', 'Banned', 'Unbanned', 'Made admin', 'No longer admin', 'Sent a message', 'Took a picture down', 'Allowed pictures again', 'Closed a room', 'Deleted a player', 'Set the daily challenge beatmap'].every(w => log.log.some(e => e.what === w)), log.log.map(e => e.what).join('|'));
+  check('the admin log has every change', ['Signed in', 'Renamed', 'Deleted a chat line', 'Announced', 'Took an announcement down', 'Dealt with a report', 'Wrote a note', 'Changed #lobby\'s rules', 'Muted', 'Banned', 'Unbanned', 'Made admin', 'No longer admin', 'Sent a message', 'Took a picture down', 'Allowed pictures again', 'Closed a room', 'Deleted a player', 'Set the weekly challenge beatmap'].every(w => log.log.some(e => e.what === w)), log.log.map(e => e.what).join('|'));
 
   // signing in with the code is limited per address
   let limited = false;

@@ -71,7 +71,7 @@ try {
   assert.equal(await panel.locator('.code-result').isVisible(), false);
   for (const tab of ['reports', 'players', 'announce', 'chat', 'boards', 'playlists', 'daily', 'log']) {
     await panel.evaluate(tab => { location.hash = tab; }, tab);
-    await panel.waitForFunction(tab => document.querySelector('.hero h2')?.textContent.toLowerCase() === ({ announce: 'announcements', boards: 'leaderboards', daily: 'daily challenge' }[tab] || tab), tab);
+    await panel.waitForFunction(tab => document.querySelector('.hero h2')?.textContent.toLowerCase() === ({ announce: 'announcements', boards: 'leaderboards', daily: 'weekly challenge' }[tab] || tab), tab);
     await panel.waitForFunction(() => !document.querySelector('.empty.loading'));
     assert.equal(await panel.locator('.panel-neru img').evaluate(el => el.complete && el.naturalWidth > 0), true);
   }

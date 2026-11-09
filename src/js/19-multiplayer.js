@@ -717,6 +717,14 @@ const Presence = {
     if (Screens.currentName === 'spectator' || (Screens.currentName === 'results' && typeof Spectate !== 'undefined' && Spectate.target)) return 'watching';
     return Multiplayer.inRoom() ? (Multiplayer.isRP() ? 'ranked' : 'room') : 'menu';
   },
+  // Only a menu identifier is shared, never the contents of a screen or dialog.
+  activity() { return Screens.currentName || 'home'; },
+  activityText(p = {}) {
+    if (p.status === 'ranked') return 'In a Ranked Play match';
+    if (p.status === 'room') return 'In a multiplayer room';
+    if (p.status === 'watching') return 'Spectating';
+    return { home: 'In menus', songselect: 'In song select', results: 'Viewing results', beatmaps: 'Browsing their beatmap library', explore: 'Browsing beatmap explorer', dashboard: 'In the lounge', daily: 'Viewing the weekly challenge', rankings: 'Viewing rankings', collections: 'Browsing collections', profile: 'Viewing a profile', stats: 'Viewing a profile', replays: 'Browsing replays', skins: 'Browsing skins', changelog: 'Reading the update log', gameplay: 'In gameplay' }[p.activity] || 'In menus';
+  },
   /** What's being played (shown on the online list). */
   song() {
     const s = Screens.currentName === 'gameplay' && GameplayScreen.s;
@@ -799,8 +807,8 @@ const Presence = {
       // cid: this tab, so a reconnect replaces its old entry instead of leaving a ghost behind
       if (!this.cid) this.cid = Math.random().toString(36).slice(2, 12);
       const pid = this.pid(), key = this.key();
-      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, avatar: this._av, cid: this.cid, pid, key, vis: Settings.get('online.status') || 'online' }));
-      this._song = null; this.pushStatus();
+      ws.send(JSON.stringify({ t: 'hello', name: this._name, status: this._sent, activity: this.activity(), avatar: this._av, cid: this.cid, pid, key, vis: Settings.get('online.status') || 'online' }));
+      this._song = null; this._activity = null; this.pushStatus();
       { const q = this._q; this._q = null; if (q) for (const m of q) this.send(m); }
       Rankings.report(); // (your totals for the rankings)
       // every 10 s: tells the server we're still here (silent players drop off the list) and, while someone's
@@ -1020,12 +1028,12 @@ const Presence = {
     if (((this.ws && this.ws.readyState === 0) || (!this.ws && this.started && !this.away)) && m && m.t !== 'ping' && m.t !== 'status' && m.t !== 'hello') { (this._q ||= []).push(m); if (this._q.length > 20) this._q.shift(); }
   },
   pushStatus() {
-    const st = this.status(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '', song = this.song(), sk = JSON.stringify(song);
+    const st = this.status(), activity = this.activity(), name = ProfileManager.profile.name, av = ProfileManager.sharedAvatar || '', song = this.song(), sk = JSON.stringify(song);
     // (your Ranked Play match: anyone spectating you watches it as you see it — RankedWatch)
     const rp = Multiplayer.inRoom() && Multiplayer.isRP() && Multiplayer.code || '';
-    if (st === this._sent && name === this._name && av === this._av && sk === this._song && rp === this._rp) return;
-    this._sent = st; this._name = name; this._av = av; this._song = sk; this._rp = rp;
-    this.send({ t: 'status', status: st, name, avatar: av, song, rp });
+    if (st === this._sent && name === this._name && av === this._av && sk === this._song && rp === this._rp && activity === this._activity) return;
+    this._sent = st; this._name = name; this._av = av; this._song = sk; this._rp = rp; this._activity = activity;
+    this.send({ t: 'status', status: st, activity, name, avatar: av, song, rp });
   },
   others() { return this.players.filter(p => p.id !== this.me); },
   /** Is a list of online players on screen (the invite dialog) — or an invite waiting for someone's song to end? */

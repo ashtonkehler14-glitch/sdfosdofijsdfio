@@ -470,7 +470,7 @@ const ProfileScreen = {
     return el;
   },
   leave() { (this._unsub || []).forEach(f => f()); },
-  /** lazer's DailyChallengeStatsDisplay: "Daily Challenge" and the days played in the colour of their tier; the
+  /** lazer's DailyChallengeStatsDisplay: "Weekly Challenge" and the weeks played in the colour of their tier; the
    *  tooltip has the streaks. Hidden until you've played one. */
   paintDaily() {
     const el = this.dailyEl, v = this.remote ? this.remote.daily : Daily.data && Daily.data.stats;
@@ -478,12 +478,12 @@ const ProfileScreen = {
     el.hidden = !(v && v.plays);
     if (el.hidden) return;
     const tier = n => n >= 360 ? 'lustrous' : n >= 240 ? 'radiant' : n >= 120 ? 'rhodium' : n >= 60 ? 'platinum' : n >= 30 ? 'gold' : n >= 10 ? 'silver' : n >= 5 ? 'bronze' : 'iron';
-    const d = n => `${fmtInt(n)}d`;
-    clearEl(el).append(h('span.pf-daily-t', 'Daily Challenge'), h(`b.tier-${tier(Math.floor(v.plays / 3))}`, d(v.plays)),
+    const d = n => `${fmtInt(n)}w`;
+    clearEl(el).append(h('span.pf-daily-t', 'Weekly Challenge'), h(`b.tier-${tier(Math.floor(v.plays / 3))}`, d(v.plays)),
       h('div.pf-daily-tip',
         h('div', h('span', 'Total participation'), h(`b.tier-${tier(Math.floor(v.plays / 3))}`, d(v.plays))),
-        h('div', h('span', 'Current daily streak'), h(`b.tier-${tier(v.current)}`, d(v.current))),
-        h('div', h('span', 'Best daily streak'), h(`b.tier-${tier(v.best)}`, d(v.best)))));
+        h('div', h('span', 'Current weekly streak'), h(`b.tier-${tier(v.current)}`, d(v.current))),
+        h('div', h('span', 'Best weekly streak'), h(`b.tier-${tier(v.best)}`, d(v.best)))));
   },
   paintGlobal() { const b = this.globalEl && this.globalEl.querySelector('b'); if (b) b.textContent = this.globalRank ? `#${fmtInt(this.globalRank)}` : '—'; },
   /** Everything the profile shows, from this browser's scores — also sent up so other players can open it. */
@@ -644,7 +644,7 @@ const ProfileScreen = {
     const sections = [ranks(), rec(), medals()].filter(Boolean);
     let pinned = null; // (a clicked tab stays lit until you scroll yourself, even if its section can't reach the top)
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); const sc = el.closest('.screen-body'); if (sc) settleOn(sc, () => el.scrollIntoView({ block: 'start' })); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
-    // (the level and daily challenge sit at the cover's bottom right, beside the name: one block, not a strip of its own)
+    // (the level and weekly challenge sit at the cover's bottom right, beside the name: one block, not a strip of its own)
     top.querySelector('.pf-top-in').append(centre);
     const header = h('div.pf-header', top, detail); ProfileAppearance.paint(header, appearance);
     page.append(header, tabs, ...sections);
@@ -935,6 +935,10 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.8h', title: 'A week to beat it', sections: [
+    { icon: 'calendar', title: 'Weekly challenge', items: ['One shared beatmap for the whole week, with a new challenge every Monday at midnight US Central time', 'Weekly leaderboards, countdowns and participation streaks'] },
+    { icon: 'film', title: 'Spectating', items: ['Between songs, regular spectate shows where the player is, including song select, menus and results, instead of their previous song'] },
+  ] },
   { id: '2026.11.8g', title: 'Music on your terms', sections: [
     { icon: 'music', title: 'Audio', items: ['Turn off Autoplay menu music and previews in Settings → Audio to keep menus quiet; Play and Next still work, and gameplay music is unchanged'] },
     { icon: 'trophy', title: 'Rankings', items: ['Imported songs are checked against the explorer: unchanged ranked or approved difficulties can earn ranked scores', 'Existing scores from difficulties that cannot be verified are removed from rankings and beatmap leaderboards; local scores stay saved'] },
