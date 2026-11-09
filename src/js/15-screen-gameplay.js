@@ -456,7 +456,7 @@ const GameplayScreen = {
     const rules = replay ? (replay.rules || 1) : RULES;
     // (a multiplayer match is played by the same rules for everyone, whatever their own settings: the beatmap's timing
     // windows and weighted accuracy — and in Ranked Play osu!mania's own scrolling, SV and BPM changes and all)
-    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: p.mp ? 'od' : Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
+    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: p.mp ? 'od' : Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rate, rules });
     const accuracyMode = replay ? replay.accuracyMode : p.mp ? 'v2' : Settings.get('gameplay.accuracyMode');
     // (the beatmap's SV and BPM changes, always, as osu!mania scrolls — but for lazer's Constant Speed mod)
     const scrollMode = mods.includes('CS') ? 'constant' : 'sv';
@@ -1573,13 +1573,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   press(col, down, t) {
     const s = this.s, eng = s.engine;
     if (s.held[col] === down) return;
-    t = Math.round(t * 100) / 100;
     if (t < eng.lastTime) t = eng.lastTime; // keeps live play and replay playback bit-identical
-    // (a press and release that both came in during a stall are both moved up to the engine's time: the release is
-    // kept the judge's shortest hold after its press, or the server would take the play for a script and reject it)
-    if (!s.downAt) s.downAt = [];
-    if (down) s.downAt[col] = t;
-    else if (s.downAt[col] != null) { const min = Math.ceil((s.downAt[col] + VERIFY.MIN_HOLD * Math.max(s.rate, ModSystem.rate(s.mods, s.modConfig))) * 100 + 1) / 100; if (t < min) t = min; }
+    // Preserve timestamp precision and short releases: lazer imposes no minimum physical hold duration.
     s.held[col] = down;
     if (!down) this.renderer.onRelease(col, performance.now());
     if (!s.practice) s.events.push(t, col, down ? 1 : 0);

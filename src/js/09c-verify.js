@@ -9,7 +9,6 @@ const convertsNotes = mods => mods.includes('NLN') || mods.includes('IN');
 
 const VERIFY = {
   MAX_EVENTS: 600000,      // numbers in a replay (t, col, down per key event)
-  MIN_HOLD: 5,             // ms a key is held at the least (a press and release closer than that isn't a finger)
   MAX_RATE: 2, MIN_RATE: 0.5,
   BOT_UR: 15, BOT_NOTES: 100, // an unstable rate below this over at least this many hits is a script, not a person
 };
@@ -50,12 +49,12 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
     if (t < last - 0.001) return fail('input out of order');
     last = t;
     if (d === 1) { if (down[col] >= 0) return fail('impossible input'); down[col] = t; }
-    else { if (down[col] < 0) return fail('impossible input'); if ((t - down[col]) / rate < VERIFY.MIN_HOLD) return fail('impossible input'); down[col] = -1; }
+    else { if (down[col] < 0) return fail('impossible input'); down[col] = -1; }
   }
   // the play itself, judged as the game judges it — standard windows for the beatmap and mods
   const red = BeatmapParser.timing(bm).red;
   const playNotes = prepareNotes(notes, keys, mods, seed, { red });
-  const windows = timingWindows({ od: bm.od, mods, odOverride: modConfig.od, rules: RULES });
+  const windows = timingWindows({ od: bm.od, mods, odOverride: modConfig.od, rate, rules: RULES });
   const engine = new GameplayEngine({ notes: playNotes, keys, windows, rate, mods, hp: bm.hp, accuracyMode: 'v2', noFail,
     breaks: mods.includes('IN') ? [] : bm.events.breaks, modConfig, rules: RULES });
   for (let i = 0; i < ev.length; i += 3) {

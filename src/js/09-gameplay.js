@@ -3,9 +3,9 @@
  * always produces the same result. Live play and replay playback share this code path exactly.
  *
  * Judging rules (`rules`):
- *   2 — osu!lazer's osu!mania rules, checked line by line against the osu!lazer source (ppy/osu:
- *       DrawableNote, DrawableHoldNote(+Head/Tail/Body), ManiaHitWindows, OrderedHitPolicy,
- *       ManiaHealthProcessor, ManiaModHardRock/Easy/Perfect). Used for every new play.
+ *   3 — current osu!lazer mania timing: source-exact window calculation and broken-hold regrabs.
+ *       See docs/mania-timing.md for the pinned reference and compatibility notes. Used for new plays.
+ *   2 — previous lazer-style rules; old replays retain their window calculation and hold behaviour.
  *   1 — the rules plays were judged with before; replays recorded then keep them, so they re-score exactly. */
 
 const J = { MARV: 0, PERF: 1, GREAT: 2, GOOD: 3, BAD: 4, MISS: 5 };
@@ -19,12 +19,14 @@ const JUDGEMENTS = [
 ];
 const TAIL_LENIENCE = 1.5;
 /** The judging rules new plays use (replays store the rules they were recorded with). */
-const RULES = 2;
+const RULES = 3;
 
 /** Timing windows in real milliseconds, [MAX, 300, 200, 100, 50, miss] (osu!mania table from OD).
+ *  Rules 3 computes lazer's rounded song-time windows first, then normalises by rate for storage / graphs.
+ *  The engine's song-time quantisation is idempotent for these half-millisecond values.
  *  osu!mania's Easy / Hard Rock scale the windows themselves (×1.4 / ÷1.4) and leave OD alone; rules 1
  *  changed OD instead. Difficulty Adjust sets OD directly. */
-function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs = '', odOverride = null, rules = RULES } = {}) {
+function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs = '', odOverride = null, rate = 1, rules = RULES } = {}) {
   if (mode === 'ms') {
     const p = String(customMs).split(/[,\s]+/).map(Number).filter(n => isFinite(n) && n > 0);
     if (p.length === 6) return p.slice().sort((a, b) => a - b);
@@ -32,6 +34,16 @@ function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs 
   const base = mode === 'custom' ? customOD : od;
   const override = mods.includes('DA') ? odOverride : null;
   if (rules < 2) return OsuMath.hitWindows(OsuMath.odAfterMods(base, mods, override));
+  if (rules >= 3) {
+    // ManiaHitWindows + IBeatmapDifficultyInfo.DifficultyRange: preserve the evaluation order, including
+    // rate / difficulty BEFORE multiplication and floor WITHOUT an epsilon (integer edges depend on it).
+    const difficulty = override != null ? override : base;
+    const multiplier = rate / (mods.includes('HR') ? 1.4 : mods.includes('EZ') ? 1 / 1.4 : 1);
+    return [[22.4, 19.4, 13.9], [64, 49, 34], [97, 82, 67], [127, 112, 97], [151, 136, 121], [188, 173, 158]].map(([min, mid, max]) => {
+      const w = difficulty > 5 ? mid + (max - mid) * ((difficulty - 5) / 5) : mid + (mid - min) * ((difficulty - 5) / 5);
+      return (Math.floor(w * multiplier) + 0.5) / rate;
+    });
+  }
   const m = mods.includes('HR') ? 1 / 1.4 : mods.includes('EZ') ? 1.4 : 1;
   return OsuMath.hitWindows(override != null ? override : base).map(w => w * m);
 }
@@ -309,8 +321,8 @@ class GameplayEngine {
       this.holding[col] = null;
       const err = t - n.end;
       if (err < -this.TW[J.MISS]) {
-        // released too early: the hold's body breaks combo, and it can't be held again — its tail is missed once
-        // its window passes (pressing the column again does nothing to it)
+        // An early release breaks the body once. Rules 3 allows regrabbing, as DrawableHoldNote.OnPressed
+        // does in lazer; the broken body's tail is capped at 50. Older replays keep the old no-regrab rule.
         n.state = NS.DROPPED; n.capped = true; n.released = true;
         const broke = !this.lazer || !n.bodyBroken;
         n.bodyBroken = true;
@@ -351,7 +363,7 @@ class GameplayEngine {
       }
       if (n.state === NS.DROPPED) {
         // hold it again: from the head's miss window until 50-window after the end (never in the tail's extra lenience)
-        if (!n.released && hittable && t - n.time >= -this.W[J.MISS] && !(t > n.end && t - n.end > this.W[J.BAD])) {
+        if ((this.rules >= 3 || !n.released) && hittable && t - n.time >= -this.W[J.MISS] && !(t > n.end && t - n.end > this.W[J.BAD])) {
           n.state = NS.HOLDING; n.capped = true; this.holding[col] = n;
           this._emit({ type: 'regrab', col, t, note: n });
           return;

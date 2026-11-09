@@ -1323,7 +1323,7 @@ check('replay playback reproduces the original score exactly', rres.score === rp
   await page.evaluate(() => AshtonkMania.GameplayScreen.quit());
   await page.waitForFunction(() => AshtonkMania.Screens.currentName === 'songselect', null, { timeout: 10000 });
 }
-check('new replays record the judging rules they were played with (osu!lazer rules = 2)', await page.evaluate(async (id) => (await AshtonkMania.ReplayManager.get(id)).rules === 2, rp.id));
+check('new replays record the judging rules they were played with (osu!lazer timing rules = 3)', await page.evaluate(async (id) => (await AshtonkMania.ReplayManager.get(id)).rules === 3, rp.id));
 // osu!lazer replays (.osr): ours export as .osr and an .osr imports back (by the beatmap's MD5) with the same inputs
 {
   const ox = await page.evaluate(async (id) => {

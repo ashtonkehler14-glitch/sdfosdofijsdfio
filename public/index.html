@@ -10341,9 +10341,9 @@ const ModSystem = {
  * always produces the same result. Live play and replay playback share this code path exactly.
  *
  * Judging rules (`rules`):
- *   2 — osu!lazer's osu!mania rules, checked line by line against the osu!lazer source (ppy/osu:
- *       DrawableNote, DrawableHoldNote(+Head/Tail/Body), ManiaHitWindows, OrderedHitPolicy,
- *       ManiaHealthProcessor, ManiaModHardRock/Easy/Perfect). Used for every new play.
+ *   3 — current osu!lazer mania timing: source-exact window calculation and broken-hold regrabs.
+ *       See docs/mania-timing.md for the pinned reference and compatibility notes. Used for new plays.
+ *   2 — previous lazer-style rules; old replays retain their window calculation and hold behaviour.
  *   1 — the rules plays were judged with before; replays recorded then keep them, so they re-score exactly. */
 
 const J = { MARV: 0, PERF: 1, GREAT: 2, GOOD: 3, BAD: 4, MISS: 5 };
@@ -10357,12 +10357,14 @@ const JUDGEMENTS = [
 ];
 const TAIL_LENIENCE = 1.5;
 /** The judging rules new plays use (replays store the rules they were recorded with). */
-const RULES = 2;
+const RULES = 3;
 
 /** Timing windows in real milliseconds, [MAX, 300, 200, 100, 50, miss] (osu!mania table from OD).
+ *  Rules 3 computes lazer's rounded song-time windows first, then normalises by rate for storage / graphs.
+ *  The engine's song-time quantisation is idempotent for these half-millisecond values.
  *  osu!mania's Easy / Hard Rock scale the windows themselves (×1.4 / ÷1.4) and leave OD alone; rules 1
  *  changed OD instead. Difficulty Adjust sets OD directly. */
-function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs = '', odOverride = null, rules = RULES } = {}) {
+function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs = '', odOverride = null, rate = 1, rules = RULES } = {}) {
   if (mode === 'ms') {
     const p = String(customMs).split(/[,\s]+/).map(Number).filter(n => isFinite(n) && n > 0);
     if (p.length === 6) return p.slice().sort((a, b) => a - b);
@@ -10370,6 +10372,16 @@ function timingWindows({ od = 5, mods = [], mode = 'od', customOD = 8, customMs 
   const base = mode === 'custom' ? customOD : od;
   const override = mods.includes('DA') ? odOverride : null;
   if (rules < 2) return OsuMath.hitWindows(OsuMath.odAfterMods(base, mods, override));
+  if (rules >= 3) {
+    // ManiaHitWindows + IBeatmapDifficultyInfo.DifficultyRange: preserve the evaluation order, including
+    // rate / difficulty BEFORE multiplication and floor WITHOUT an epsilon (integer edges depend on it).
+    const difficulty = override != null ? override : base;
+    const multiplier = rate / (mods.includes('HR') ? 1.4 : mods.includes('EZ') ? 1 / 1.4 : 1);
+    return [[22.4, 19.4, 13.9], [64, 49, 34], [97, 82, 67], [127, 112, 97], [151, 136, 121], [188, 173, 158]].map(([min, mid, max]) => {
+      const w = difficulty > 5 ? mid + (max - mid) * ((difficulty - 5) / 5) : mid + (mid - min) * ((difficulty - 5) / 5);
+      return (Math.floor(w * multiplier) + 0.5) / rate;
+    });
+  }
   const m = mods.includes('HR') ? 1 / 1.4 : mods.includes('EZ') ? 1.4 : 1;
   return OsuMath.hitWindows(override != null ? override : base).map(w => w * m);
 }
@@ -10647,8 +10659,8 @@ class GameplayEngine {
       this.holding[col] = null;
       const err = t - n.end;
       if (err < -this.TW[J.MISS]) {
-        // released too early: the hold's body breaks combo, and it can't be held again — its tail is missed once
-        // its window passes (pressing the column again does nothing to it)
+        // An early release breaks the body once. Rules 3 allows regrabbing, as DrawableHoldNote.OnPressed
+        // does in lazer; the broken body's tail is capped at 50. Older replays keep the old no-regrab rule.
         n.state = NS.DROPPED; n.capped = true; n.released = true;
         const broke = !this.lazer || !n.bodyBroken;
         n.bodyBroken = true;
@@ -10689,7 +10701,7 @@ class GameplayEngine {
       }
       if (n.state === NS.DROPPED) {
         // hold it again: from the head's miss window until 50-window after the end (never in the tail's extra lenience)
-        if (!n.released && hittable && t - n.time >= -this.W[J.MISS] && !(t > n.end && t - n.end > this.W[J.BAD])) {
+        if ((this.rules >= 3 || !n.released) && hittable && t - n.time >= -this.W[J.MISS] && !(t > n.end && t - n.end > this.W[J.BAD])) {
           n.state = NS.HOLDING; n.capped = true; this.holding[col] = n;
           this._emit({ type: 'regrab', col, t, note: n });
           return;
@@ -11028,7 +11040,6 @@ const convertsNotes = mods => mods.includes('NLN') || mods.includes('IN');
 
 const VERIFY = {
   MAX_EVENTS: 600000,      // numbers in a replay (t, col, down per key event)
-  MIN_HOLD: 5,             // ms a key is held at the least (a press and release closer than that isn't a finger)
   MAX_RATE: 2, MIN_RATE: 0.5,
   BOT_UR: 15, BOT_NOTES: 100, // an unstable rate below this over at least this many hits is a script, not a person
 };
@@ -11069,12 +11080,12 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
     if (t < last - 0.001) return fail('input out of order');
     last = t;
     if (d === 1) { if (down[col] >= 0) return fail('impossible input'); down[col] = t; }
-    else { if (down[col] < 0) return fail('impossible input'); if ((t - down[col]) / rate < VERIFY.MIN_HOLD) return fail('impossible input'); down[col] = -1; }
+    else { if (down[col] < 0) return fail('impossible input'); down[col] = -1; }
   }
   // the play itself, judged as the game judges it — standard windows for the beatmap and mods
   const red = BeatmapParser.timing(bm).red;
   const playNotes = prepareNotes(notes, keys, mods, seed, { red });
-  const windows = timingWindows({ od: bm.od, mods, odOverride: modConfig.od, rules: RULES });
+  const windows = timingWindows({ od: bm.od, mods, odOverride: modConfig.od, rate, rules: RULES });
   const engine = new GameplayEngine({ notes: playNotes, keys, windows, rate, mods, hp: bm.hp, accuracyMode: 'v2', noFail,
     breaks: mods.includes('IN') ? [] : bm.events.breaks, modConfig, rules: RULES });
   for (let i = 0; i < ev.length; i += 3) {
@@ -13705,7 +13716,7 @@ const Osr = {
       app: APP_NAME, kind: 'replay', format: 1, id: 'rp-' + uid(), date: o.date || Date.now(),
       mapHash: rec.hash, mapId: rec.id, title: rec.title, artist: rec.artist, version: rec.version, creator: rec.creator,
       keys, mods, rate: ModSystem.rate(mods, {}), seed: o.seed, accuracyMode: Settings.get('gameplay.accuracyMode'),
-      windows: timingWindows({ od: rec.od, mods, mode: 'od', rules: RULES }), hp: rec.hp, player: o.player || 'Player',
+      windows: timingWindows({ od: rec.od, mods, mode: 'od', rate: ModSystem.rate(mods, {}), rules: RULES }), hp: rec.hp, player: o.player || 'Player',
       duration: events.length ? events[events.length - 3] : 0, modConfig: {}, noFail: mods.includes('NF'), rules: RULES, events,
       summary: { score: o.score, scoreStd: o.version >= 30000000 ? o.score : null, accuracy, maxCombo: o.maxCombo, counts: o.counts, grade: ScoreSystem.gradeFor(accuracy, false, mods, o.counts) },
       scoreId: null, source: 'osr',
@@ -20993,7 +21004,7 @@ const GameplayScreen = {
     const rules = replay ? (replay.rules || 1) : RULES;
     // (a multiplayer match is played by the same rules for everyone, whatever their own settings: the beatmap's timing
     // windows and weighted accuracy — and in Ranked Play osu!mania's own scrolling, SV and BPM changes and all)
-    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: p.mp ? 'od' : Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rules });
+    const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: p.mp ? 'od' : Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rate, rules });
     const accuracyMode = replay ? replay.accuracyMode : p.mp ? 'v2' : Settings.get('gameplay.accuracyMode');
     // (the beatmap's SV and BPM changes, always, as osu!mania scrolls — but for lazer's Constant Speed mod)
     const scrollMode = mods.includes('CS') ? 'constant' : 'sv';
@@ -22110,13 +22121,8 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   press(col, down, t) {
     const s = this.s, eng = s.engine;
     if (s.held[col] === down) return;
-    t = Math.round(t * 100) / 100;
     if (t < eng.lastTime) t = eng.lastTime; // keeps live play and replay playback bit-identical
-    // (a press and release that both came in during a stall are both moved up to the engine's time: the release is
-    // kept the judge's shortest hold after its press, or the server would take the play for a script and reject it)
-    if (!s.downAt) s.downAt = [];
-    if (down) s.downAt[col] = t;
-    else if (s.downAt[col] != null) { const min = Math.ceil((s.downAt[col] + VERIFY.MIN_HOLD * Math.max(s.rate, ModSystem.rate(s.mods, s.modConfig))) * 100 + 1) / 100; if (t < min) t = min; }
+    // Preserve timestamp precision and short releases: lazer imposes no minimum physical hold duration.
     s.held[col] = down;
     if (!down) this.renderer.onRelease(col, performance.now());
     if (!s.practice) s.events.push(t, col, down ? 1 : 0);
@@ -25212,6 +25218,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.9d', title: 'More precise note timing', sections: [
+    { icon: 'keyboard', title: 'Gameplay', items: ["Hit windows now follow osu!lazer's exact rounding with difficulty and speed mods", 'Short key releases keep their timing; broken holds can be grabbed again for a capped tail judgement, as in lazer'] },
+  ] },
   { id: '2026.11.9c', title: 'Cleaner note hits', sections: [
     { icon: 'keyboard', title: 'Gameplay', items: ['Removed hit particles and their setting'] },
   ] },
@@ -35571,7 +35580,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'e06407f2410f';
+const APP_BUILD = 'd789db560407';
 
 const App = {
   lastReport: null,

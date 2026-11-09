@@ -262,7 +262,7 @@ const Osr = {
       app: APP_NAME, kind: 'replay', format: 1, id: 'rp-' + uid(), date: o.date || Date.now(),
       mapHash: rec.hash, mapId: rec.id, title: rec.title, artist: rec.artist, version: rec.version, creator: rec.creator,
       keys, mods, rate: ModSystem.rate(mods, {}), seed: o.seed, accuracyMode: Settings.get('gameplay.accuracyMode'),
-      windows: timingWindows({ od: rec.od, mods, mode: 'od', rules: RULES }), hp: rec.hp, player: o.player || 'Player',
+      windows: timingWindows({ od: rec.od, mods, mode: 'od', rate: ModSystem.rate(mods, {}), rules: RULES }), hp: rec.hp, player: o.player || 'Player',
       duration: events.length ? events[events.length - 3] : 0, modConfig: {}, noFail: mods.includes('NF'), rules: RULES, events,
       summary: { score: o.score, scoreStd: o.version >= 30000000 ? o.score : null, accuracy, maxCombo: o.maxCombo, counts: o.counts, grade: ScoreSystem.gradeFor(accuracy, false, mods, o.counts) },
       scoreId: null, source: 'osr',

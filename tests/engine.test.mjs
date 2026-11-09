@@ -120,12 +120,12 @@ test('long note: early release breaks combo and tail misses', () => {
   assert.equal(e.score.judged, 3);
 });
 
-test('long note: let go mid-hold, it can\'t be held again (the tail is missed)', () => {
+test('long note: regrabbing a broken hold can earn a 50 on its tail', () => {
   const e = engineFor(osu([ln(0, 1000, 2000)]));
   e.input(0, true, 1000); e.input(0, false, 1400); e.input(0, true, 1500); e.input(0, false, 2000);
   e.advance(2400);
-  assert.equal(e.score.counts[J.BAD], 0);
-  assert.equal(e.score.counts[J.MISS], 1);
+  assert.equal(e.score.counts[J.BAD], 1);
+  assert.equal(e.score.counts[J.MISS], 0);
 });
 
 test('long note: missed head then note right after LN end is still hittable', () => {
@@ -183,20 +183,20 @@ test('star rating grows with density', () => {
   assert.ok(slow < fast && fast < faster);
 });
 
-test('osu!mania hit windows follow the ScoreV2 table; EZ/HR scale the windows (rules 1 changed OD)', () => {
-  const w = timingWindows({ od: 8 });
+test('historical rules 2 windows follow the ScoreV2 table; EZ/HR scale the windows (rules 1 changed OD)', () => {
+  const w = timingWindows({ od: 8, rules: 2 });
   assert.equal(Math.round(w[0] * 10) / 10, 16.1);
   assert.deepEqual(Array.from(w.slice(1)), [40, 73, 103, 127, 164]);
-  assert.equal(timingWindows({ od: 5 })[0], 22.4 - 3);
+  assert.equal(timingWindows({ od: 5, rules: 2 })[0], 22.4 - 3);
   // osu!mania HR divides the windows by 1.4 and EZ multiplies them by 1.4; OD itself is untouched
-  const hr = timingWindows({ od: 8, mods: ['HR'] });
+  const hr = timingWindows({ od: 8, mods: ['HR'], rules: 2 });
   assert.equal(Math.round(hr[1] * 1000) / 1000, Math.round(40 / 1.4 * 1000) / 1000);
-  const ez = timingWindows({ od: 8, mods: ['EZ'] });
+  const ez = timingWindows({ od: 8, mods: ['EZ'], rules: 2 });
   assert.equal(Math.round(ez[1] * 1000) / 1000, 56);
   // rules 1 (older replays) changed OD: HR → OD 10, EZ → OD 4
   assert.equal(timingWindows({ od: 8, mods: ['HR'], rules: 1 })[1], 34);
   assert.equal(timingWindows({ od: 8, mods: ['EZ'], rules: 1 })[1], 52);
-  const da = timingWindows({ od: 8, mods: ['DA'], odOverride: 0 });
+  const da = timingWindows({ od: 8, mods: ['DA'], odOverride: 0, rules: 2 });
   assert.equal(da[5], 188);
 });
 
@@ -304,12 +304,12 @@ test('SV/BPM follow Web-Osu-Mania: main BPM from the playable part only, no spee
   assert.equal(velAt(segs, 1000), 2, 'the intro still scrolls at its own BPM');
 });
 
-// ── osu!lazer judging rules (rules 2) — each case mirrors a line of the osu!lazer source ──
+// ── Historical rules 2: preserve results of replays recorded before timing corrections in rules 3 ──
 function engineRules(text, { mods = [], rules = 2, rate = 1 } = {}) {
   const bm = BeatmapParser.parse(text);
   const keys = BeatmapParser.keyCount(bm);
   const notes = prepareNotes(BeatmapParser.toManiaNotes(bm), keys, mods, 1);
-  return new GameplayEngine({ notes, keys, windows: timingWindows({ od: bm.od, mods, rules }), mods, hp: bm.hp, rules, rate });
+  return new GameplayEngine({ notes, keys, windows: timingWindows({ od: bm.od, mods, rules, rate }), mods, hp: bm.hp, rules, rate });
 }
 
 test('lazer windows: floor(window × rate) + 0.5, in song time', () => {
@@ -392,7 +392,7 @@ test('lazer hold: let go and never held again, the tail is missed after its wind
   e.advance(2192); assert.equal(e.score.counts[J.MISS], 1);
 });
 
-test('lazer hold: once let go mid-hold it can\'t be held again; combo breaks once and the tail is missed', () => {
+test('historical rules 2: broken holds cannot be regrabbed; old replay tail remains a miss', () => {
   const e = engineRules(osu([note(1, 900), ln(0, 1000, 3000), note(1, 1500), note(1, 2500)]));
   e.input(1, true, 900); e.input(1, false, 920);
   e.input(0, true, 1000);
@@ -563,7 +563,7 @@ test('score verification: the server judges a play from its key presses — not 
   assert.ok(!da.error, da.error); assert.equal(da.pp, 0);
   assert.ok(V.verifyPlay(text, { mods: ['RT'], modConfig: { rate: 1.1 }, seed: 1, events }, { noFail: true }).score > 0);
   for (const mods of [['AT'], ['WU'], ['CN']]) assert.equal(V.verifyPlay(text, { mods, seed: 1, events }, { noFail: true }).error, 'unranked mods', mods.join());
-  assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000.5, 0, 0] }).error, 'impossible input');
+  assert.ok(!V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000.5, 0, 0, ...events.slice(6)] }).error, 'a short key release is valid input');
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 900, 0, 0] }).error, 'input out of order');
   assert.equal(V.verifyPlay(text, { mods: [], seed: 1, events: [1000, 0, 1, 1000, 0, 1] }).error, 'impossible input');
 });
