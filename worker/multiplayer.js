@@ -32,6 +32,7 @@
 import { RankedPlay, RankedQueue, RP } from './ranked-play.js';
 import { SETTINGS_MAX, SKIN_MAX, SCORE_MAX, SCORES_SEND } from './vault.js';
 import { AdminGameView } from './admin-game-view.js';
+import { AdminSpectate } from './admin-spectate.js';
 export { RP, RankedPlay, RankedQueue, rateMatch, deckTargets, deckTargetsForStars, beatmapRating, starsForRating, initialRating, RATING, QUEUE, uniqueSongs } from './ranked-play.js';
 
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -1116,7 +1117,7 @@ export class MatchRoom {
 export class PresenceLogic {
   constructor(now = () => Date.now()) {
     this.now = now; this.users = new Map(); this.lastInvite = new Map();
-    this.adminView = new AdminGameView(this);
+    this.adminView = new AdminGameView(this); this.adminSpectate = new AdminSpectate(this);
     // friends, by public id: pid → Map(pid → name), and friend requests waiting for an answer: pid → Map(from pid → name).
     // `persist(key, value)` keeps them (the Durable Object's storage); `load` fills them back in on start.
     this.friends = new Map(); this.requests = new Map(); this.persist = null;
@@ -1203,7 +1204,7 @@ export class PresenceLogic {
   adminUnrole(pid) {
     if (!this.roles.delete(pid)) return [];
     if (this.persistMod) this.persistMod('rl', pid, null);
-    return [...this.adminView.prune(), ...[...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id]) => ({ to: id, msg: { t: 'admin', off: true } }))];
+    return [...this.adminView.prune(), ...this.adminSpectate.prune(), ...[...this.users.entries()].filter(([, u]) => u.pid === pid).map(([id]) => ({ to: id, msg: { t: 'admin', off: true } }))];
   }
   /** Called exclusively by the authenticated admin API; assigning a badge never touches roles or permissions. */
   adminProfileTags(pid, tags) {
@@ -2265,7 +2266,7 @@ export class PresenceLogic {
   /** Forget everyone who hasn't been heard from in a while; returns their ids (to close) and the update. */
   prune() {
     const t = this.now(), gone = [], out = [];
-    out.push(...this.adminView.prune());
+    out.push(...this.adminView.prune(), ...this.adminSpectate.prune());
     for (const [id, u] of this.users) if (t - u.seen > PresenceLogic.STALE) { out.push(...this.forget(id)); gone.push(id); }
     return { gone, out: gone.length ? [...out, this.broadcast()] : out };
   }
@@ -2273,7 +2274,7 @@ export class PresenceLogic {
   forget(id) {
     const u = this.users.get(id);
     if (!u) return [];
-    const out = this.adminView.leave(id);
+    const out = [...this.adminView.leave(id), ...this.adminSpectate.leave(id)];
     for (const w of u.watchers) { const wu = this.users.get(w); if (wu && wu.watching === id) wu.watching = null; out.push({ to: w, msg: { t: 'specEnd', id, gone: true } }); }
     if (u.watching) out.push(...this.unwatch(id, u.watching));
     if (u.pid && u.vis !== 'offline') this.markSeen(u.pid);
@@ -2289,13 +2290,14 @@ export class PresenceLogic {
     if (u && u.watching === target) u.watching = null;
     if (!tu || !tu.watchers.delete(id)) return [];
     // nobody left watching: the player stops streaming, and what was kept is dropped
-    if (!tu.watchers.size) { tu.hist = false; tu.ev = []; }
+    if (!tu.watchers.size && !this.adminSpectate.count(target)) { tu.hist = false; tu.ev = []; }
     return [{ to: target, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
   }
   message(id, msg) {
     const u = this.users.get(id);
     if (!u || !msg || typeof msg !== 'object') return [];
     u.seen = this.now();
+    if (typeof msg.t === 'string' && msg.t.startsWith('adminSpec')) return this.adminSpectate.message(id, msg);
     if (typeof msg.t === 'string' && msg.t.startsWith('adminView')) return this.adminView.message(id, msg);
     if (msg.t === 'list') return [{ to: id, msg: { t: 'online', players: this.list() } }];
     if (msg.t === 'report') return this.report(id, msg);
@@ -2402,7 +2404,7 @@ export class PresenceLogic {
       const rp = typeof msg.rp === 'string' && /^[A-Z0-9]{4,10}$/.test(msg.rp) ? msg.rp : '';
       if (rp !== u.rp) { u.rp = rp; told.push(...[...u.watchers].map(w => ({ to: w, msg: { t: 'specRoom', id, pid: u.pid, room: rp } }))); }
       const activity = cleanActivity(msg.activity);
-      if (activity !== u.activity || st !== u.status) told.push(...[...u.watchers].map(w => ({ to: w, msg: { t: 'specActivity', id, status: st, activity } })));
+      if (activity !== u.activity || st !== u.status) { const msg = { t: 'specActivity', id, status: st, activity }; told.push(...[...u.watchers].map(w => ({ to: w, msg })), ...this.adminSpectate.relay(id, msg)); }
       if (st === u.status && activity === u.activity && name === u.name && av === u.avatar && JSON.stringify(song) === JSON.stringify(u.song)) return told;
       u.status = st; u.activity = activity; u.name = name; u.avatar = av; u.song = song;
       return [...told, this.broadcast()];
@@ -2473,7 +2475,7 @@ export class PresenceLogic {
       u.vis = v;
       const out = [];
       // (gone offline to everyone else: nobody can keep watching)
-      if (v === 'offline') { out.push(...this.adminView.leave(id)); for (const w of [...u.watchers]) out.push(...this.unwatch(w, id), { to: w, msg: { t: 'specEnd', id, gone: true } }); }
+      if (v === 'offline') { out.push(...this.adminView.leave(id), ...this.adminSpectate.leave(id)); for (const w of [...u.watchers]) out.push(...this.unwatch(w, id), { to: w, msg: { t: 'specEnd', id, gone: true } }); }
       return [...out, this.broadcast()];
     }
     if (msg.t === 'invite') {
@@ -2522,8 +2524,8 @@ export class PresenceLogic {
     if (msg.t === 'watch') {
       const to = String(msg.to || ''), tu = this.users.get(to);
       if (!tu || to === id || tu.vis === 'offline') return [{ to: id, msg: { t: 'error', msg: 'That player is no longer online.' } }];
-      const out = u.watching && u.watching !== to ? this.unwatch(id, u.watching) : [];
-      const first = !tu.watchers.size;
+      const out = [...(u.watching && u.watching !== to ? this.unwatch(id, u.watching) : []), ...this.adminSpectate.end(id)];
+      const first = !tu.watchers.size && !this.adminSpectate.count(to);
       tu.watchers.add(id); u.watching = to;
       if (msg.chat === true) out.push({ to: id, msg: { t: 'specChatHist', id: to, lines: tu.specLines || [] } });
       if (!tu.play) return [...out, { to: id, msg: { t: 'specWait', id: to, name: tu.name, pid: tu.pid, room: tu.rp || '', status: tu.status, activity: tu.activity || '' } }, { to, msg: { t: 'spectators', n: tu.watchers.size, names: this.watcherNames(tu) } }];
@@ -2537,11 +2539,12 @@ export class PresenceLogic {
       if (!msg.head || typeof msg.head !== 'object') return [];
       const head = cleanHead(msg.head);
       if (!head) return [];
-      u.play = head; u.ev = []; u.t = 0; u.hist = u.watchers.size > 0; // (a fresh play: nothing to catch up on)
-      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specStart', id, name: u.name, head, ev: [], at: 0, hist: true, pid: u.pid, room: u.rp || '' } }));
+      u.play = head; u.ev = []; u.t = 0; u.hist = u.watchers.size > 0 || this.adminSpectate.count(id) > 0; // (a fresh play: nothing to catch up on)
+      const start = { t: 'specStart', id, name: u.name, head, ev: [], at: 0, hist: true, pid: u.pid, room: u.rp || '' };
+      return [...[...u.watchers].map(w => ({ to: w, msg: start })), ...this.adminSpectate.relay(id, start)];
     }
     if (msg.t === 'frames') {
-      if (!u.play || !u.watchers.size || !Array.isArray(msg.ev)) return [];
+      if (!u.play || !(u.watchers.size || this.adminSpectate.count(id)) || !Array.isArray(msg.ev)) return [];
       const ev = msg.ev.slice(0, 6000).map(Number).filter(Number.isFinite), t = num(msg.at, -1e4, 1e8);
       if (msg.reset) u.ev = [];
       if (u.ev.length + ev.length <= PresenceLogic.MAX_EV) for (const x of ev) u.ev.push(x);
@@ -2550,12 +2553,14 @@ export class PresenceLogic {
       // (what they did — a skip, a pause, the pause menu button they're on, carrying on, a fail — at a time in the song)
       const a = msg.act && typeof msg.act === 'object' && ['skip', 'outro', 'pause', 'resume', 'fail', 'sel'].includes(msg.act.k) ? msg.act : null;
       const act = a ? { k: a.k, t: num(a.t, -1e4, 1e8), ...(a.k === 'sel' && ['continue', 'retry', 'quit'].includes(a.sel) ? { sel: a.sel } : {}) } : null;
-      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specFrames', id, ev, at: u.t, reset: !!msg.reset, last: !!msg.last, ...(act ? { act } : {}) } }));
+      const frame = { t: 'specFrames', id, ev, at: u.t, reset: !!msg.reset, last: !!msg.last, ...(act ? { act } : {}) };
+      return [...[...u.watchers].map(w => ({ to: w, msg: frame })), ...this.adminSpectate.relay(id, frame)];
     }
     if (msg.t === 'playEnd') {
       if (!u.play) return [];
       u.play = null; u.ev = []; u.hist = false;
-      return [...u.watchers].map(w => ({ to: w, msg: { t: 'specEnd', id, quit: !!msg.quit, ...(msg.retry === true ? { retry: true } : {}) } }));
+      const end = { t: 'specEnd', id, quit: !!msg.quit, ...(msg.retry === true ? { retry: true } : {}) };
+      return [...[...u.watchers].map(w => ({ to: w, msg: end })), ...this.adminSpectate.relay(id, end)];
     }
     if (msg.t === 'ping') return [{ to: id, msg: { t: 'pong' } }];
     return [];

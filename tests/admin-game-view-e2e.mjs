@@ -63,7 +63,7 @@ try {
     const items = AshtonkMania.UserPanels.menuItems({ ...u, online: true }), at = items.findIndex(i => i.label === 'Spectate');
     return at >= 0 && items[at + 1].label === 'Admin Spectate';
   }), true, 'Admin Spectate is immediately beside regular Spectate');
-  await admin.evaluate(() => AshtonkMania.AdminGameView.request(AshtonkMania.Presence.players.find(u => u.name === 'Player')));
+  await admin.evaluate(() => AshtonkMania.AdminGameView.requestInterface(AshtonkMania.Presence.players.find(u => u.name === 'Player')));
   await admin.getByRole('button', { name: 'Spectate without extra notice', exact: true }).click();
   assert.equal(await player.getByRole('button', { name: 'Share game tab', exact: true }).count(), 0, 'No recurring approval request');
   try { await admin.waitForFunction(() => document.querySelector('.admin-view-video')?.videoWidth > 0, null, { timeout: 30000 }); }
@@ -115,7 +115,7 @@ try {
   await admin.getByRole('button', { name: 'Stop watching', exact: true }).click();
   await player.waitForFunction(() => !AshtonkMania.AdminGameView.current);
   // More than the server's short rejoin cooldown has elapsed during the checks above.
-  await admin.evaluate(() => AshtonkMania.AdminGameView.request(AshtonkMania.Presence.players.find(u => u.name === 'Player')));
+  await admin.evaluate(() => AshtonkMania.AdminGameView.requestInterface(AshtonkMania.Presence.players.find(u => u.name === 'Player')));
   await admin.getByRole('button', { name: 'Notify and spectate', exact: true }).click();
   await player.locator('#toasts').filter({ hasText: 'Admin spectating' }).waitFor();
   await visibleVideo();

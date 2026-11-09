@@ -7,7 +7,13 @@ const AdminGameView = {
     window.addEventListener('pagehide', () => this.stop());
   },
   send(t, extra = {}) { const s = this.current; if (s?.session) Presence.send({ t, session: s.session, ...extra }); },
+  // The main action uses replay rendering on the viewer: no player-side screenshots or encoder.
   request(u) {
+    if (!Staff.on() || !Presence.ws || !u?.id || u.id === Presence.me) return;
+    if (this.current) { Toast.err('Game view already open', 'Stop the live interface view first.'); return; }
+    Spectate.watch(u, { silent: true });
+  },
+  requestInterface(u) {
     if (!Staff.on() || !Presence.ws || !u?.id || u.id === Presence.me) return;
     if (this.current) { Toast.err('Game view already open', 'Finish the current request or share first.'); return; }
     if (typeof RTCPeerConnection === 'undefined') { Toast.err('Game view unavailable', 'This browser does not support live game views.'); return; }
@@ -16,6 +22,7 @@ const AdminGameView = {
   },
   start(u, notify) {
     if (!Staff.on() || this.current || !Presence.ws) return;
+    if (Spectate.target?.silent) { Spectate.toScreen(); Spectate.stop({ quiet: true }); }
     const s = this.current = { host: false, name: u.name || 'Player', session: null };
     this.viewer(s);
     s.timer = setTimeout(() => { if (this.current === s) this.stop('The request timed out.'); }, 95000);

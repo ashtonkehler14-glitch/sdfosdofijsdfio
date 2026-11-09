@@ -71,17 +71,18 @@ const SPEC_DELAY = 600; // ms of song time the watcher stays behind the player (
 const Spectate = {
   target: null, // { id, name, pid, avatar, room }: who we're watching (room: from a multiplayer room)
   cur: null,    // their play now: { id, name, head, feed, at, ready, ended, quit, started }
-  host: { watchers: 0, s: null, sent: 0, lastSend: 0 },
+  host: { watchers: 0, moderators: 0, s: null, sent: 0, lastSend: 0 },
 
   // ── watching
-  watch(p) {
+  watch(p, { silent = false } = {}) {
+    if (silent && !Presence.isAdmin) { Toast.err('Admin access required'); return; }
     if (!p || !Presence.ws) { Toast.err('Can\'t spectate right now', 'You\'re not connected to the online service.'); return; }
     if (Screens.currentName === 'gameplay' && !this.watchingNow()) { Toast.err('You\'re playing', 'Finish your song first.'); return; }
-    if (this.target && this.target.id !== p.id) Presence.send({ t: 'unwatch', to: this.target.id });
-    const room = Multiplayer.inRoom();
-    this.target = { id: p.id, name: p.name, pid: p.pid || '', avatar: p.avatar || '', activity: p.activity || '', status: p.status || 'menu', room };
+    if (this.target && (this.target.id !== p.id || !!this.target.silent !== silent)) Presence.send({ t: this.target.silent ? 'adminSpecStop' : 'unwatch', to: this.target.id });
+    const room = !silent && Multiplayer.inRoom();
+    this.target = { id: p.id, name: p.name, pid: p.pid || '', avatar: p.avatar || '', activity: p.activity || '', status: p.status || 'menu', silent, room };
     this.cur = null; this.set = null;
-    Presence.send({ t: 'watch', to: p.id, chat: true });
+    Presence.send({ t: silent ? 'adminSpecWatch' : 'watch', to: p.id, ...(!silent ? { chat: true } : {}) });
     if (typeof SpectatorChat !== 'undefined') SpectatorChat.refresh();
     if (!room) Screens.go('spectator');
     Presence.pushStatus();
@@ -89,7 +90,7 @@ const Spectate = {
   stop({ quiet = false } = {}) {
     const t = this.target;
     if (!t) return;
-    Presence.send({ t: 'unwatch', to: t.id });
+    Presence.send({ t: t.silent ? 'adminSpecStop' : 'unwatch', to: t.id });
     this.target = null; this.cur = null; this.set = null;
     RankedWatch.close(true);
     if (typeof SpectatorChat !== 'undefined') SpectatorChat.refresh();
@@ -102,16 +103,21 @@ const Spectate = {
     const t = this.target;
     if (!t || !t.lost) return;
     const p = Presence.players.find(x => x.pid === t.pid && x.id !== t.id);
-    if (p) this.watch(p);
+    if (p) this.watch(p, { silent: !!t.silent });
   },
   watchingNow() { return Screens.currentName === 'gameplay' && !!(GameplayScreen.s && GameplayScreen.s.spectate); },
   onResults() { return Screens.currentName === 'results' && !!(ResultsScreen.p && ResultsScreen.p.spectated); },
   on(m) {
+    if (m.t === 'specStream') { this.host.moderators = m.n || 0; if (m.full && this.host.s && GameplayScreen.s === this.host.s && !this.host.s.finished) this.upload(this.host.s); return; }
+    if (m.t === 'adminSpecError' || m.t === 'adminSpecEnd') {
+      if (this.target?.silent && this.target.id === m.id) { this.toScreen(); this.stop({ quiet: true }); Toast.show('Moderation spectate ended', m.reason); }
+      return;
+    }
     if (m.t === 'spectators') { this.onSpectators(m); return; }
     const t = this.target;
     if (!t || m.id !== t.id) return;
     // (in a Ranked Play match: their match screen, as they see it, between their songs — RankedWatch)
-    if ((m.t === 'specWait' || m.t === 'specStart' || m.t === 'specRoom') && !t.room && m.room != null) RankedWatch.open(m.room, m.pid || t.pid);
+    if ((m.t === 'specWait' || m.t === 'specStart' || m.t === 'specRoom') && !t.room && !t.silent && m.room != null) RankedWatch.open(m.room, m.pid || t.pid);
     if (m.t === 'specRoom') return;
     if (m.t === 'specActivity') {
       t.activity = m.activity; t.status = m.status;
@@ -245,7 +251,7 @@ const Spectate = {
     this.toScreen();
   },
   /** lazer's "Automatically download missing beatmaps" (off unless you turn it on). */
-  autoDownload() { const c = this.cur; if (c && !c.ended && (Settings.get('online.autoDownload') || RankedWatch.on) && !this.findMap(c.head)) this.download(); },
+  autoDownload() { const c = this.cur; if (c && !c.ended && (Settings.get('online.autoDownload') || RankedWatch.on || this.target?.silent) && !this.findMap(c.head)) this.download(); },
   download() {
     const c = this.cur, id = c && c.head.onlineSetId;
     if (!(id > 0) || this.findMap(c.head)) return;
@@ -325,6 +331,7 @@ const Spectate = {
   liveEl(s) {
     const c = s.spectate, title = Settings.get('ui.unicodeMetadata') && s.rec.titleUnicode ? s.rec.titleUnicode : s.rec.title;
     // The player and their spectators share the lounge-style chat; playback continues behind the panel.
+    if (this.target?.silent) return h('div.spec-live', h('span.spec-live-t', 'Moderation · Watching ', h('b', c.name), ' play ', h('b', title), h('b.spec-live-l', ' live')));
     this.msgDot = h('i.spec-msg-n');
     const btn = h('button.spec-msg', { title: 'Spectator chat (F8)', 'aria-label': 'Open spectator chat',
       onclick: e => { e.stopPropagation(); this.message(); } }, icon('chat'), h('span', 'Message'), this.msgDot);
@@ -333,7 +340,7 @@ const Spectate = {
   },
   /** The shared spectator chat: the player and everyone currently watching them. */
   message() {
-    SpectatorChat.toggle();
+    if (!this.target?.silent) SpectatorChat.toggle();
   },
   /** The chat button's dot: messages you haven't read yet. */
   paintMsgDot() {
@@ -416,7 +423,7 @@ const Spectate = {
   },
   hostTick(s, now) {
     const H = this.host;
-    if (H.s !== s || !H.watchers || s.finished) return;
+    if (H.s !== s || !(H.watchers + H.moderators) || s.finished) return;
     const t = performance.now();
     if (t - H.lastSend < 50) return; // (20 times a second: watchers stay close behind)
     H.lastSend = t;
@@ -428,7 +435,7 @@ const Spectate = {
    *  song, for anyone watching: it happens in their play too, as it gets there. Played so far goes first. */
   hostAct(s, k, t, extra = {}) {
     const H = this.host;
-    if (H.s !== s || !H.watchers || !Presence.ws) return;
+    if (H.s !== s || !(H.watchers + H.moderators) || !Presence.ws) return;
     if (k === 'sel') { if (H.sel === extra.sel) return; H.sel = extra.sel; } else H.sel = null;
     const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100), at = t == null ? this.songTime(s) : t;
     H.sent = s.events.length; H.lastSend = performance.now();
@@ -438,7 +445,7 @@ const Spectate = {
   hostEnd(s, quit) {
     const H = this.host;
     if (H.s !== s) return;
-    if (H.watchers && !quit) { const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100); H.sent = s.events.length; Presence.send({ t: 'frames', ev, at: s.endTime + 5000 }); }
+    if ((H.watchers + H.moderators) && !quit) { const ev = s.events.slice(H.sent).map(x => Math.round(x * 100) / 100); H.sent = s.events.length; Presence.send({ t: 'frames', ev, at: s.endTime + 5000 }); }
     H.s = null;
     Presence.send({ t: 'playEnd', quit: !!quit, ...(s.spectatorRetry ? { retry: true } : {}) });
   },
@@ -499,10 +506,10 @@ const SpectatorScreen = {
     const t = Spectate.target;
     const msg = h('button.spm-msg', { title: 'Spectator chat', onclick: () => Spectate.message() }, icon('chat'), 'Message');
     clearEl(box).append(
-      h('div.spm-t', 'Spectator Mode'),
+      h('div.spm-t', t?.silent ? 'Admin Spectate · Gameplay' : 'Spectator Mode'),
       h('div.spm-row', this.userEl, h('span.spm-arrow', icon('back')), this.mapEl),
       this.autoRow(),
-      h('div.spm-acts', this.btn, msg));
+      h('div.spm-acts', this.btn, ...(t?.silent ? [] : [msg])));
     this.paintUser(); this.paintMap();
   },
   /** lazer's UserGridPanel of who you're watching (offline: as the online list shows someone who's gone). */
@@ -636,7 +643,7 @@ const UserPanels = {
     const me = u.id && u.id === Presence.me, items = [{ label: 'View profile', icon: 'user', onClick: () => this.profile(u) }];
     if (me) return items;
     if (this.canSpectate(u)) items.push({ label: 'Spectate', icon: 'film', onClick: () => Spectate.watch(u) });
-    if (this.canSpectate(u) && Presence.isAdmin) items.push({ label: 'Admin Spectate', icon: 'film', onClick: () => AdminGameView.request(u) });
+    if (this.canSpectate(u) && Presence.isAdmin) items.push({ label: 'Admin Spectate', icon: 'film', onClick: () => AdminGameView.request(u) }, { label: 'Live interface view', icon: 'film', onClick: () => AdminGameView.requestInterface(u) });
     if (u.online && u.pid && Friends.has(u.pid)) items.push({ label: 'Send message', icon: 'chat', onClick: () => Chat.message(u) });
     if (this.canInvite(u)) items.push({ label: 'Invite to room', icon: 'multi', onClick: () => { Presence.invite(u.id); Toast.ok('Invited', u.name); } });
     if (Friends.has(u.pid)) items.push({ sep: true }, { label: 'Remove friend', icon: 'x', danger: true, onClick: () => Friends.toggle(u) });

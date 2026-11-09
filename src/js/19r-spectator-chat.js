@@ -3,6 +3,7 @@ const SpectatorChat = {
   id: null, lines: [], unread: 0, panel: null,
   context() {
     if (!Presence.ws) return null;
+    if (Spectate.target?.silent) return null;
     if (Spectate.target) return { id: Spectate.target.id, name: Spectate.target.name, host: false };
     return Spectate.host.watchers > 0 ? { id: Presence.me, name: ProfileManager.profile.name, host: true } : null;
   },

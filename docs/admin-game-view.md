@@ -1,6 +1,8 @@
 # Admin game view
 
-**Admin Spectate** sits beside regular **Spectate** in online player profiles and menus. An authenticated owner/admin joins directly and chooses whether to send an extra notification first. Players do not enable anything and there is no browser tab-sharing picker.
+**Admin Spectate** sits beside regular **Spectate** in online player profiles and menus. **Admin Spectate** starts an authenticated owner/admin directly in the optimized gameplay view. It renders gameplay on the admin’s device, at that device’s resolution and frame rate, using ordinary replay events and public activity only; it never captures UI, joins spectator chat or opens the player’s Ranked Play room view. It stays out of public spectator counts and names and creates no player-facing spectator notification. Sessions expire after 30 minutes; disconnecting, appearing offline or losing admin access ends them. It requires no source-side screenshots, DOM walking, video frames or encoder. The player sends small replay updates at most 20 times per second; display resolution and FPS belong to the admin’s own device. Missing public beatmaps download on the viewer’s device automatically; private/local beatmaps still require a matching local copy.
+
+The separate **Live interface view** action in the player’s context menu retains screen sharing for menu inspection. The admin joins directly and chooses whether to send an extra notification first. Players do not enable anything and there is no browser tab-sharing picker.
 
 The source renders only this app's own UI into a video canvas. It shows menus, pointer movement, dialogs and gameplay, with no remote control or recording. It cannot see another tab, the browser's chrome, a window or the desktop. The player always has a visible viewing indicator, Pause and Stop controls. Account-code panels, password inputs and panels marked `data-private` pause and clear the view; snapshots taken across a privacy change are discarded.
 
@@ -39,3 +41,11 @@ BASELINE_CAPTURE=/tmp/baseline-game-capture.js CHROMIUM_PATH=/usr/bin/chromium n
 ```
 
 On the development Chromium runner, a 4× CPU-throttled 1280×720 run with a 60 FPS target improved from about 20 FPS / 83ms p95 frame interval to about 60 FPS / 17ms p95 while reducing the capture to 480px / 2fps. The budgeted path produced live playfield frames and no >50ms main-thread tasks during the six-second measurement window. These are one runner's measurements, not a guarantee for other devices.
+
+The optimized gameplay path has a separate source-side comparison:
+
+```sh
+CHROMIUM_PATH=/usr/bin/chromium CPU_RATE=4 node tests/admin-spectate-performance-e2e.mjs
+```
+
+With the same 1280×720 chart, 60 FPS target, 4× CPU throttle and synthetic key input, one six-second run measured 60.00 FPS unwatched and 60.00 FPS with replay spectating, with 16.8ms p95 frame intervals, no long tasks, no screenshots and no video frames. Replay serialization used about 1.5 KB/s at 17 updates/second. The interface-capture case measured 56.16 FPS and fell to a 480px / 2 FPS stream. This comparison measures source rendering and replay JSON serialization, without a live video encoder or network transport; the separate authenticated browser test verifies the actual replay connection and playback. Results depend on the player's device and workload.
