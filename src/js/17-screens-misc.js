@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.10e', title: 'Move skin items together', sections: [
+    { icon: 'brush', title: 'Skin editor', items: ['Shift-click or Ctrl-click items to select several, then drag or nudge them together', 'Undo restores a whole group move in one step'] },
+  ] },
   { id: '2026.11.10d', title: 'Mobile column alignment', sections: [
     { icon: 'keyboard', title: 'Gameplay', items: ['Removed spacing between expanded mobile columns', 'Hit and hold effects now resize and line up with mobile notes and receptors'] },
   ] },

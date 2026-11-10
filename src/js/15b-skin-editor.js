@@ -106,14 +106,15 @@ const SkinEditor = {
   },
   attach() {
     if (this.on) return;
-    this.on = true; this.sel = null; this.undo = []; this.boxEls = new Map(); this._hitEl = null;
+    this.on = true; this.sel = null; this.selection = new Set(); this.undo = []; this.boxEls = new Map(); this._hitEl = null;
+    this._dragging = false; this._cancelDrag = null;
     this.advanced = !!Settings.get('ui.skinEditorAdvanced');
     { const r = GameplayScreen.renderer; if (r) r.resize(true); } // (the stage uncropped while editing: see ManiaRenderer.resize)
     UISounds.click();
     const btn = (label, ic, fn, cls = '') => h(`button.se-btn${cls}`, { title: label, onclick: () => { UISounds.click(); fn(); } }, icon(ic), h('span', label));
     this.stageEl = h('div.se-list');
-    this.listEl = h('div.se-list');
-    this.sceneEl = h('div.se-list');
+    this.listEl = h('div.se-list', { role: 'listbox', 'aria-label': 'HUD components', 'aria-multiselectable': 'true' });
+    this.sceneEl = h('div.se-list', { role: 'listbox', 'aria-label': 'Background and stage components', 'aria-multiselectable': 'true' });
     this.modeButton = h('button.se-mode', { role: 'switch', 'aria-label': 'Advanced mode', 'aria-checked': String(this.advanced), onclick: () => { UISounds.click(); this.setAdvanced(!this.advanced); } },
       h('span', 'Advanced mode', h('small', 'Backgrounds and stage graphics')), h('i', { 'aria-hidden': 'true' }));
     this.sceneGroup = h('div.se-advanced', { hidden: !this.advanced }, h('div.se-ph', 'Backgrounds & stage'), this.sceneEl);
@@ -132,7 +133,7 @@ const SkinEditor = {
         h('div.se-ph', 'Stage'), this.stageEl,
         h('div.se-ph', 'HUD', this.countEl), this.listEl,
         this.sceneGroup,
-        h('p.se-hint', kbHint('Drag to move · corner to scale · arrow keys nudge (Shift: 10px) · Delete hides · Ctrl+Z undoes · Esc closes', 'Drag to move, the corner to scale. Tap the eye to show or hide.'))),
+        h('p.se-hint', kbHint('Shift/Ctrl-click to add or remove items · drag to move selection · corner to scale one item · arrow keys nudge (Shift: 10px) · Delete hides · Ctrl+Z undoes · Esc clears selection, then closes', 'Drag to move, the corner to scale. Tap the eye to show or hide.'))),
       this.rEl = h('div.se-side.se-r', h('div.se-ph', 'Settings'), this.setEl));
     document.body.append(this.el);
     document.body.classList.add('se-open');
@@ -150,6 +151,7 @@ const SkinEditor = {
   },
   close() {
     if (!this.on) return;
+    this._cancelDrag?.();
     this.on = false;
     cancelAnimationFrame(this._raf);
     window.removeEventListener('keydown', this._key, true);
@@ -171,14 +173,15 @@ const SkinEditor = {
     e.preventDefault(); e.stopImmediatePropagation();
     if (e.repeat && !/^Arrow/.test(e.key)) return;
     if ((e.key === 'Enter' || e.key === ' ') && e.target?.closest('button')) { e.target.closest('button').click(); return; }
+    if ((e.key === 'Enter' || e.key === ' ') && e.target?.closest('.se-item[data-id]')) { this.selectEvent(e.target.closest('.se-item').dataset.id, e); return; }
     if (e.key === 'Escape') { if (this.sel) this.select(null); else this.close(); return; }
     if (ctrl && e.shiftKey && e.code === 'KeyS') { this.close(); return; }
-    if (ctrl && e.code === 'KeyZ') { this.undoStep(); return; }
-    const p = HUD_PARTS.find(x => x.id === this.sel);
-    if ((e.code === 'Delete' || e.code === 'Backspace') && p) { this.setShown(p, false); return; }
+    if (ctrl && e.code === 'KeyZ') { this._cancelDrag?.(); this.undoStep(); return; }
+    const ids = this.selectionIds();
+    if ((e.code === 'Delete' || e.code === 'Backspace') && ids.length) { this.hideSelection(); return; }
     // (arrow keys nudge the chosen component a pixel at a time, ten with Shift; the hit position too)
     const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
-    if (d && p) { const hud = GameplayScreen.hud, n = e.shiftKey ? 10 : 1, c = this.layout()[p.id] || {}; this.setPart(p.id, { x: (c.x || 0) + d[0] * n / (hud.clientWidth || 1), y: (c.y || 0) + d[1] * n / (hud.clientHeight || 1) }); return; }
+    if (d && ids.length) { this._cancelDrag?.(); const hud = GameplayScreen.hud, n = e.shiftKey ? 10 : 1; this.commit(this.translatedLayout(this.layout(), ids, d[0] * n / (hud.clientWidth || 1), d[1] * n / (hud.clientHeight || 1))); return; }
     const sd = this.stageDef(this.sel);
     if (d && sd && d[1]) this.setStage(sd, this.stageVal(sd) + d[1] * (sd.upMore ? -1 : 1) * (e.shiftKey ? 10 : 1));
   },
@@ -186,9 +189,14 @@ const SkinEditor = {
   // ── the layout
   parts() { return HUD_PARTS.filter(p => this.advanced || !p.advanced); },
   setAdvanced(value) {
+    this._cancelDrag?.();
     this.advanced = !!value; Settings.set('ui.skinEditorAdvanced', this.advanced);
     this.modeButton.setAttribute('aria-checked', String(this.advanced)); this.sceneGroup.hidden = !this.advanced;
-    if (!this.advanced && HUD_PARTS.some(p => p.id === this.sel && p.advanced)) this.sel = null;
+    if (!this.advanced) {
+      for (const p of HUD_PARTS) if (p.advanced) this.selection?.delete(p.id);
+      if (HUD_PARTS.some(p => p.id === this.sel && p.advanced)) this.sel = [...(this.selection || [])].at(-1) || null;
+    }
+    this.el?.classList.toggle('se-multi', this.selectionIds().length > 1);
     this._seenKey = null; this.present = null; this.paintList(); this.paintSettings(); this.frame();
     if (this.advanced) this.sceneGroup.scrollIntoView({ block: 'start' });
   },
@@ -282,10 +290,31 @@ const SkinEditor = {
     this.setPart(p.id, { off: !on });
   },
   shown(p) { return !(this.layout()[p.id] || {}).off && (!p.setting || !!Settings.get(p.setting)); },
-  select(id) {
+  selectionIds() { return [...(this.selection || [])]; },
+  isSelected(id) { return this.selection?.has(id) || this.sel === id; },
+  selectEvent(id, e) { this.select(id, { toggle: !!(e.shiftKey || e.ctrlKey || e.metaKey) }); },
+  translatedLayout(base, ids, dx, dy) {
+    const L = { ...base };
+    for (const id of ids) { const c = base[id] || {}; L[id] = { ...c, x: (c.x || 0) + dx, y: (c.y || 0) + dy }; }
+    return L;
+  },
+  hideSelection() {
+    this._cancelDrag?.();
+    if (!this.selectionIds().length) return;
+    const L = this.layout();
+    for (const id of this.selectionIds()) L[id] = { ...(L[id] || {}), off: true };
+    this.commit(L);
+  },
+  select(id, { toggle = false, preserve = false } = {}) {
     if (!this.advanced && HUD_PARTS.some(p => p.id === id && p.advanced)) return;
-    if (this.sel === id) return;
-    this.sel = id; this.paintList(); this.paintSettings();
+    this._cancelDrag?.();
+    this.selection ||= new Set();
+    if (HUD_PARTS.some(p => p.id === id)) {
+      if (toggle && this.selection.has(id)) { this.selection.delete(id); this.sel = [...this.selection].at(-1) || null; }
+      else { if (!toggle && !(preserve && this.selection.has(id))) this.selection.clear(); this.selection.add(id); this.sel = id; }
+    } else { this.selection.clear(); this.sel = id; }
+    this.el?.classList.toggle('se-multi', this.selection.size > 1);
+    this.paintList(); this.paintSettings();
     // (the chosen one in view in the list)
     // (with its settings open under it, at the top: the settings below it in view too)
     const it = id && this.el && this.el.querySelector(`.se-item[data-id="${id}"]`); if (it) it.scrollIntoView({ block: this._short ? 'start' : 'nearest' });
@@ -300,7 +329,7 @@ const SkinEditor = {
     const row = p => {
       const on = this.shown(p), na = on && this.present && !this.present.has(p.id);
       if (on && !p.advanced) n++;
-      return h(`div.se-item${this.sel === p.id ? '.on' : ''}${on ? '' : '.off'}${na ? '.na' : ''}`, { dataset: { id: p.id }, onclick: () => { UISounds.click(); this.select(p.id); } },
+      return h(`div.se-item${this.isSelected(p.id) ? '.on' : ''}${on ? '' : '.off'}${na ? '.na' : ''}`, { dataset: { id: p.id }, role: 'option', tabindex: 0, 'aria-selected': String(this.isSelected(p.id)), onclick: e => { UISounds.click(); this.selectEvent(p.id, e); } },
         h('span.se-ic', icon(p.icon)),
         h('span.se-nm', p.name, !on ? h('small', 'hidden') : na ? h('small', p.id === 'hp' ? 'drawn by the skin on the stage' : 'not on screen right now') : null),
         h('button.se-eye', { title: on ? 'Hide' : 'Show', 'aria-label': `${on ? 'Hide' : 'Show'} ${p.name}`, 'aria-pressed': String(on), onclick: e => { e.stopPropagation(); UISounds.play(on ? 'check-off' : 'check-on'); this.setShown(p, !on); } }, icon(on ? 'eye' : 'eye-slash')));
@@ -324,6 +353,16 @@ const SkinEditor = {
     else if (this.setEl.parentElement !== this.rEl) this.rEl.append(this.setEl);
   },
   paintSettings() {
+    const ids = this.selectionIds();
+    if (ids.length > 1) {
+      clearEl(this.setEl).append(h('div.se-head', `${ids.length} items selected`),
+        h('p.se-note', ids.map(id => HUD_PARTS.find(p => p.id === id).name).join(', ')),
+        h('p.se-note', 'Drag any highlighted item to move them together. Arrow keys nudge the selection; Shift moves 10px. Shift/Ctrl-click adds or removes an item.'),
+        h('div.se-btns.se-row',
+          h('button.btn.sm', { onclick: () => this.hideSelection() }, icon('eye-slash'), 'Hide selected'),
+          h('button.btn.sm', { onclick: () => this.select(null) }, icon('x'), 'Clear selection')));
+      return;
+    }
     if (this.sel === 'hudoptions' || this.sel === 'noteoptions') {
       const hud = this.sel === 'hudoptions';
       const rows = SETTINGS_SCHEMA.filter(it => hud ? it.editor === 'hud' : ['gameplay.laneWidth', 'gameplay.noteHeight', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].includes(it.k));
@@ -403,9 +442,9 @@ const SkinEditor = {
       seen.add(p.id);
       let box = this.boxEls.get(p.id);
       if (!box) { box = this.makeBox(p); this.boxEls.set(p.id, box); this.boxesEl.append(box); }
-      box.classList.toggle('on', this.sel === p.id);
+      box.classList.toggle('on', this.isSelected(p.id));
       box.classList.toggle('off', !!(HudLayout.get()[p.id] || {}).off || (!!p.setting && !Settings.get(p.setting)));
-      const st = `z-index:${p.scene || p.id === 'stageBackground' ? this.sel === p.id ? 1 : 0 : 2};left:${r.l.toFixed(1)}px;top:${r.t.toFixed(1)}px;width:${(r.r - r.l).toFixed(1)}px;height:${(r.b - r.t).toFixed(1)}px`;
+      const st = `z-index:${p.scene || p.id === 'stageBackground' ? this.isSelected(p.id) ? 1 : 0 : 2};left:${r.l.toFixed(1)}px;top:${r.t.toFixed(1)}px;width:${(r.r - r.l).toFixed(1)}px;height:${(r.b - r.t).toFixed(1)}px`;
       if (box._st !== st) { box._st = st; box.style.cssText = st; }
       box._r = r;
       // (the name tag on the side facing the middle: one by the right edge was cut off under the Settings panel)
@@ -459,34 +498,42 @@ const SkinEditor = {
   },
   makeBox(p) {
     const handle = h('i.se-handle');
-    const box = h('div.se-box', h('span.se-label', p.name), handle);
+    const box = h('div.se-box', { dataset: { id: p.id } }, h('span.se-label', p.name), handle);
     box.addEventListener('pointerdown', e => {
-      if (e.button) return;
+      if (e.button || this._dragging) return;
       e.preventDefault(); e.stopPropagation();
-      this.select(p.id);
+      if (e.shiftKey || e.ctrlKey || e.metaKey) { this.selectEvent(p.id, e); return; }
+      this.select(p.id, { preserve: true });
       box.setPointerCapture(e.pointerId);
       const hud = GameplayScreen.hud, hr = hud.getBoundingClientRect(), L0 = this.layout(), c0 = { ...(L0[p.id] || {}) };
       const scaling = e.target === handle, r = box._r;
+      const ids = scaling ? [p.id] : this.selectionIds();
       // (scaling is about the component's anchor: the corner it sits from)
       const [ox, oy] = p.origin.split(' ');
       const ax = ox === 'right' ? r.r : ox === 'left' ? r.l : (r.l + r.r) / 2, ay = oy === 'bottom' ? r.b : oy === 'top' ? r.t : (r.t + r.b) / 2;
       const d0 = Math.hypot(e.clientX - ax, e.clientY - ay) || 1, x0 = e.clientX, y0 = e.clientY;
       let moved = false;
       const move = ev => {
-        const L = this.layout(), c = { ...c0 };
-        if (scaling) c.s = clamp(Math.round((c0.s || 1) * Math.hypot(ev.clientX - ax, ev.clientY - ay) / d0 * 20) / 20, 0.3, 2.5);
-        else { c.x = (c0.x || 0) + (ev.clientX - x0) / hr.width; c.y = (c0.y || 0) + (ev.clientY - y0) / hr.height; }
         moved = moved || Math.abs(ev.clientX - x0) + Math.abs(ev.clientY - y0) > 2;
-        L[p.id] = c; HudLayout.override = L; HudLayout.apply(hud);
+        if (!moved) return;
+        let L;
+        if (scaling) { L = { ...L0, [p.id]: { ...c0, s: clamp(Math.round((c0.s || 1) * Math.hypot(ev.clientX - ax, ev.clientY - ay) / d0 * 20) / 20, 0.3, 2.5) } }; }
+        else L = this.translatedLayout(L0, ids, (ev.clientX - x0) / hr.width, (ev.clientY - y0) / hr.height);
+        HudLayout.override = L; HudLayout.apply(hud);
       };
-      const up = () => {
+      const finish = save => {
         this._dragging = false;
-        box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', up);
+        this._cancelDrag = null;
+        box.removeEventListener('pointermove', move); box.removeEventListener('pointerup', up); box.removeEventListener('pointercancel', cancel); box.removeEventListener('lostpointercapture', cancel);
         const L = HudLayout.override; HudLayout.override = null;
-        if (moved && L) this.commit(L); else HudLayout.apply(hud);
+        if (save && moved && L && JSON.stringify(L) !== JSON.stringify(L0)) this.commit(L); else HudLayout.apply(hud);
+        if (box.hasPointerCapture(e.pointerId)) box.releasePointerCapture(e.pointerId);
+        if (save && !moved && ids.length > 1) this.select(p.id); // a plain click edits one item; a drag keeps the group
       };
+      const up = () => finish(true), cancel = () => finish(false);
+      this._cancelDrag = cancel;
       this._dragging = true;
-      box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', up);
+      box.addEventListener('pointermove', move); box.addEventListener('pointerup', up); box.addEventListener('pointercancel', cancel); box.addEventListener('lostpointercapture', cancel);
     });
     return box;
   },
