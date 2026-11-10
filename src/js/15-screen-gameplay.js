@@ -945,10 +945,22 @@ const GameplayScreen = {
     r.render({ now: t, posNow: s.scroll.pos(t), scroll: s.scroll, pxPerMs: r.scrollLength / (timeRange * s.rate), engine: s.engine, held: s.held, hidden: s.hidden,
       realNow: performance.now(), keyLabels: s.keyLabels, percy: s.percy, bars: s.bars, flashlight: s.flashlight, snapRed: s.snapRed });
   },
+  /** Learn display cadence from a group of callbacks, not a single short interval. Remember the best cadence
+   *  during this play: missing refreshes must not redefine those missed frames as the new performance goal. */
+  sampleRefresh(dt, ts) {
+    if (document.hidden || !(dt > 2 && dt < 100)) return;
+    const samples = this._refreshSamples;
+    samples.push(dt); if (samples.length > 120) samples.shift();
+    if (samples.length < 16 || ts - this._refreshAt < 500) return;
+    this._refreshAt = ts;
+    const sorted = samples.slice().sort((a, b) => a - b);
+    this._displayMs = Math.min(this._displayMs, sorted[Math.floor(sorted.length * .2)]);
+  },
   loop() {
     // one frame description, reused every frame (no garbage for the collector to pause on mid-song)
     const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null, flashlight: 0, snapRed: null };
     this._vc = null; this._due = 0; this._refresh = 1000 / 60; this._lastTs = 0;
+    this._displayMs = 1000 / 60; this._refreshSamples = []; this._refreshAt = 0;
     const frame = ts => {
       this._raf = requestAnimationFrame(frame);
       const s = this.s;
@@ -957,7 +969,11 @@ const GameplayScreen = {
       const view = typeof AdminGameView !== 'undefined' && AdminGameView.current?.capture;
       view?.gameFrameBegin?.(realNow);
       // the display's refresh interval, for the frame limiter
-      if (this._lastTs && realNow > this._lastTs) this._refresh += (clamp(realNow - this._lastTs, 2, 50) - this._refresh) * 0.1;
+      if (this._lastTs && realNow > this._lastTs) {
+        const dt = realNow - this._lastTs;
+        this._refresh += (clamp(dt, 2, 50) - this._refresh) * 0.1;
+        this.sampleRefresh(dt, realNow);
+      }
       this._lastTs = realNow;
       const now = this.frameTime(realNow);
       const eng = s.engine;
@@ -1064,7 +1080,9 @@ const GameplayScreen = {
       return;
     }
     if (!a.on) return;
-    const target = lim > 0 ? Math.max(1000 / lim, 16.7) : 16.7;
+    // Aim for the display's cadence (up to the player's cap), rather than treating every rate above 60 as
+    // smooth. Keep the 60 Hz fallback for overloaded devices whose callbacks already arrive too slowly.
+    const target = Math.max(lim > 0 ? 1000 / lim : 0, this._displayMs || 1000 / 60);
     // (and stutter: every other frame late keeps the median at full speed, but plays like 40 fps)
     let late = 0; for (const x of t) if (x > target * 1.5) late++;
     const stutter = late / t.length;

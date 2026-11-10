@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.10', title: 'Smoother note rendering', sections: [
+    { icon: 'keyboard', title: 'Gameplay', items: ['Long hold notes take less work to draw smoothly', 'Reduced first-note hitches with custom note borders', 'Automatic resolution now responds to dropped frames on high refresh rate displays'] },
+  ] },
   { id: '2026.11.9d', title: 'More precise note timing', sections: [
     { icon: 'keyboard', title: 'Gameplay', items: ["Hit windows now follow osu!lazer's exact rounding with difficulty and speed mods", 'Short key releases keep their timing; broken holds can be grabbed again for a capped tail judgement, as in lazer'] },
   ] },

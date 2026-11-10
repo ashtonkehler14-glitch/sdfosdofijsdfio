@@ -297,9 +297,14 @@ class ManiaRenderer {
     try {
       for (let c = 0; c < K; c++) {
         const w = this.colW[c], texN = L.tex.note[c], texH = L.tex.noteH[c], texT = L.tex.noteT[c];
-        if (texN) { const nh = this._noteH(texN, c); for (const f of frames(texN)) this._sprite(f, w, nh, this.fl.note[c]); }
-        if (texH) { const hh = this._noteH(texH, c); for (const f of frames(texH)) this._sprite(f, w, hh, this.fl.head[c]); }
-        if (texT) { const th = this._noteH(texT, c); for (const f of frames(texT)) this._sprite(f, w, th, this.fl.tail[c]); }
+        for (const [tex, flip] of [[texN, this.fl.note[c]], [texH, this.fl.head[c]], [texT, this.fl.tail[c]]]) {
+          if (!tex) continue;
+          const h = this._noteH(tex, c);
+          for (const f of frames(tex)) {
+            this._sprite(f, w, h, flip);
+            if (Settings.get('gameplay.noteBorderWidth')) this._outlinedNote(f, w, h, flip);
+          }
+        }
         for (const [t, flip] of [[L.tex.key[c], this.fl.key[c]], [L.tex.keyD[c], this.fl.keyD[c]]]) {
           if (!t) continue;
           if (this.legacy && !t.fromDefault) this._cropSprite(t.img, w, t.h * this.u * (L.keyScale || 1), flip);
@@ -473,6 +478,7 @@ class ManiaRenderer {
     ctx.globalCompositeOperation = 'source-in'; ctx.fillStyle = color; ctx.fillRect(0, 0, c.width, c.height);
     ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(base, radius, radius);
     const result = { img: c, pad: radius }; cache.set(key, result);
+    if (this._made) this._made.push(c);
     if (cache.size > 8) cache.delete(cache.keys().next().value);
     return result;
   }
@@ -790,13 +796,23 @@ class ManiaRenderer {
     // tail end and cut off at the head: a long body image with its tail end cut away ("Percy" skins) shortens
     // every hold by the same amount, however wide or tall the image is
     if (this.legacy) { this._imgTop(img, x, top, w, len, len / Math.max(len, 32800 * this.u) / (tex.kept || 1), flip); return; }
+    // Clip the iteration as well as the pixels. A long hold may span tens of thousands of pixels above the
+    // screen; drawing every invisible tile can consume a whole frame. Keep the original tail/head anchor
+    // so the texture phase stays identical as it scrolls, in either direction.
+    const visibleTop = Math.max(0, top), visibleBottom = Math.min(this.H, bottom);
+    if (!(visibleBottom > visibleTop)) return;
     const th = Math.max(2, tex.h * (w / tex.w));
     const ctx = this.ctx;
     ctx.save();
     const clipY = this.up ? this.H - bottom : top;
     ctx.beginPath(); ctx.rect(x, clipY, w, len); ctx.clip();
-    if (style === 2) { for (let y = bottom - th; y > top - th; y -= th) this._img(img, x, y, w, th, flip); }
-    else { for (let y = top; y < bottom; y += th) this._img(img, x, y, w, th, flip); }
+    if (style === 2) {
+      const start = bottom - th, skip = Math.max(0, Math.ceil((start - visibleBottom) / th));
+      for (let y = start - skip * th; y > visibleTop - th; y -= th) this._img(img, x, y, w, th, flip);
+    } else {
+      const skip = Math.max(0, Math.floor((visibleTop - top) / th));
+      for (let y = top + skip * th; y < visibleBottom; y += th) this._img(img, x, y, w, th, flip);
+    }
     ctx.restore();
   }
 

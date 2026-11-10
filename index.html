@@ -11454,9 +11454,14 @@ class ManiaRenderer {
     try {
       for (let c = 0; c < K; c++) {
         const w = this.colW[c], texN = L.tex.note[c], texH = L.tex.noteH[c], texT = L.tex.noteT[c];
-        if (texN) { const nh = this._noteH(texN, c); for (const f of frames(texN)) this._sprite(f, w, nh, this.fl.note[c]); }
-        if (texH) { const hh = this._noteH(texH, c); for (const f of frames(texH)) this._sprite(f, w, hh, this.fl.head[c]); }
-        if (texT) { const th = this._noteH(texT, c); for (const f of frames(texT)) this._sprite(f, w, th, this.fl.tail[c]); }
+        for (const [tex, flip] of [[texN, this.fl.note[c]], [texH, this.fl.head[c]], [texT, this.fl.tail[c]]]) {
+          if (!tex) continue;
+          const h = this._noteH(tex, c);
+          for (const f of frames(tex)) {
+            this._sprite(f, w, h, flip);
+            if (Settings.get('gameplay.noteBorderWidth')) this._outlinedNote(f, w, h, flip);
+          }
+        }
         for (const [t, flip] of [[L.tex.key[c], this.fl.key[c]], [L.tex.keyD[c], this.fl.keyD[c]]]) {
           if (!t) continue;
           if (this.legacy && !t.fromDefault) this._cropSprite(t.img, w, t.h * this.u * (L.keyScale || 1), flip);
@@ -11630,6 +11635,7 @@ class ManiaRenderer {
     ctx.globalCompositeOperation = 'source-in'; ctx.fillStyle = color; ctx.fillRect(0, 0, c.width, c.height);
     ctx.globalCompositeOperation = 'source-over'; ctx.drawImage(base, radius, radius);
     const result = { img: c, pad: radius }; cache.set(key, result);
+    if (this._made) this._made.push(c);
     if (cache.size > 8) cache.delete(cache.keys().next().value);
     return result;
   }
@@ -11947,13 +11953,23 @@ class ManiaRenderer {
     // tail end and cut off at the head: a long body image with its tail end cut away ("Percy" skins) shortens
     // every hold by the same amount, however wide or tall the image is
     if (this.legacy) { this._imgTop(img, x, top, w, len, len / Math.max(len, 32800 * this.u) / (tex.kept || 1), flip); return; }
+    // Clip the iteration as well as the pixels. A long hold may span tens of thousands of pixels above the
+    // screen; drawing every invisible tile can consume a whole frame. Keep the original tail/head anchor
+    // so the texture phase stays identical as it scrolls, in either direction.
+    const visibleTop = Math.max(0, top), visibleBottom = Math.min(this.H, bottom);
+    if (!(visibleBottom > visibleTop)) return;
     const th = Math.max(2, tex.h * (w / tex.w));
     const ctx = this.ctx;
     ctx.save();
     const clipY = this.up ? this.H - bottom : top;
     ctx.beginPath(); ctx.rect(x, clipY, w, len); ctx.clip();
-    if (style === 2) { for (let y = bottom - th; y > top - th; y -= th) this._img(img, x, y, w, th, flip); }
-    else { for (let y = top; y < bottom; y += th) this._img(img, x, y, w, th, flip); }
+    if (style === 2) {
+      const start = bottom - th, skip = Math.max(0, Math.ceil((start - visibleBottom) / th));
+      for (let y = start - skip * th; y > visibleTop - th; y -= th) this._img(img, x, y, w, th, flip);
+    } else {
+      const skip = Math.max(0, Math.floor((visibleTop - top) / th));
+      for (let y = top + skip * th; y < visibleBottom; y += th) this._img(img, x, y, w, th, flip);
+    }
     ctx.restore();
   }
 
@@ -21493,10 +21509,22 @@ const GameplayScreen = {
     r.render({ now: t, posNow: s.scroll.pos(t), scroll: s.scroll, pxPerMs: r.scrollLength / (timeRange * s.rate), engine: s.engine, held: s.held, hidden: s.hidden,
       realNow: performance.now(), keyLabels: s.keyLabels, percy: s.percy, bars: s.bars, flashlight: s.flashlight, snapRed: s.snapRed });
   },
+  /** Learn display cadence from a group of callbacks, not a single short interval. Remember the best cadence
+   *  during this play: missing refreshes must not redefine those missed frames as the new performance goal. */
+  sampleRefresh(dt, ts) {
+    if (document.hidden || !(dt > 2 && dt < 100)) return;
+    const samples = this._refreshSamples;
+    samples.push(dt); if (samples.length > 120) samples.shift();
+    if (samples.length < 16 || ts - this._refreshAt < 500) return;
+    this._refreshAt = ts;
+    const sorted = samples.slice().sort((a, b) => a - b);
+    this._displayMs = Math.min(this._displayMs, sorted[Math.floor(sorted.length * .2)]);
+  },
   loop() {
     // one frame description, reused every frame (no garbage for the collector to pause on mid-song)
     const g = this._frame = { now: 0, posNow: 0, scroll: null, pxPerMs: 0, engine: null, held: null, hidden: null, realNow: 0, keyLabels: null, percy: 0, bars: null, flashlight: 0, snapRed: null };
     this._vc = null; this._due = 0; this._refresh = 1000 / 60; this._lastTs = 0;
+    this._displayMs = 1000 / 60; this._refreshSamples = []; this._refreshAt = 0;
     const frame = ts => {
       this._raf = requestAnimationFrame(frame);
       const s = this.s;
@@ -21505,7 +21533,11 @@ const GameplayScreen = {
       const view = typeof AdminGameView !== 'undefined' && AdminGameView.current?.capture;
       view?.gameFrameBegin?.(realNow);
       // the display's refresh interval, for the frame limiter
-      if (this._lastTs && realNow > this._lastTs) this._refresh += (clamp(realNow - this._lastTs, 2, 50) - this._refresh) * 0.1;
+      if (this._lastTs && realNow > this._lastTs) {
+        const dt = realNow - this._lastTs;
+        this._refresh += (clamp(dt, 2, 50) - this._refresh) * 0.1;
+        this.sampleRefresh(dt, realNow);
+      }
       this._lastTs = realNow;
       const now = this.frameTime(realNow);
       const eng = s.engine;
@@ -21612,7 +21644,9 @@ const GameplayScreen = {
       return;
     }
     if (!a.on) return;
-    const target = lim > 0 ? Math.max(1000 / lim, 16.7) : 16.7;
+    // Aim for the display's cadence (up to the player's cap), rather than treating every rate above 60 as
+    // smooth. Keep the 60 Hz fallback for overloaded devices whose callbacks already arrive too slowly.
+    const target = Math.max(lim > 0 ? 1000 / lim : 0, this._displayMs || 1000 / 60);
     // (and stutter: every other frame late keeps the median at full speed, but plays like 40 fps)
     let late = 0; for (const x of t) if (x > target * 1.5) late++;
     const stutter = late / t.length;
@@ -25218,6 +25252,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.10', title: 'Smoother note rendering', sections: [
+    { icon: 'keyboard', title: 'Gameplay', items: ['Long hold notes take less work to draw smoothly', 'Reduced first-note hitches with custom note borders', 'Automatic resolution now responds to dropped frames on high refresh rate displays'] },
+  ] },
   { id: '2026.11.9d', title: 'More precise note timing', sections: [
     { icon: 'keyboard', title: 'Gameplay', items: ["Hit windows now follow osu!lazer's exact rounding with difficulty and speed mods", 'Short key releases keep their timing; broken holds can be grabbed again for a capped tail judgement, as in lazer'] },
   ] },
@@ -35580,7 +35617,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'd789db560407';
+const APP_BUILD = '8a3fdb95472f';
 
 const App = {
   lastReport: null,
