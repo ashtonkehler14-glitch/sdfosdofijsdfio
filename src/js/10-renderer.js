@@ -55,9 +55,9 @@ function visibleBox(img) {
  *  a little larger here, easier to read and to hit). */
 const TOUCH_COL = 0.2;
 /** Settings → Mobile layout's "Landscape (expanded columns)", as lazer's looks on a phone: each column a fifth of the
- *  screen's height on a phone's usual 1.92 : 1 (wider in proportion on a wider screen, narrower past 7 keys), a hairline
- *  apart. (Not the skin's own width widened, as lazer does: a skin with wide columns came out half the screen tall.) */
-const EXPANDED_COL = 0.2, EXPANDED_GAP = 0.003, EXPANDED_KEYS = 7, PHONE_ASPECT = 1.92;
+ *  screen's height on a phone's usual 1.92 : 1 (wider in proportion on a wider screen, narrower past 7 keys), without
+ *  spacing. (Not the skin's own width widened: a skin with wide columns came out half the screen tall.) */
+const EXPANDED_COL = 0.2, EXPANDED_KEYS = 7, PHONE_ASPECT = 1.92;
 
 class ManiaRenderer {
   /** crop: size the canvas to just the stage (plus room for the health bar / key display) instead of the whole
@@ -235,16 +235,16 @@ class ManiaRenderer {
     // side with no gaps, in the middle, with the receptors as near the edge as FNF's (below). Held upright, each column
     // as wide as an FNF arrow (112 of 720, about a sixth of the screen's height), narrowed to fit across it; held
     // sideways, as Settings → Mobile layout says (lazer's): "Landscape" is the stage as on a computer, "Landscape
-    // (expanded columns)" lazer's wider columns a hairline apart (EXPANDED_COL); "Automatic" keeps the arrows' size
+    // (expanded columns)" wider, adjoining columns (EXPANDED_COL); "Automatic" keeps the arrows' size
     // either way up
     const touch = this.touchLayout && typeof matchMedia === 'function' && matchMedia('(hover: none) and (pointer: coarse)').matches;
     const upright = this.H > this.W, layout = Settings.get('gameplay.mobileLayout');
     this.fnf = touch && (upright || layout !== 'landscape');
     if (this.fnf) {
       this._fnfCol = Math.min(this.H * TOUCH_COL * lw, this.W * 0.96 / L.keys);
-      const wide = !upright && layout === 'expanded', gap = wide ? Math.round(this.H * EXPANDED_GAP) : 0;
-      const size = !wide ? this._fnfCol : Math.min(this.H * EXPANDED_COL * Math.min(1, EXPANDED_KEYS / L.keys) * (this.W / this.H) / PHONE_ASPECT * lw, (this.W * 0.96 - gap * (L.keys - 1)) / L.keys);
-      this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * (size + gap)); this.stageW = size * L.keys + gap * (L.keys - 1);
+      const wide = !upright && layout === 'expanded';
+      const size = !wide ? this._fnfCol : Math.min(this.H * EXPANDED_COL * Math.min(1, EXPANDED_KEYS / L.keys) * (this.W / this.H) / PHONE_ASPECT * lw, this.W * 0.96 / L.keys);
+      this.colW = this.colW.map(() => size); this.colX = this.colW.map((_, i) => i * size); this.stageW = size * L.keys;
       this.narrow = true;
     } else {
       const fit = this.W * 0.98 / x;
@@ -311,7 +311,7 @@ class ManiaRenderer {
           else this._sprite(t.img, w, t.h * (w / t.w), flip);
         }
         const sl = L.tinted.stageLight[c];
-        if (sl && effects) { const h = sl.h * (this.legacy ? this.u : s); for (const f of frames(sl)) this._cropSprite(f, w, h, this.up); }
+        if (sl && effects) { const h = sl.h * (this.legacy ? this.u : s) * this._mobileScale(c); for (const f of frames(sl)) this._cropSprite(f, w, h, this.up); }
         if (!lighting) continue;
         const tl = L.tinted.lightingL[c];
         if (tl) { const lw = this._lightW(tl, c, L.lightingLWidth), hh = tl.h * (lw / tl.w); for (const f of frames(tl)) this._cropSprite(f, lw, hh, this.up); }
@@ -554,8 +554,10 @@ class ManiaRenderer {
         if (g.held[i]) a = 1; else { const dt = Math.max(0, realNow - this.keyLight[i]); if (dt < out) a = 1 - dt / out; }
         if (a <= 0) continue;
         ctx.globalAlpha = a;
-        const h = t.h * (this.legacy ? this.u * (g.held[i] ? 1 : a) : s);
-        const bottom = (L.lightPosition + Settings.get('gameplay.hitPositionOffset')) * s;
+        const mobileScale = this._mobileScale(i);
+        const h = t.h * (this.legacy ? this.u * (g.held[i] ? 1 : a) : s) * mobileScale;
+        const skinBottom = (L.lightPosition + Settings.get('gameplay.hitPositionOffset')) * s;
+        const bottom = this.fnf ? this.hitY + (skinBottom - this._hitYSkin) * mobileScale : skinBottom;
         this._cropImg(t.frameAt(realNow), this.colX[i], bottom - h, this.colW[i], h, this.up);
         ctx.globalAlpha = 1;
       }
@@ -1136,14 +1138,21 @@ class ManiaRenderer {
    *  skin's receptor (half a note above the hit position) otherwise. In upscroll it's drawn upside down like the rest
    *  of the stage (as stable does): skins often draw the flash off-centre to sit on their receptor. */
   _lightY(c) { return this.legacy ? this.hitY : this.hitY - this._noteH(this.layout.tex.note[c], c) / 2; }
+  /** Mobile lanes are resized independently of the skin. Effects must follow that same resize so artwork
+   *  authored off-centre still lines up with the notes/receptors. Desktop skin sizing stays unchanged. */
+  _mobileScale(c) {
+    if (!this.fnf) return 1;
+    const own = (this.layout.columnWidth[c] || this.layout.columnWidth[0]) * this.s * Settings.get('gameplay.laneWidth');
+    return own > 0 ? this.colW[c] / own : 1;
+  }
   /** Hit/hold lighting width. Legacy skins follow lazer: texture size × (LightingNWidth or column width) / 30. */
   _lightW(t, c, widths) {
     const L = this.layout;
     if (this.legacy) {
       const cw = widths[c] > 0 ? widths[c] : L.columnWidth[c] * Settings.get('gameplay.laneWidth');
-      return t.w * this.u * cw / 30;
+      return t.w * this.u * cw / 30 * this._mobileScale(c);
     }
-    return widths[c] > 0 ? widths[c] * this.s : this.colW[c] * 1.7; // built-in: the flash reaches a little past its column
+    return widths[c] > 0 ? widths[c] * this.s * this._mobileScale(c) : this.colW[c] * 1.7; // built-in: the flash reaches a little past its column
   }
   /** osu!lazer's LegacyManiaJudgementPiece: in over 20 ms, held, out over 40 ms from 180 ms (220 ms in all, at the
    *  skin's ScorePosition). Hits pulse as stable's overlapping transforms do — 0.8→1 (40 ms), 0.85→0.7 (40 ms), held,

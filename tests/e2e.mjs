@@ -2887,7 +2887,7 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.waitForFunction(() => AshtonkMania.Screens.currentName === 'results', null, { timeout: 40000 });
   await mp.waitForTimeout(500);
   check('phone upright: the results after a song stay upright (no prompt to turn sideways), Retry in reach', await mp.evaluate(() => document.querySelector('.rot-prompt').hidden && !!document.querySelector('.results')));
-  // sideways, the other two: "Landscape (expanded columns)" — wider columns a hairline apart, as lazer's on a phone — and
+  // sideways, the other two: "Landscape (expanded columns)" — wider adjoining columns — and
   // "Landscape", the stage as on a computer; either way the screen's width is split evenly between the columns for
   // touches. Turned upright mid-song, it stops for a tap
   await mp.setViewportSize({ width: 844, height: 390 });
@@ -2895,12 +2895,12 @@ check('identical toasts don\'t stack', dupToasts === 2, String(dupToasts));
   await mp.waitForFunction(() => AshtonkMania.GameplayScreen.s && AshtonkMania.GameplayScreen.s.running, null, { timeout: 20000 });
   const sideways = () => mp.evaluate(() => {
     const G = AshtonkMania.GameplayScreen, r = G.renderer, b = G.canvas.parentElement.getBoundingClientRect(), lw = AshtonkMania.Settings.get('gameplay.laneWidth');
-    const gap = Math.round(r.H * 0.003), wide = Math.min(r.H * 0.2 * lw * (r.W / r.H) / 1.92, (r.W * 0.96 - gap * 3) / 4);
+    const wide = Math.min(r.H * 0.2 * lw * (r.W / r.H) / 1.92, r.W * 0.96 / 4);
     return { prompt: !document.querySelector('.rot-prompt').hidden, running: !!(G.s && G.s.running), cols: [0.1, 0.3, 0.6, 0.9].map(f => r.columnAt(b.left + b.width * f)).join(), fnf: r.fnf,
-      expanded: r.colW.every(w => Math.abs(w - wide) < 0.5) && r.colX.every((x, i) => Math.abs(x - i * (wide + gap)) < 0.5), sameFall: Math.abs(r.scrollLength - 402 * Math.min(r.H * 0.2 * lw, r.W * 0.96 / 4) / r.layout.columnWidth[0]) < 0.01, skin: r.colW.every((w, i) => Math.abs(w - r.layout.columnWidth[i] * r.s * lw) < 0.5), span: +(r.stageW / r.W).toFixed(2) };
+      expanded: r.colW.every(w => Math.abs(w - wide) < 0.5) && r.colX.every((x, i) => Math.abs(x - i * wide) < 0.5), sameFall: Math.abs(r.scrollLength - 402 * Math.min(r.H * 0.2 * lw, r.W * 0.96 / 4) / r.layout.columnWidth[0]) < 0.01, skin: r.colW.every((w, i) => Math.abs(w - r.layout.columnWidth[i] * r.s * lw) < 0.5), span: +(r.stageW / r.W).toFixed(2) };
   });
   const ex = await sideways();
-  check('phone sideways, Landscape (expanded columns): no prompt, lazer\'s wider columns a hairline apart, as on a phone (notes as long to read as ever), each quarter of the screen a column', !ex.prompt && ex.running && ex.cols === '0,1,2,3' && ex.fnf && ex.expanded && ex.sameFall && ex.span > 0.35 && ex.span < 0.6, JSON.stringify(ex));
+  check('phone sideways, Landscape (expanded columns): adjoining wider columns, no prompt, unchanged fall speed and each quarter of the screen a touch column', !ex.prompt && ex.running && ex.cols === '0,1,2,3' && ex.fnf && ex.expanded && ex.sameFall && ex.span > 0.35 && ex.span < 0.6, JSON.stringify(ex));
   await mp.evaluate(() => AshtonkMania.Settings.set('gameplay.mobileLayout', 'landscape')); await mp.waitForTimeout(400);
   const flat = await sideways();
   check('phone sideways, Landscape: the stage as on a computer (the skin\'s own column widths), touches still split across the screen', !flat.prompt && flat.running && flat.cols === '0,1,2,3' && !flat.fnf && flat.skin && flat.span < ex.span, JSON.stringify(flat));

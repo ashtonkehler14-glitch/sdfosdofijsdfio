@@ -43,6 +43,35 @@ test('legacy and stretched hold bodies retain their original drawing paths', () 
   }
 });
 
+test('mobile hit/hold lighting follows the resized lane while retaining authored skin offsets', () => {
+  const { R, values } = setup(), r = Object.create(R.prototype);
+  values['gameplay.laneWidth'] = 1;
+  r.layout = { columnWidth: [72, 48] }; r.s = 591 / 480; r.u = 591 / 768; r.legacy = true;
+  const t = { w: 230 }, widths = [0, 0]; r.fnf = true;
+  for (const size of [80, 134, 180]) {
+    r.colW = [size, size];
+    for (const c of [0, 1]) {
+      const w = r._lightW(t, c, widths);
+      assert.ok(Math.abs(w / t.w - size / 48) < 1e-12);
+      // Kori's flash silhouette is 24 texture pixels above the texture centre. It must remain half a note
+      // above the hit anchor when its lane is resized, just as it is in the original skin.
+      assert.ok(Math.abs(-24 * w / t.w - -size / 2) < 1e-12);
+    }
+  }
+});
+
+test('desktop lighting keeps native dimensions; explicit mobile flash widths keep their proportion', () => {
+  const { R, values } = setup(), r = Object.create(R.prototype);
+  values['gameplay.laneWidth'] = 1.25;
+  r.layout = { columnWidth: [72] }; r.s = 1.5; r.u = 1.5 / 1.6; r.legacy = true; r.colW = [180];
+  const t = { w: 230 };
+  for (const width of [0, 30, 90]) {
+    const native = t.w * r.u * (width || 72 * 1.25) / 30;
+    r.fnf = false; assert.equal(r._lightW(t, 0, [width]), native);
+    r.fnf = true; assert.equal(r._lightW(t, 0, [width]), native * (180 / (72 * 1.5 * 1.25)));
+  }
+});
+
 function resolution({ hz = 60, dt = 1000 / hz, limit = 0, on = true, work = 3 } = {}) {
   const { G, values } = setup(); values['graphics.renderScale'] = 1;
   G._refresh = 1000 / hz; G._work = work; G._displayMs = 1000 / 60; G._refreshSamples = []; G._refreshAt = 0;

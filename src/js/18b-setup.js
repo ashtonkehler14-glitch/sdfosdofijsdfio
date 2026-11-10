@@ -25,14 +25,14 @@ const IS_CHROMEBOOK = typeof navigator !== 'undefined' && /\bCrOS\b/.test(naviga
 const SETUP_LAYOUTS = [
   { id: 'portrait', label: 'Portrait', sub: 'Upright, the columns across the screen' },
   { id: 'landscape', label: 'Landscape', sub: 'Sideways, the stage as on a computer' },
-  { id: 'expanded', label: 'Landscape (expanded)', sub: 'Sideways, wider columns a little apart' },
+  { id: 'expanded', label: 'Landscape (expanded)', sub: 'Sideways, wider adjoining columns' },
 ];
 /** A little picture of a phone playing a song in a layout: the screen, its four columns (with the receptors) and a few
  *  notes on their way down. */
 function phoneMock(kind) {
   const up = kind === 'portrait', W = up ? 64 : 124, H = up ? 116 : 64, pad = 5, sw = W - pad * 2, sh = H - pad * 2;
-  // (expanded: lazer's wider columns, a hairline apart)
-  const gap = kind === 'expanded' ? 0.8 : 0, stageW = up ? sw : kind === 'expanded' ? sw * 0.46 : sw * 0.3, col = (stageW - gap * 3) / 4, x0 = pad + (sw - stageW) / 2;
+  // Expanded columns meet without a gap, as they do in gameplay.
+  const gap = 0, stageW = up ? sw : kind === 'expanded' ? sw * 0.46 : sw * 0.3, col = stageW / 4, x0 = pad + (sw - stageW) / 2;
   const rx = col * 0.18, recY = pad + sh - col * 0.72, notes = [[0, 0.18], [2, 0.36], [1, 0.58], [3, 0.12], [3, 0.7]];
   let s = `<svg viewBox="0 0 ${W} ${H}" width="${W * 1.25}" height="${H * 1.25}" aria-hidden="true">`;
   s += `<rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="9" fill="#14121a" stroke="rgba(255,255,255,.35)" stroke-width="2"/>`;
