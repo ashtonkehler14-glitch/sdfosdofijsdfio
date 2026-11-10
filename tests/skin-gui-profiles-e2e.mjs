@@ -114,11 +114,13 @@ try {
   assert.equal(await page.getByRole('slider', { name: 'Note height', exact: true }).count(), 0);
   assert.equal(await page.evaluate(() => GameplayScreen.s.rec.keys), 4, 'A 4K background song can preview 7K');
   assert.equal(await page.locator('.se-item[data-id=noteoff]').count(), 0);
-  await page.evaluate(() => { window.editorAudio = Music.source; window.editorGen = Music.gen; window.editorTime = Music.time; SkinEditor.setPart('sc', { s: 1.25 }); });
+  await page.evaluate(() => { window.editorAudio = Music.source; window.editorGen = Music.gen; window.editorTime = Music.time; SkinEditor.setPart('sc', { s: 1.25 }); Settings.set('gameplay.laneWidth', .85); });
   const keyCount = page.getByRole('combobox', { name: 'Preview key count', exact: true });
   for (const keys of [9, 1, 18, 7]) {
     await keyCount.click(); await page.getByRole('option', { name: `${keys}K`, exact: true }).click();
     await page.waitForFunction(keys => GameplayScreen.s.keys === keys && GameplayScreen.renderer.layout.keys === keys && GameplayScreen.s.engine.columns.length === keys, keys);
+    assert.equal(await page.evaluate(() => Settings.get('gameplay.laneWidth')), keys === 7 ? .85 : 1, 'Column width does not transfer to other key counts');
+    if (keys !== 7) await page.evaluate(() => Settings.set('gameplay.laneWidth', 1.2));
     const playback = await page.evaluate(() => ({ sameSource: Music.source === window.editorAudio, sameGen: Music.gen === window.editorGen, time: Music.time, running: GameplayScreen.s.running, valid: GameplayScreen.s.baseNotes.every(n => n.col >= 0 && n.col < GameplayScreen.s.keys) }));
     assert.equal(playback.sameSource, true); assert.equal(playback.sameGen, true); assert.equal(playback.running, true); assert.equal(playback.valid, true);
   }

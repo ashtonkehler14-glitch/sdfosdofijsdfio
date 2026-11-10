@@ -44,7 +44,7 @@ try {
   const halfPixels = PNG.sync.read(await page.screenshot({ clip: { x: 0, y: 0, width: 600, height: 70 } })).data;
   assert.ok(!fullPixels.equals(halfPixels), 'Menu text is actually rasterized at the chosen density, not just assigned cancelling CSS transforms');
   await page.evaluate(() => document.querySelector('#resolution-probe').remove());
-  await page.evaluate(() => { Settings.set('graphics.renderScale', 1); Settings.set('gameplay.healthStyle', 'stage'); Settings.set('gameplay.showPp', false); Settings.set('gameplay.showHealth', false); SkinEditor.open(); });
+  await page.evaluate(async () => { await SkinManager.select('default'); Settings.set('graphics.renderScale', 1); Settings.set('gameplay.healthStyle', 'stage'); Settings.set('gameplay.showPp', false); Settings.set('gameplay.showHealth', false); SkinEditor.open(); });
   await page.waitForFunction(() => SkinEditor.on && GameplayScreen.s?.running, null, { timeout: 30000 });
   await page.locator('.se-hud > summary').click();
   await page.waitForFunction(() => SkinEditor.boxEls.has('pp') && SkinEditor.boxEls.has('hp'));
@@ -60,6 +60,8 @@ try {
   assert.ok(after.hp.x > before.hp.x + before.W * .05, JSON.stringify({ before, after })); assert.ok(after.hp.w > before.hp.w);
   assert.ok(after.pp.includes('calc')); assert.equal(after.layout.pp.s, 1.2);
   await advanced.click(); assert.equal(await advanced.evaluate(el => el.parentElement.open), true);
+  for (const id of ['stageBottom', 'stageHint']) assert.equal(await page.locator(`.se-item[data-id=${id}]`).count(), 0, 'Missing Custom skin graphics are omitted');
+  assert.equal(await page.locator('.se-item[data-id=stageLeft]').isVisible(), true, 'The Custom skin has editable procedural side borders');
   await page.locator('.se-item[data-id=background]').click();
   assert.equal(await page.locator('.se-item[data-id=video], .se-item[data-id=storyboard]').count(), 0, 'The three layers have one component');
   await page.getByRole('slider', { name: 'Background dim', exact: true }).evaluate(el => { el.value = '.35'; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); });
@@ -99,6 +101,10 @@ try {
   assert.equal(await page.locator('.se-advanced').evaluate(el => el.open), false, 'Each editor opens with Advanced collapsed');
   const sideBefore = await page.evaluate(() => ({ ...GameplayScreen.renderer._hudRects.stageLeft }));
   await page.locator('.se-advanced > summary').click();
+  for (const id of ['stageLeft', 'stageRight', 'stageBottom', 'stageHint']) {
+    const exists = await page.evaluate(id => !!GameplayScreen.s.layout.tex[id], id);
+    assert.equal(await page.locator(`.se-item[data-id=${id}]`).count(), exists ? 1 : 0, `${id} follows the imported skin assets`);
+  }
   await page.evaluate(() => { SkinEditor.select('stageLeft'); SkinEditor.setPart('stageLeft', { x: -.1, y: .03, s: 1.4 }); });
   await page.waitForFunction(() => GameplayScreen.renderer._hudRects.stageLeft?.w > 0 && SkinEditor.boxEls.has('stageLeft'));
   const sideAfter = await page.evaluate(() => ({ ...GameplayScreen.renderer._hudRects.stageLeft }));

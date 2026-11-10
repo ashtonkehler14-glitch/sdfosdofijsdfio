@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.10i', title: 'Cleaner Advanced components', sections: [
+    { icon: 'brush', title: 'Skin editor', items: ['Advanced only lists background pieces available in the current skin and key count', 'Column width, note borders, spacing and stage sizing save separately for each skin and key count'] },
+  ] },
   { id: '2026.11.10h', title: 'Independent skin previews', sections: [
     { icon: 'brush', title: 'Skin editor', items: ['Choose the preview key count independently of the background song', 'Music keeps playing while you edit and change columns', 'Expandable sections let you move only the components you are working on', 'Removed Note offset, Note height and duplicate HUD appearance controls'] },
   ] },

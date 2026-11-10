@@ -4587,6 +4587,7 @@ body.se-open { background: #121116; }
 body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 0 12px 48px rgba(0, 0, 0, .55); border-radius: 6px; overflow: hidden; }
 .se { --se-gold: #ffcc22; --se-bg: #1c1b21; --se-bg2: #24222b; --se-line: rgba(255, 255, 255, .07); position: fixed; inset: 0; z-index: 9000; pointer-events: none; font-family: Torus, Outfit, system-ui, sans-serif; color: #fff; }
 .se > * { pointer-events: auto; }
+.se.se-changing-keys .se-side, .se.se-changing-keys .se-boxes { pointer-events: none; }
 .se-boxes { position: fixed; inset: 0; }
 .se-top { position: fixed; left: 0; right: 0; top: 0; height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 12px 0 14px; background: var(--se-bg2); border-bottom: 1px solid var(--se-line); box-shadow: 0 4px 16px rgba(0, 0, 0, .35); animation: se-in-t .4s cubic-bezier(.22, 1, .36, 1) both; }
 .se-title { display: flex; align-items: center; gap: 11px; min-width: 0; }

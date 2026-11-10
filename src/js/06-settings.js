@@ -231,8 +231,11 @@ const Settings = {
   values: {},
   schema: new Map(SETTINGS_SCHEMA.map(s => [s.k, s])),
   EMPTY_GUI: Object.freeze({}),
-  // HUD appearance and the editor's stage adjustments belong to the same skin/key-count layout.
-  GUI_KEYS: new Set(['hud.layout', 'gameplay.hitPositionOffset', 'skin.receptorAlpha', ...SETTINGS_SCHEMA.filter(s => s.editor === 'hud').map(s => s.k)]),
+  // Editor sizing, spacing, stage placement and HUD appearance belong to the same skin/key-count layout.
+  GUI_KEYS: new Set(['hud.layout', 'gameplay.hitPositionOffset', 'skin.receptorAlpha', 'skin.scale',
+    'gameplay.laneWidth', 'gameplay.laneSpacing', 'gameplay.stagePosition', 'gameplay.stageOffset', 'gameplay.stageOpacity', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor',
+    'wom.noteScale', 'wom.hitPositionOffset', 'wom.laneWidthAdjustment', 'wom.laneSpacing', 'wom.stagePosition', 'wom.stageOpacity', 'wom.stageSidesOpacity', 'wom.receptorOpacity', 'wom.hudY',
+    ...SETTINGS_SCHEMA.filter(s => s.editor === 'hud').map(s => s.k)]),
   PERF_OFF: new Set(['gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'ui.parallax', 'graphics.autoScale']),
   _saveT: 0,
   async load() {
@@ -303,6 +306,7 @@ const Settings = {
     if (this.GUI_KEYS.has(k) && profiles && typeof profiles === 'object') {
       const p = profiles[this.values['hud.activeProfile']];
       if (p && Object.hasOwn(p, k)) return p[k];
+      if (Object.hasOwn(this.values, k)) return this.values[k]; // Legacy globals stay with the active layout until useGui migrates them.
       if (k === 'hud.layout') return this.EMPTY_GUI; // Read every frame by the renderer; no empty-object copies.
       const s = this.schema.get(k);
       return s ? (typeof s.d === 'object' && s.d !== null ? copyData(s.d) : s.d) : undefined;
@@ -315,10 +319,13 @@ const Settings = {
    * Old global adjustments are kept for the first combination played, never copied onto every new skin. */
   useGui(skinId, keys) {
     const scope = JSON.stringify([skinId, keys]);
-    if (!this.values['hud.profiles'] || typeof this.values['hud.profiles'] !== 'object') {
-      const old = {};
-      for (const k of this.GUI_KEYS) if (Object.hasOwn(this.values, k)) { old[k] = this.values[k]; delete this.values[k]; }
+    const old = {}, profiles = this.values['hud.profiles'];
+    for (const k of this.GUI_KEYS) if (Object.hasOwn(this.values, k)) { old[k] = this.values[k]; delete this.values[k]; }
+    if (!profiles || typeof profiles !== 'object') {
       this.set('hud.profiles', { [scope]: old });
+    } else if (Object.keys(old).length) {
+      const previous = this.values['hud.activeProfile'] || scope;
+      this.set('hud.profiles', { ...profiles, [previous]: { ...old, ...profiles[previous] } });
     }
     if (this.values['hud.activeProfile'] !== scope) this.set('hud.activeProfile', scope);
   },

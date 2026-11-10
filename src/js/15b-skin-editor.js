@@ -19,10 +19,10 @@ const HUD_PARTS = [
   { id: 'lb', name: 'Leaderboard', icon: 'crown', sel: '.hud-lb, .hud-mp', origin: 'center left', setting: 'gameplay.leaderboard' },
   { id: 'background', name: 'Background', icon: 'image', sel: '.gp-bg, .gp-video, .gp-sb', scene: true, advanced: true, origin: 'center center' },
   { id: 'stageBackground', name: 'Column background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
-  { id: 'stageLeft', name: 'Skin left background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
-  { id: 'stageRight', name: 'Skin right background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
-  { id: 'stageBottom', name: 'Skin bottom background', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
-  { id: 'stageHint', name: 'Skin hit-line graphic', icon: 'image', canvas: true, advanced: true, origin: 'top left' },
+  { id: 'stageLeft', name: 'Skin left background', icon: 'image', canvas: true, advanced: true, texture: 'stageLeft', origin: 'top left' },
+  { id: 'stageRight', name: 'Skin right background', icon: 'image', canvas: true, advanced: true, texture: 'stageRight', origin: 'top left' },
+  { id: 'stageBottom', name: 'Skin bottom background', icon: 'image', canvas: true, advanced: true, texture: 'stageBottom', origin: 'top left' },
+  { id: 'stageHint', name: 'Skin hit-line graphic', icon: 'image', canvas: true, advanced: true, texture: 'stageHint', origin: 'top left' },
   { id: 'judgement', name: 'Judgements', icon: 'target', canvas: true, setting: 'gameplay.showJudgements', origin: 'center center' },
   { id: 'keys', name: 'Key overlay', icon: 'keyboard', canvas: true, setting: 'input.keyOverlay', origin: 'top left' },
   { id: 'badge', name: 'Auto / replay badge', icon: 'film', sel: '.hud-replay', origin: 'top center' },
@@ -125,13 +125,14 @@ const SkinEditor = {
     const keys = Number(value), g = GameplayScreen, s = g.s;
     if (!this.on || !s || (!g.params.skinEditor && !s.editorPreview) || !Number.isInteger(keys) || keys < 1 || keys > 18) return;
     this._cancelDrag?.();
-    const tok = this._keysTok = {}, skin = s.layout.skin;
+    const tok = this._keysTok = {}, skin = s.layout.skin, base = skin.base || skin;
+    this.changingKeys = true; this.el.classList.add('se-changing-keys');
     this.keySelect.value = String(keys); this.keySelect.setAttribute('aria-busy', 'true');
     try {
+      Settings.useGui(base.id, keys);
       const layout = await skin.mania(keys);
       if (!this.on || this._keysTok !== tok || g.s !== s) return;
-      const base = skin.base || skin;
-      Settings.useGui(base.id, keys); Settings.set('ui.skinEditorKeys', keys);
+      Settings.set('ui.skinEditorKeys', keys);
       s.keys = keys; s.layout = layout;
       s.baseNotes = prepareNotes(this.previewNotes(s.editorSourceNotes, s.editorSourceKeys, keys), keys, ['AT'], s.seed, { red: s.redTiming.red });
       s.held = new Array(keys).fill(false); s.down = Array.from({ length: keys }, () => new Set()); s.keyMap = new Map(); s.keyLabels = [];
@@ -143,8 +144,8 @@ const SkinEditor = {
       this.metaEl.textContent = `${base.name} · ${keys}K · gameplay HUD`;
       this.paintList(); this.paintSettings(); this.frame();
     } catch (e) {
-      if (this.on && this._keysTok === tok) { this.keySelect.value = String(s.keys); Toast.err('Could not change preview columns', friendlyError(e)); }
-    } finally { if (this._keysTok === tok) this.keySelect?.removeAttribute('aria-busy'); }
+      if (this.on && this._keysTok === tok) { Settings.useGui(base.id, s.keys); this.keySelect.value = String(s.keys); Toast.err('Could not change preview columns', friendlyError(e)); }
+    } finally { if (this._keysTok === tok) { this.changingKeys = false; this.el?.classList.remove('se-changing-keys'); this.keySelect?.removeAttribute('aria-busy'); } }
   },
   loopSong() {
     const g = GameplayScreen, s = g.s;
@@ -225,6 +226,7 @@ const SkinEditor = {
     if (!this.on) return;
     this._cancelDrag?.();
     this.on = false;
+    this.changingKeys = false;
     this._keysTok = null;
     if (typeof GameDropdowns !== 'undefined' && GameDropdowns.current?.select === this.keySelect) GameDropdowns.close(false);
     cancelAnimationFrame(this._raf);
@@ -241,6 +243,9 @@ const SkinEditor = {
         game.setSkinLayout(saved.s.layout); game.buildHud();
         game.showPause(saved.s.failed ? 'Failed' : 'Paused', !!saved.s.failed);
       }
+    } else if (GameplayScreen.s) {
+      const s = GameplayScreen.s, base = s.layout.skin.base || s.layout.skin;
+      Settings.useGui(base.id, s.keys);
     }
     if (leaving) return;
     { const r = GameplayScreen.renderer; if (r) r.resize(true); }
@@ -255,6 +260,7 @@ const SkinEditor = {
     const ctrl = e.ctrlKey || e.metaKey;
     // (the browser's own keys still work: reload, fullscreen, a new tab, closing it)
     if (/^F(5|11)$/.test(e.key) || (ctrl && !e.shiftKey && /^Key[RTWL]$/.test(e.code))) return;
+    if (this.changingKeys && e.key !== 'Escape' && e.key !== 'Tab') { e.preventDefault(); e.stopImmediatePropagation(); return; }
     if (e.key === 'Tab') { e.stopImmediatePropagation(); return; }
     e.preventDefault(); e.stopImmediatePropagation();
     if (e.repeat && !/^Arrow/.test(e.key)) return;
@@ -277,7 +283,13 @@ const SkinEditor = {
   appearanceRows(hud) {
     return SETTINGS_SCHEMA.filter(it => hud ? it.editor === 'hud' && !HUD_PARTS.some(p => p.setting === it.k) : ['gameplay.laneWidth', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].includes(it.k));
   },
-  parts() { return HUD_PARTS.filter(p => this.section === 'advanced' ? p.advanced : this.section === 'hud' ? !p.advanced : false); },
+  available(p) {
+    if (!p.texture) return true;
+    const layout = typeof GameplayScreen !== 'undefined' && (GameplayScreen.s?.layout || GameplayScreen.renderer?.layout);
+    // The Custom skin draws its side borders procedurally; it has no bottom or hit-line background graphic.
+    return !!layout && (layout.wom ? p.texture === 'stageLeft' || p.texture === 'stageRight' : !!layout.tex?.[p.texture]);
+  },
+  parts() { return HUD_PARTS.filter(p => (this.section === 'advanced' ? p.advanced : this.section === 'hud' ? !p.advanced : false) && this.available(p)); },
   setAdvanced(value) { this.setSection(value ? 'advanced' : 'stage'); },
   setSection(section) {
     this._cancelDrag?.();
@@ -418,7 +430,7 @@ const SkinEditor = {
         h('span.se-nm', p.name, !on ? h('small', 'hidden') : na ? h('small', p.id === 'hp' ? 'drawn by the skin on the stage' : 'not on screen right now') : null),
         h('button.se-eye', { title: on ? 'Hide' : 'Show', 'aria-label': `${on ? 'Hide' : 'Show'} ${p.name}`, 'aria-pressed': String(on), onclick: e => { e.stopPropagation(); UISounds.play(on ? 'check-off' : 'check-on'); this.setShown(p, !on); } }, icon(on ? 'eye' : 'eye-slash')));
     };
-    const parts = HUD_PARTS;
+    const parts = HUD_PARTS.filter(p => this.available(p));
     clearEl(this.listEl).append(...parts.filter(p => !p.advanced).map(row));
     clearEl(this.sceneEl).append(...parts.filter(p => p.advanced).map(row));
     this.countEl.textContent = `${n} of ${HUD_PARTS.filter(p => !p.advanced).length} shown`;

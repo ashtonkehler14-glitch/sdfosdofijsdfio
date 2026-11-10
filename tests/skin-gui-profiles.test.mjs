@@ -91,3 +91,18 @@ test('restoring an imported skin with a different local id brings all of its key
   S.useGui('unrelated', 4); assert.equal(S.get('hud.layout').hp.off, true);
   assert.equal(Object.hasOwn(S.values['hud.profiles'], '["remote-skin",4]'), false);
 });
+
+test('column width and related geometry migrate to the active layout and stay separate across key counts and skins', async () => {
+  const { S } = setup({ 'hud.profiles': { '["default",4]': { 'hud.layout': { sc: { s: 1.1 } } } }, 'hud.activeProfile': '["default",4]', 'gameplay.laneWidth': .8, 'wom.laneWidthAdjustment': 12, 'skin.scale': 1.2 });
+  assert.equal(S.get('gameplay.laneWidth'), .8, 'An existing width remains visible before the next play');
+  S.useGui('default', 7);
+  assert.equal(S.get('gameplay.laneWidth'), 1); assert.equal(S.get('wom.laneWidthAdjustment'), 0); assert.equal(S.get('skin.scale'), 1);
+  S.set('gameplay.laneWidth', 1.1); S.set('gameplay.laneSpacing', 4); S.set('gameplay.noteBorderColor', '#ff1122');
+  S.useGui('default', 4);
+  assert.equal(S.get('gameplay.laneWidth'), .8); assert.equal(S.get('wom.laneWidthAdjustment'), 12); assert.equal(S.get('skin.scale'), 1.2);
+  assert.equal(S.get('gameplay.laneSpacing'), 0); assert.equal(S.get('gameplay.noteBorderColor'), '#000000');
+  assert.equal(S.get('hud.layout').sc.s, 1.1);
+  S.useGui('other-skin', 4); assert.equal(S.get('gameplay.laneWidth'), 1);
+  await S.import(S.export()); S.useGui('default', 7);
+  assert.equal(S.get('gameplay.laneWidth'), 1.1); assert.equal(S.get('gameplay.laneSpacing'), 4); assert.equal(S.get('gameplay.noteBorderColor'), '#ff1122');
+});
