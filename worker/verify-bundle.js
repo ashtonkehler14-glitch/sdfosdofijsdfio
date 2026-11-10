@@ -631,7 +631,7 @@ const BeatmapParser = {
 
   /** Convert parsed beatmap to mania notes. Returns [{col, time, end, isLN, hs, sample}] sorted by time.
    *  An osu! (standard) map is converted the way lazer does it (03b-mania-convert.js). */
-  toManiaNotes(bm, target = 0) {
+  toManiaNotes(bm, target = 0, { legacy = false } = {}) {
     if (bm.mode !== 3 && bm.mode !== 0) throw new BeatmapError(`Not an osu!mania or osu! beatmap (mode ${bm.mode}); osu!taiko and osu!catch difficulties can't be played`);
     const keys = this.keyCount(bm, target);
     let notes = [], spin = null, slide = null;
@@ -650,8 +650,11 @@ const BeatmapParser = {
       const isLN = end > ho.time;
       notes.push({ col, time: ho.time, end: isLN ? end : ho.time, isLN, hs: ho.hitSound, sample: ho.sample || [] });
     }
+    // BeatmapConverter and LegacyBeatmapDecoder use stable OrderBy(StartTime): tied notes retain file order.
+    notes.sort((a, b) => a.time - b.time);
+    if (!legacy) return notes;
+    // Historical replays used column-sorted chords and dropped overlapping notes; retain their old objects.
     notes.sort((a, b) => a.time - b.time || a.col - b.col);
-    // Drop exact duplicates in the same column (broken maps), and trim overlapping LNs.
     const lastEnd = new Array(keys).fill(-Infinity);
     const out = [];
     for (const n of notes) {
@@ -777,9 +780,12 @@ const BeatmapParser = {
 class BeatmapError extends Error {}
 
 /** DifficultyCalculator — star rating via the osu!lazer mania strain model (see 09a-osu-math.js). */
-const SR_VERSION = 2;
+const SR_VERSION = 3;
 const DifficultyCalculator = {
-  calculate(notes, keys, rate = 1) { return Math.round(ManiaStarRating.calculate(notes, keys, rate) * 100) / 100; },
+  calculate(notes, keys, rate = 1, { legacy = false } = {}) {
+    const value = ManiaStarRating.calculate(notes, keys, rate, legacy);
+    return legacy ? Math.round(value * 100) / 100 : value;
+  },
 };
 
 /** BeatmapValidator: explain what is wrong with a difficulty instead of crashing. */
@@ -1310,7 +1316,7 @@ const ManiaConvert = (() => {
 
 const MODS = [
   { id: 'EZ', name: 'Easy', group: 'reduction', key: 'KeyQ', mult: 0.5, color: '#b2ff66', incompatible: ['HR', 'DA'],
-    desc: 'Timing windows 1.4× wider, health drains half as much.' },
+    desc: 'Timing windows 1.4× wider, more forgiving health and two extra lives.' },
   { id: 'NF', name: 'No Fail', group: 'reduction', key: 'KeyW', mult: 0.5, color: '#b2ff66', incompatible: ['SD', 'PF', 'PSS', 'AC', 'AT'],
     desc: 'You can\'t fail, no matter what.' },
   { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.3, color: '#b2ff66', incompatible: ['DT', 'NC', 'DC', 'RT', 'WU', 'WD', 'AS'], rate: 0.75,
@@ -1528,6 +1534,7 @@ const ModSystem = {
  * always produces the same result. Live play and replay playback share this code path exactly.
  *
  * Judging rules (`rules`):
+ *   4 — source-verified lazer health, scoring and accuracy (including native rounding and Easy lives).
  *   3 — current osu!lazer mania timing: source-exact window calculation and broken-hold regrabs.
  *       See docs/mania-timing.md for the pinned reference and compatibility notes. Used for new plays.
  *   2 — previous lazer-style rules; old replays retain their window calculation and hold behaviour.
@@ -1544,7 +1551,7 @@ const JUDGEMENTS = [
 ];
 const TAIL_LENIENCE = 1.5;
 /** The judging rules new plays use (replays store the rules they were recorded with). */
-const RULES = 3;
+const RULES = 4;
 
 /** Timing windows in real milliseconds, [MAX, 300, 200, 100, 50, miss] (osu!mania table from OD).
  *  Rules 3 computes lazer's rounded song-time windows first, then normalises by rate for storage / graphs.
@@ -1580,13 +1587,13 @@ const STD_COMBO_BASE = [300, 300, 200, 100, 50, 0];
 const STD_COMBO_CAP = Math.log(400) / Math.log(4);
 const stdComboFactor = c => Math.min(Math.max(0.5, Math.log(c) / Math.log(4)), STD_COMBO_CAP);
 
-/** ScoreV1 osu!mania scoring (1,000,000 max) with bonus, osu! accuracy and max combo — and, alongside it,
- *  osu!lazer's standardised score (`scoreStd`). */
+/** Lazer's standardised score. The old bonus score is evaluated only for historical replay rules. */
 class ScoreSystem {
-  constructor(totalJudgements, { mods = [], accuracyMode = 'v2' } = {}) {
-    this.total = Math.max(1, totalJudgements);
-    this.mult = ModSystem.multiplier(mods);
-    this.accMode = accuracyMode;
+  constructor(totalJudgements, { mods = [], accuracyMode = 'v2', modConfig = {}, rules = RULES } = {}) {
+    this.rules = rules;
+    this.total = rules >= 4 ? totalJudgements : Math.max(1, totalJudgements);
+    this.mult = rules >= 4 ? OsuMath.scoreMultiplier(mods, modConfig) : ModSystem.multiplier(mods, modConfig);
+    this.accMode = rules >= 4 ? 'v2' : accuracyMode;
     this.counts = [0, 0, 0, 0, 0, 0];
     this.judged = 0; this.combo = 0; this.maxCombo = 0;
     this.bonus = 100; this.rawScore = 0;
@@ -1596,20 +1603,24 @@ class ScoreSystem {
   }
   add(j) {
     this.counts[j]++; this.judged++;
-    const unit = 1e6 / 2 / this.total;
-    this.bonus = clamp(this.bonus + SCORE_V1.bonusChange[j], 0, 100);
-    this.rawScore += (unit * SCORE_V1.value[j] / 320 + unit * SCORE_V1.bonusValue[j] * Math.sqrt(this.bonus) / 320) * this.mult;
+    if (this.rules < 4) {
+      const unit = 1e6 / 2 / this.total;
+      this.bonus = clamp(this.bonus + SCORE_V1.bonusChange[j], 0, 100);
+      this.rawScore += (unit * SCORE_V1.value[j] / 320 + unit * SCORE_V1.bonusValue[j] * Math.sqrt(this.bonus) / 320) * this.mult;
+    }
     if (j === J.MISS) this.breakCombo();
     else { this.combo++; if (this.combo > this.maxCombo) this.maxCombo = this.combo; }
     this.comboPortion += STD_COMBO_BASE[j] * stdComboFactor(this.combo);
   }
   breakCombo() { if (this.combo > 0) this.comboBreaks++; this.combo = 0; }
   get accuracy() { return this.accMode === 'v1' ? OsuMath.accuracyV1(this.counts) : OsuMath.accuracy(this.counts); }
-  get score() { return Math.round(this.rawScore); }
+  get score() { return this.rules >= 4 ? this.scoreStd : Math.round(this.rawScore); }
   get scoreStd() {
     const acc = OsuMath.accuracy(this.counts);
     const combo = this.maxComboPortion > 0 ? this.comboPortion / this.maxComboPortion : 1;
-    return Math.round((150000 * combo + 850000 * Math.pow(acc, 2 + 2 * acc) * (this.judged / this.total)) * this.mult);
+    const raw = 150000 * combo + 850000 * Math.pow(acc, 2 + 2 * acc) * (this.total > 0 ? this.judged / this.total : 1);
+    // ScoreProcessor rounds the unmultiplied score to an integer first, then rounds after multiplying.
+    return this.rules >= 4 ? OsuMath.roundEven(OsuMath.roundEven(raw) * this.mult) : Math.round(raw * this.mult);
   }
   grade(failed = false, mods = []) { return ScoreSystem.gradeFor(this.accuracy, failed, mods, this.counts); }
   static gradeFor(acc, failed, mods = [], counts = null) {
@@ -1619,14 +1630,18 @@ class ScoreSystem {
 
 /** osu!mania health (legacy draining processor calibration + per-judgement changes). */
 class HealthSystem {
-  constructor({ hp = 5, mods = [], noFail = false, notes = [], breaks = [], hpOverride = null, accChallenge = null, rules = RULES, hpMult = null } = {}) {
+  constructor({ hp = 5, mods = [], noFail = false, notes = [], breaks = [], hpOverride = null, accChallenge = null, rules = RULES, hpMult = null, easyRetries = 2 } = {}) {
     this.value = 1;
+    this.rules = rules;
     this.lazer = rules >= 2;
-    const hpMod = OsuMath.hpAfterMods(hp, mods, mods.includes('DA') ? hpOverride : null);
+    const hpMod = rules >= 4 ? OsuMath.lazerHp(hp, mods, mods.includes('DA') ? hpOverride : null) : OsuMath.hpAfterMods(hp, mods, mods.includes('DA') ? hpOverride : null);
     // osu!lazer uses the drain rate after mods for everything; rules 1 used the unmodified one for the changes
     this.rawHp = this.lazer ? hpMod : (mods.includes('DA') && hpOverride != null ? hpOverride : hp);
-    this.mult = hpMult ?? computeHpMultiplier(notes, hpMod, breaks, this.rawHp); // (a fixed one for previews: working it out simulates the whole map)
-    this.noFail = noFail || mods.includes('NF') || mods.includes('AT');
+    this.mult = hpMult ?? computeHpMultiplier(notes, hpMod, breaks, this.rawHp, rules >= 4);
+    this.noFailMod = mods.includes('NF') || mods.includes('AT');
+    this.noFail = noFail || this.noFailMod;
+    this.extraLives = rules >= 4 && mods.includes('EZ') ? clamp(Math.trunc(easyRetries), 0, 10) : 0;
+    this.wouldFail = false;
     this.suddenDeath = mods.includes('SD');
     this.perfect = mods.includes('PF');
     this.perfectSS = mods.includes('PSS');
@@ -1636,6 +1651,15 @@ class HealthSystem {
     this.timeline = [];
   }
   apply(j, t, hold = false, accuracy = 1) {
+    if (this.rules >= 4) {
+      if (this.failed) return;
+      this.value = clamp(this.value + healthIncrease(j, this.rawHp, hold, this.mult, true), 0, 1);
+      this.min = Math.min(this.min, this.value);
+      // HealthProcessor records the judgement before a fail override (Easy) restores health.
+      this.timeline.push([t, this.value]);
+      if (this.value < 1e-7 || (this.suddenDeath && j === J.MISS) || (this.perfect && j >= J.GREAT) || (this.perfectSS && j !== J.MARV) || (this.accChallenge != null && accuracy < this.accChallenge)) this.fail(t);
+      return;
+    }
     if ((this.suddenDeath && j === J.MISS) || (this.perfect && j >= J.GREAT) || (this.perfectSS && j !== J.MARV)) {
       this.value = 0; this.fail(t);
     } else {
@@ -1647,8 +1671,18 @@ class HealthSystem {
     this.timeline.push([Math.round(t), Math.round(this.value * 1000) / 1000]);
   }
   /** A hold released too early (its body breaks combo): Sudden Death fails, and in osu!lazer so do Perfect / SS. */
-  earlyRelease(t) { if (this.suddenDeath || (this.lazer && (this.perfect || this.perfectSS))) this.fail(t); }
-  fail(t) { if (this.noFail || this.failed) return; this.failed = true; this.failTime = t; }
+  earlyRelease(t) {
+    if (this.rules >= 4 && !this.failed) this.timeline.push([t, this.value]);
+    if ((this.rules >= 4 && this.value < 1e-7) || this.suddenDeath || (this.lazer && (this.perfect || this.perfectSS))) this.fail(t);
+  }
+  fail(t) {
+    if (this.rules < 4) { if (this.noFail || this.failed) return; this.failed = true; this.failTime = t; return; }
+    if (this.noFailMod || this.failed) return;
+    if (this.extraLives > 0) { this.extraLives--; this.value = 1; return; }
+    this.wouldFail = true;
+    if (this.failTime == null) this.failTime = t;
+    if (!this.noFail) this.failed = true;
+  }
 }
 
 /** Note states */
@@ -1680,8 +1714,8 @@ class GameplayEngine {
     this.holding = new Array(keys).fill(null);
     const totalJ = this.notes.reduce((a, n) => a + (n.isLN ? 2 : 1), 0);
     this.totalJudgements = totalJ;
-    this.score = new ScoreSystem(totalJ, { mods, accuracyMode });
-    this.health = new HealthSystem({ hp, mods, noFail, notes: this.notes, breaks, hpOverride: modConfig.hp ?? null, accChallenge: modConfig.acc ?? null, rules, hpMult });
+    this.score = new ScoreSystem(totalJ, { mods, accuracyMode, modConfig, rules });
+    this.health = new HealthSystem({ hp, mods, noFail, notes: this.notes, breaks, hpOverride: modConfig.hp ?? null, accChallenge: modConfig.acc ?? null, easyRetries: modConfig.easyRetries ?? 2, rules, hpMult });
     this.hitErrors = [];            // {t, err (real ms), j, tail}
     this.judgementLog = [];         // {t, j, col}
     this.lastJudgement = null;
@@ -1695,6 +1729,7 @@ class GameplayEngine {
   _emit(e) { for (const fn of this.listeners) fn(e); }
 
   _judge(n, j, t, err, tail) {
+    if (this.rules >= 4 && this.health.failed) { this.remaining--; return; }
     this.score.add(j);
     // osu!lazer: misses on either end of a hold (head or tail) cost half a note's health; rules 1: only the tail
     this.health.apply(j, t, this.lazer ? n.isLN : tail, this.score.accuracy);
@@ -1967,7 +2002,9 @@ function generateAutoInputs(notes, keys) {
 }
 
 /* ===== 09a-osu-math.js ===== */
-/* OsuMath — osu!mania-accurate formulas.
+/* OsuMath — osu!mania formulas, verified against pinned upstream C# (docs/lazer-scoring-parity.md).
+ * Copyright (c) ppy Pty Ltd <contact@ppy.sh> (scoring, health and difficulty rules).
+ * Copyright (c) Microsoft Corporation. All rights reserved (legacy sorting algorithm).
  *
  * Ported from Web-Osu-Mania by Danny Duong (MIT License, Copyright (c) 2024 Danny Duong,
  * https://github.com/hectickiwi/Web-Osu-Mania), which in turn follows the official osu! sources:
@@ -1989,6 +2026,33 @@ function generateAutoInputs(notes, keys) {
  */
 
 const OsuMath = {
+  /** .NET Math.Round's default midpoint-to-even behaviour; no tolerance is added at half-integers. */
+  roundEven(value) {
+    const lo = Math.floor(value);
+    return value - lo === 0.5 ? (lo % 2 === 0 ? lo : lo + 1) : Math.round(value);
+  },
+  /** BeatmapDifficulty stores HP as a float; mod arithmetic is performed on floats as well. */
+  lazerHp(hp, mods = [], override = null) {
+    let value = Math.fround(hp);
+    if (mods.includes('EZ')) value = Math.fround(value * 0.5);
+    else if (mods.includes('HR')) value = Math.min(10, Math.fround(value * Math.fround(1.4)));
+    else if (override != null) value = Math.fround(clamp(override, 0, 10));
+    return value;
+  },
+  /** ManiaScoreMultiplierCalculator. Settings are passed with the play, never read from another session. */
+  scoreMultiplier(mods = [], config = {}) {
+    let multiplier = 1;
+    for (const id of mods) {
+      if (id === 'HT' || id === 'DC' || id === 'RT') {
+        const rate = id === 'RT' ? ModSystem.rate(mods, config) : 0.75;
+        multiplier *= rate < 1 ? 0.6 + (Math.trunc(rate * 10) / 10 - 1) : 1;
+      } else multiplier *= MOD_BY_ID.get(id)?.mult ?? 1;
+    }
+    return multiplier;
+  },
+  lazerDifficultyRange(d, min, mid, max) {
+    return d > 5 ? mid + (max - mid) * ((d - 5) / 5) : d < 5 ? mid + (mid - min) * ((d - 5) / 5) : mid;
+  },
   /** OD after EZ / HR (osu! applies these to the difficulty value, not to the windows). */
   odAfterMods(od, mods = [], override = null) {
     if (mods.includes('EZ')) return od / 2;
@@ -2025,14 +2089,15 @@ const OsuMath = {
   },
   /** Accuracy used by pp (MAX weighted 320). */
   ppAccuracy(c) {
-    const n = c[0] + c[1] + c[2] + c[3] + c[4] + c[5];
-    if (!n) return 1;
-    return (320 * c[0] + 300 * c[1] + 200 * c[2] + 100 * c[3] + 50 * c[4]) / (320 * n);
+    const n = this.ppHits(c);
+    if (!n) return 0;
+    return clamp((320 * (c[0] || 0) + 300 * (c[1] || 0) + 200 * (c[2] || 0) + 100 * (c[3] || 0) + 50 * (c[4] || 0)) / (320 * n), 0, 1);
   },
+  ppHits(c) { return (c[0] || 0) + (c[3] || 0) + (c[1] || 0) + (c[2] || 0) + (c[4] || 0) + Math.max(0, c[5] || 0); },
 
   /** Performance points (ManiaPerformanceCalculator). starRating must already include rate mods. */
   pp(starRating, counts, mods = []) {
-    const totalHits = counts.reduce((a, b) => a + b, 0);
+    const totalHits = this.ppHits(counts);
     if (!totalHits) return 0;
     const acc = this.ppAccuracy(counts);
     let value = 8 * Math.pow(Math.max(starRating - 0.15, 0.05), 2.2) * Math.max(0, 5 * acc - 4) * (1 + 0.1 * Math.min(1, totalHits / 1500));
@@ -2080,11 +2145,12 @@ const SCORE_V1 = {
 };
 
 /** Legacy mania health: calibrates hpMultiplierNormal by simulating a perfect play, then applies
- *  per-judgement increases (hold-tail misses cost half). */
-function computeHpMultiplier(notes, hp, breaks = [], rawHp = hp) {
-  const lowestHpEver = OsuMath.difficultyRange(hp, 0.975, 0.8, 0.3);
-  const lowestHpEnd = OsuMath.difficultyRange(hp, 0.99, 0.9, 0.4);
-  const hpRecoveryAvailable = OsuMath.difficultyRange(hp, 0.04, 0.02, 0);
+ *  per-judgement increases (hold head/tail misses cost half under current rules). */
+function computeHpMultiplier(notes, hp, breaks = [], rawHp = hp, exact = false) {
+  const range = exact ? OsuMath.lazerDifficultyRange : OsuMath.difficultyRange;
+  const lowestHpEver = range(hp, 0.975, 0.8, 0.3);
+  const lowestHpEnd = range(hp, 0.99, 0.9, 0.4);
+  const hpRecoveryAvailable = range(hp, 0.04, 0.02, 0);
   let hpMultiplierNormal = 1;
   if (!notes.length) return 1;
   const heads = notes.slice().sort((a, b) => a.time - b.time);
@@ -2098,7 +2164,7 @@ function computeHpMultiplier(notes, hp, breaks = [], rawHp = hp) {
   for (let i = 0; i < nb; i++) breakEnd[i] = breaks[i].end;
   const marv = 0.0055 - rawHp * 0.0005; // (healthIncrease for a MAX, before the multiplier: hold or not, the same)
   let testDrop = 0.00025;
-  for (let guard = 0; guard < 4000; guard++) {
+  for (let guard = 0; exact || guard < 4000; guard++) {
     let currentHp = 1, currentHpUncapped = 1, lastTime = drainStart, currentBreak = 0, fail = false, count = 0;
     const a = hpMultiplierNormal * marv;
     for (let i = 0; i < n; i++) {
@@ -2128,10 +2194,12 @@ function computeHpMultiplier(notes, hp, breaks = [], rawHp = hp) {
   }
   return hpMultiplierNormal;
 }
-function healthIncrease(j, hp, hold, mult = 1) {
+function healthIncrease(j, hp, hold, mult = 1, exact = false) {
+  // The parenthesised (DrainRate + 1) in C# is a float operation before multiplication by a double.
+  const hpPlusOne = exact ? Math.fround(hp + 1) : hp + 1;
   switch (j) {
-    case J.MISS: return hold ? -(hp + 1) * 0.00375 : -(hp + 1) * 0.0075;
-    case J.BAD: return -(hp + 1) * 0.0016;
+    case J.MISS: return hold ? -hpPlusOne * 0.00375 : -hpPlusOne * 0.0075;
+    case J.BAD: return -hpPlusOne * 0.0016;
     case J.GOOD: return 0;
     case J.GREAT: return mult * (0.004 - hp * 0.0004);
     case J.PERF: return mult * (0.005 - hp * 0.0005);
@@ -2139,19 +2207,63 @@ function healthIncrease(j, hp, hold, mult = 1) {
   }
 }
 
+/** osu!mania uses the .NET Framework legacy quicksort, including its ordering of tied chords.
+ * Direct port of ppy/osu Mania/MathUtils/LegacySortHelper.cs (MIT, Microsoft / ppy). */
+function lazerLegacySort(a, cmp) {
+  const swap = (i, j) => { const t = a[i]; a[i] = a[j]; a[j] = t; };
+  const greater = (i, j) => { if (i !== j && cmp(a[i], a[j]) > 0) swap(i, j); };
+  const down = (i, n, lo) => {
+    const d = a[lo + i - 1];
+    while (i <= Math.floor(n / 2)) {
+      let child = 2 * i;
+      if (child < n && cmp(a[lo + child - 1], a[lo + child]) < 0) child++;
+      if (!(cmp(d, a[lo + child - 1]) < 0)) break;
+      a[lo + i - 1] = a[lo + child - 1]; i = child;
+    }
+    a[lo + i - 1] = d;
+  };
+  const heap = (lo, hi) => {
+    const n = hi - lo + 1;
+    for (let i = Math.floor(n / 2); i >= 1; i--) down(i, n, lo);
+    for (let i = n; i > 1; i--) { swap(lo, lo + i - 1); down(1, i - 1, lo); }
+  };
+  const quick = (left, right, depth) => {
+    do {
+      if (depth === 0) { heap(left, right); return; }
+      let i = left, j = right;
+      const mid = i + ((j - i) >> 1);
+      greater(i, mid); greater(i, j); greater(mid, j);
+      const pivot = a[mid];
+      do {
+        while (cmp(a[i], pivot) < 0) i++;
+        while (cmp(pivot, a[j]) < 0) j--;
+        if (i > j) break;
+        if (i < j) swap(i, j);
+        i++; j--;
+      } while (i <= j);
+      depth--;
+      if (j - left <= right - i) { if (left < j) quick(left, j, depth); left = i; }
+      else { if (i < right) quick(i, right, depth); right = j; }
+    } while (left < right);
+  };
+  if (a.length) quick(0, a.length - 1, 32);
+  return a;
+}
+
 /** Star rating: port of osu!lazer's ManiaDifficultyCalculator (Strain skill). */
 const ManiaStarRating = {
   DIFFICULTY_MULTIPLIER: 0.018, INDIVIDUAL_DECAY_BASE: 0.125, OVERALL_DECAY_BASE: 0.3,
   DECAY_WEIGHT: 0.9, SECTION_LENGTH: 400, RELEASE_THRESHOLD: 30,
 
-  calculate(notes, keys, rate = 1) {
+  calculate(notes, keys, rate = 1, legacy = false) {
     if (notes.length < 2) return 0;
-    const hos = notes.map(n => ({ startTime: n.time / rate, endTime: (n.isLN ? n.end : n.time) / rate, column: n.col }))
-      .sort((a, b) => Math.round(a.startTime) - Math.round(b.startTime));
-    const objs = this._diffObjects(hos, keys);
-    return this._strain(objs, keys) * this.DIFFICULTY_MULTIPLIER;
+    const hos = notes.map(n => ({ rawStart: n.time, startTime: n.time / rate, endTime: (n.isLN ? n.end : n.time) / rate, column: n.col }));
+    if (legacy) hos.sort((a, b) => Math.round(a.startTime) - Math.round(b.startTime));
+    else lazerLegacySort(hos, (a, b) => OsuMath.roundEven(a.rawStart) - OsuMath.roundEven(b.rawStart));
+    const objs = this._diffObjects(hos, keys, rate, legacy);
+    return this._strain(objs, keys, legacy) * this.DIFFICULTY_MULTIPLIER;
   },
-  _diffObjects(hos, keys) {
+  _diffObjects(hos, keys, rate = 1, legacy = false) {
     const objects = [], perCol = Array.from({ length: keys }, () => []);
     for (let i = 1; i < hos.length; i++) {
       const cur = hos[i], last = hos[i - 1];
@@ -2164,16 +2276,16 @@ const ManiaStarRating = {
         prevs[p.column] = p;
       }
       const o = {
-        index: objects.length, startTime: cur.startTime, endTime: cur.endTime, deltaTime: cur.startTime - last.startTime,
+        index: objects.length, startTime: cur.startTime, endTime: cur.endTime, deltaTime: legacy ? cur.startTime - last.startTime : (cur.rawStart - last.rawStart) / rate,
         column: cur.column, columnStrainTime: prevInCol ? cur.startTime - prevInCol.startTime : cur.startTime, prevs,
       };
       objects.push(o); col.push(o);
     }
     return objects;
   },
-  _strain(objects, keys) {
+  _strain(objects, keys, legacy = false) {
     const decay = (v, dt, base) => v * Math.pow(base, dt / 1000);
-    const bigger = (a, b, d) => a - b > d;
+    const bigger = (a, b, d) => legacy ? a - b > d : a - d > b;
     const logistic = (x, mid, mul, max = 1) => max / (1 + Math.exp(mul * (mid - x)));
     const indiv = new Array(keys).fill(0);
     let highestIndiv = 0, overall = 1, currentStrain = 0, sectionPeak = 0, sectionEnd = 0;
@@ -2249,7 +2361,7 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   if (!notes.length) return fail('the beatmap has no notes');
   const cfg = play.modConfig && typeof play.modConfig === 'object' ? play.modConfig : {};
   const modConfig = {};
-  for (const k of ['rate', 'od', 'hp', 'acc', 'cover', 'percy', 'flSize', 'coDir']) if (Number.isFinite(Number(cfg[k]))) modConfig[k] = Number(cfg[k]);
+  for (const k of ['rate', 'od', 'hp', 'acc', 'cover', 'percy', 'flSize', 'coDir', 'easyRetries']) if (Number.isFinite(Number(cfg[k]))) modConfig[k] = Number(cfg[k]);
   // (a multiplayer play — `noFail` — may have unranked mods the judge can play through: worth no pp)
   const ranked = ModSystem.isRanked(mods, modConfig);
   if (!ModSystem.judgeable(mods) || (!ranked && !noFail)) return fail('unranked mods');
@@ -2282,7 +2394,7 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   const end = maxOf(playNotes, n => n.end) + 10000;
   engine.advance(end);
   // (multiplayer: health running out marks the play failed, though it played on)
-  const failed = noFail ? engine.health.min <= 0 : engine.health.failed && !mods.includes('NF');
+  const failed = noFail ? engine.health.wouldFail : engine.health.failed && !mods.includes('NF');
   if (failed && !noFail) return fail('the play failed');
   const sum = engine.summary();
   // a script pressing every key at exactly the right moment: no person hits a hundred notes that evenly

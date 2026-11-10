@@ -414,7 +414,7 @@ const GameplayScreen = {
     // (a key mod on a converted osu! map: converted to that many columns, as lazer does)
     const keyMod = bm.mode === 0 ? ModSystem.keyMod(mods) : 0;
     const sourceKeys = BeatmapParser.keyCount(bm, keyMod);
-    const sourceNotes = keyMod ? BeatmapParser.toManiaNotes(bm, keyMod) : loaded.notes;
+    const sourceNotes = replay && (replay.rules || 1) < 4 ? BeatmapParser.toManiaNotes(bm, keyMod, { legacy: true }) : keyMod ? BeatmapParser.toManiaNotes(bm, keyMod) : loaded.notes;
     const keys = p.skinEditor ? SkinEditor.keyCount() : sourceKeys;
     const mapNotes = p.skinEditor ? SkinEditor.previewNotes(sourceNotes, sourceKeys, keys) : sourceNotes;
     const practice = p.mode === 'practice';
@@ -453,7 +453,7 @@ const GameplayScreen = {
     // (a multiplayer match is played by the same rules for everyone, whatever their own settings: the beatmap's timing
     // windows and weighted accuracy — and in Ranked Play osu!mania's own scrolling, SV and BPM changes and all)
     const windows = replay ? replay.windows : timingWindows({ od: bm.od, mods, mode: p.mp ? 'od' : Settings.get('gameplay.judgementMode'), customOD: Settings.get('gameplay.customOD'), customMs: Settings.get('gameplay.windowsMs'), odOverride: modConfig.od, rate, rules });
-    const accuracyMode = replay ? replay.accuracyMode : p.mp ? 'v2' : Settings.get('gameplay.accuracyMode');
+    const accuracyMode = replay ? replay.accuracyMode : 'v2';
     // (the beatmap's SV and BPM changes, always, as osu!mania scrolls — but for lazer's Constant Speed mod)
     const scrollMode = mods.includes('CS') ? 'constant' : 'sv';
     const scroll = new ScrollMap(BeatmapParser.scrollSegments(bm, { useSV: scrollMode !== 'constant', useBPM: scrollMode === 'sv' }));
@@ -490,7 +490,7 @@ const GameplayScreen = {
     const startPos = p.skinEditor ? 0 : Math.min(0, s.firstNote - leadIn);
     s.skipTarget = s.firstNote - leadIn;
     s.startPos = startPos;
-    s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) && !keyMod ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
+    s.stars = replay && rules < 4 ? DifficultyCalculator.calculate(baseNotes, keys, rate, { legacy: true }) : rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) && !keyMod ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
     // the loader shows the beatmap's rating until now; with a rate or note-changing mod it becomes the played one (as lazer)
     if (this.plStars && Math.abs(s.stars - (rec.stars || 0)) >= 0.005) { const b = starBadge(s.stars); this.plStars.replaceWith(b); this.plStars = b; }
     if (rec.setId) Toolbar.setNowPlaying(rec); // (not a song still downloading: the menus would try to play it)
@@ -1167,7 +1167,7 @@ const GameplayScreen = {
     }
     // multiplayer, as in osu!lazer: running out of health fails the score (F, no pp) but you play on to the end,
     // and your score still counts for the match
-    if (s.mp && !s.mpFailed && e.health.value <= 0) {
+    if (s.mp && !s.mpFailed && (s.rules >= 4 ? e.health.wouldFail : e.health.value <= 0)) {
       s.mpFailed = true;
       this.hud.append(h('div.hud-mpfailed', 'Failed'));
     }
@@ -1435,6 +1435,7 @@ const GameplayScreen = {
 
   /** Live pp: the pp this play is worth if the rest of the map is played at the current accuracy. */
   livePp(e) {
+    if (this.s.rules >= 4) return OsuMath.pp(this.s.stars, e.score.counts, this.s.mods);
     const c = e.score.counts, judged = e.score.judged, total = e.totalJudgements;
     if (!judged) return 0;
     const scaled = c.map(x => x * total / judged);
@@ -1930,7 +1931,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       title: s.rec.title, artist: s.rec.artist, version: s.rec.version, creator: s.rec.creator,
       status: (BeatmapManager.setById.get(s.rec.setId) || {}).status || null, // (only plays on ranked beatmaps count toward pp)
       rankStatus: s.rec.rankStatus || null,
-      keys: s.keys, stars, pp,
+      keys: s.keys, stars, pp, rules: s.rules,
       mods: s.mods, rate: s.rate, score: summary.score, scoreStd: summary.scoreStd, accuracy: summary.accuracy, maxCombo: summary.maxCombo,
       counts: summary.counts, grade, passed, date: Date.now(),
       duration: Math.round(performance.now() - s.startedReal), player: s.replay ? s.replay.player : ProfileManager.profile.name, own: !s.replay,

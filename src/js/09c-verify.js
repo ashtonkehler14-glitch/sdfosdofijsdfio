@@ -31,7 +31,7 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   if (!notes.length) return fail('the beatmap has no notes');
   const cfg = play.modConfig && typeof play.modConfig === 'object' ? play.modConfig : {};
   const modConfig = {};
-  for (const k of ['rate', 'od', 'hp', 'acc', 'cover', 'percy', 'flSize', 'coDir']) if (Number.isFinite(Number(cfg[k]))) modConfig[k] = Number(cfg[k]);
+  for (const k of ['rate', 'od', 'hp', 'acc', 'cover', 'percy', 'flSize', 'coDir', 'easyRetries']) if (Number.isFinite(Number(cfg[k]))) modConfig[k] = Number(cfg[k]);
   // (a multiplayer play — `noFail` — may have unranked mods the judge can play through: worth no pp)
   const ranked = ModSystem.isRanked(mods, modConfig);
   if (!ModSystem.judgeable(mods) || (!ranked && !noFail)) return fail('unranked mods');
@@ -64,7 +64,7 @@ function verifyPlay(osuText, play, { noFail = false } = {}) {
   const end = maxOf(playNotes, n => n.end) + 10000;
   engine.advance(end);
   // (multiplayer: health running out marks the play failed, though it played on)
-  const failed = noFail ? engine.health.min <= 0 : engine.health.failed && !mods.includes('NF');
+  const failed = noFail ? engine.health.wouldFail : engine.health.failed && !mods.includes('NF');
   if (failed && !noFail) return fail('the play failed');
   const sum = engine.summary();
   // a script pressing every key at exactly the right moment: no person hits a hundred notes that evenly

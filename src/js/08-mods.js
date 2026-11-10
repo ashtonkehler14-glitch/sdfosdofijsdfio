@@ -7,7 +7,7 @@
 
 const MODS = [
   { id: 'EZ', name: 'Easy', group: 'reduction', key: 'KeyQ', mult: 0.5, color: '#b2ff66', incompatible: ['HR', 'DA'],
-    desc: 'Timing windows 1.4× wider, health drains half as much.' },
+    desc: 'Timing windows 1.4× wider, more forgiving health and two extra lives.' },
   { id: 'NF', name: 'No Fail', group: 'reduction', key: 'KeyW', mult: 0.5, color: '#b2ff66', incompatible: ['SD', 'PF', 'PSS', 'AC', 'AT'],
     desc: 'You can\'t fail, no matter what.' },
   { id: 'HT', name: 'Half Time', group: 'reduction', key: 'KeyE', mult: 0.3, color: '#b2ff66', incompatible: ['DT', 'NC', 'DC', 'RT', 'WU', 'WD', 'AS'], rate: 0.75,

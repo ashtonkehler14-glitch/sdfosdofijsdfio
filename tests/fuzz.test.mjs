@@ -1,5 +1,5 @@
-// Corrupted beatmaps: mutated .osu files must parse into something Auto plays perfectly, or be rejected with a
-// BeatmapError — never crash (TypeError / RangeError), hang, or produce NaN anywhere from parsing to scoring.
+// Corrupted beatmaps must either remain safe to play or be rejected with BeatmapError — never crash, hang or
+// produce NaN. Native parsing retains overlapping objects; physically impossible charts need not autoplay perfectly.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { load } from './load.mjs';
@@ -49,7 +49,11 @@ function run(text) {
   for (const [t, c, d] of generateAutoInputs(eng.notes, keys)) eng.input(c, d === 1, t);
   eng.advance(1e9);
   const s = eng.summary();
-  if (notes.length) assert.equal(s.score, 1000000, 'Auto plays it perfectly');
+  const ends = new Array(keys).fill(-Infinity);
+  let overlapping = false;
+  for (const n of notes) { if (n.time <= ends[n.col]) overlapping = true; ends[n.col] = Math.max(ends[n.col], n.end); }
+  if (notes.length && !overlapping) assert.equal(s.score, 1000000, 'Auto plays non-overlapping objects perfectly');
+  assert.ok(s.score >= 0 && s.score <= 1000000, 'Score remains in its native range');
   assert.ok(Number.isFinite(s.scoreStd) && Number.isFinite(s.accuracy));
 }
 

@@ -201,11 +201,11 @@ test('historical rules 2 windows follow the ScoreV2 table; EZ/HR scale the windo
 });
 
 test('ScoreV1: a miss costs base score and bonus, recovering slowly', () => {
-  const s1 = new ScoreSystem(100); for (let i = 0; i < 100; i++) s1.add(J.MARV);
+  const s1 = new ScoreSystem(100, { rules: 3 }); for (let i = 0; i < 100; i++) s1.add(J.MARV);
   assert.equal(s1.score, 1000000);
-  const s2 = new ScoreSystem(100); s2.add(J.MISS); for (let i = 0; i < 99; i++) s2.add(J.MARV);
+  const s2 = new ScoreSystem(100, { rules: 3 }); s2.add(J.MISS); for (let i = 0; i < 99; i++) s2.add(J.MARV);
   assert.ok(s2.score < 990000 && s2.score > 900000, String(s2.score));
-  const s3 = new ScoreSystem(100, { mods: ['EZ'] }); for (let i = 0; i < 100; i++) s3.add(J.MARV);
+  const s3 = new ScoreSystem(100, { mods: ['EZ'], rules: 3 }); for (let i = 0; i < 100; i++) s3.add(J.MARV);
   assert.equal(s3.score, 500000);
 });
 

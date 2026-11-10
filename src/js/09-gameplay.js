@@ -3,6 +3,7 @@
  * always produces the same result. Live play and replay playback share this code path exactly.
  *
  * Judging rules (`rules`):
+ *   4 — source-verified lazer health, scoring and accuracy (including native rounding and Easy lives).
  *   3 — current osu!lazer mania timing: source-exact window calculation and broken-hold regrabs.
  *       See docs/mania-timing.md for the pinned reference and compatibility notes. Used for new plays.
  *   2 — previous lazer-style rules; old replays retain their window calculation and hold behaviour.
@@ -19,7 +20,7 @@ const JUDGEMENTS = [
 ];
 const TAIL_LENIENCE = 1.5;
 /** The judging rules new plays use (replays store the rules they were recorded with). */
-const RULES = 3;
+const RULES = 4;
 
 /** Timing windows in real milliseconds, [MAX, 300, 200, 100, 50, miss] (osu!mania table from OD).
  *  Rules 3 computes lazer's rounded song-time windows first, then normalises by rate for storage / graphs.
@@ -55,13 +56,13 @@ const STD_COMBO_BASE = [300, 300, 200, 100, 50, 0];
 const STD_COMBO_CAP = Math.log(400) / Math.log(4);
 const stdComboFactor = c => Math.min(Math.max(0.5, Math.log(c) / Math.log(4)), STD_COMBO_CAP);
 
-/** ScoreV1 osu!mania scoring (1,000,000 max) with bonus, osu! accuracy and max combo — and, alongside it,
- *  osu!lazer's standardised score (`scoreStd`). */
+/** Lazer's standardised score. The old bonus score is evaluated only for historical replay rules. */
 class ScoreSystem {
-  constructor(totalJudgements, { mods = [], accuracyMode = 'v2' } = {}) {
-    this.total = Math.max(1, totalJudgements);
-    this.mult = ModSystem.multiplier(mods);
-    this.accMode = accuracyMode;
+  constructor(totalJudgements, { mods = [], accuracyMode = 'v2', modConfig = {}, rules = RULES } = {}) {
+    this.rules = rules;
+    this.total = rules >= 4 ? totalJudgements : Math.max(1, totalJudgements);
+    this.mult = rules >= 4 ? OsuMath.scoreMultiplier(mods, modConfig) : ModSystem.multiplier(mods, modConfig);
+    this.accMode = rules >= 4 ? 'v2' : accuracyMode;
     this.counts = [0, 0, 0, 0, 0, 0];
     this.judged = 0; this.combo = 0; this.maxCombo = 0;
     this.bonus = 100; this.rawScore = 0;
@@ -71,20 +72,24 @@ class ScoreSystem {
   }
   add(j) {
     this.counts[j]++; this.judged++;
-    const unit = 1e6 / 2 / this.total;
-    this.bonus = clamp(this.bonus + SCORE_V1.bonusChange[j], 0, 100);
-    this.rawScore += (unit * SCORE_V1.value[j] / 320 + unit * SCORE_V1.bonusValue[j] * Math.sqrt(this.bonus) / 320) * this.mult;
+    if (this.rules < 4) {
+      const unit = 1e6 / 2 / this.total;
+      this.bonus = clamp(this.bonus + SCORE_V1.bonusChange[j], 0, 100);
+      this.rawScore += (unit * SCORE_V1.value[j] / 320 + unit * SCORE_V1.bonusValue[j] * Math.sqrt(this.bonus) / 320) * this.mult;
+    }
     if (j === J.MISS) this.breakCombo();
     else { this.combo++; if (this.combo > this.maxCombo) this.maxCombo = this.combo; }
     this.comboPortion += STD_COMBO_BASE[j] * stdComboFactor(this.combo);
   }
   breakCombo() { if (this.combo > 0) this.comboBreaks++; this.combo = 0; }
   get accuracy() { return this.accMode === 'v1' ? OsuMath.accuracyV1(this.counts) : OsuMath.accuracy(this.counts); }
-  get score() { return Math.round(this.rawScore); }
+  get score() { return this.rules >= 4 ? this.scoreStd : Math.round(this.rawScore); }
   get scoreStd() {
     const acc = OsuMath.accuracy(this.counts);
     const combo = this.maxComboPortion > 0 ? this.comboPortion / this.maxComboPortion : 1;
-    return Math.round((150000 * combo + 850000 * Math.pow(acc, 2 + 2 * acc) * (this.judged / this.total)) * this.mult);
+    const raw = 150000 * combo + 850000 * Math.pow(acc, 2 + 2 * acc) * (this.total > 0 ? this.judged / this.total : 1);
+    // ScoreProcessor rounds the unmultiplied score to an integer first, then rounds after multiplying.
+    return this.rules >= 4 ? OsuMath.roundEven(OsuMath.roundEven(raw) * this.mult) : Math.round(raw * this.mult);
   }
   grade(failed = false, mods = []) { return ScoreSystem.gradeFor(this.accuracy, failed, mods, this.counts); }
   static gradeFor(acc, failed, mods = [], counts = null) {
@@ -94,14 +99,18 @@ class ScoreSystem {
 
 /** osu!mania health (legacy draining processor calibration + per-judgement changes). */
 class HealthSystem {
-  constructor({ hp = 5, mods = [], noFail = false, notes = [], breaks = [], hpOverride = null, accChallenge = null, rules = RULES, hpMult = null } = {}) {
+  constructor({ hp = 5, mods = [], noFail = false, notes = [], breaks = [], hpOverride = null, accChallenge = null, rules = RULES, hpMult = null, easyRetries = 2 } = {}) {
     this.value = 1;
+    this.rules = rules;
     this.lazer = rules >= 2;
-    const hpMod = OsuMath.hpAfterMods(hp, mods, mods.includes('DA') ? hpOverride : null);
+    const hpMod = rules >= 4 ? OsuMath.lazerHp(hp, mods, mods.includes('DA') ? hpOverride : null) : OsuMath.hpAfterMods(hp, mods, mods.includes('DA') ? hpOverride : null);
     // osu!lazer uses the drain rate after mods for everything; rules 1 used the unmodified one for the changes
     this.rawHp = this.lazer ? hpMod : (mods.includes('DA') && hpOverride != null ? hpOverride : hp);
-    this.mult = hpMult ?? computeHpMultiplier(notes, hpMod, breaks, this.rawHp); // (a fixed one for previews: working it out simulates the whole map)
-    this.noFail = noFail || mods.includes('NF') || mods.includes('AT');
+    this.mult = hpMult ?? computeHpMultiplier(notes, hpMod, breaks, this.rawHp, rules >= 4);
+    this.noFailMod = mods.includes('NF') || mods.includes('AT');
+    this.noFail = noFail || this.noFailMod;
+    this.extraLives = rules >= 4 && mods.includes('EZ') ? clamp(Math.trunc(easyRetries), 0, 10) : 0;
+    this.wouldFail = false;
     this.suddenDeath = mods.includes('SD');
     this.perfect = mods.includes('PF');
     this.perfectSS = mods.includes('PSS');
@@ -111,6 +120,15 @@ class HealthSystem {
     this.timeline = [];
   }
   apply(j, t, hold = false, accuracy = 1) {
+    if (this.rules >= 4) {
+      if (this.failed) return;
+      this.value = clamp(this.value + healthIncrease(j, this.rawHp, hold, this.mult, true), 0, 1);
+      this.min = Math.min(this.min, this.value);
+      // HealthProcessor records the judgement before a fail override (Easy) restores health.
+      this.timeline.push([t, this.value]);
+      if (this.value < 1e-7 || (this.suddenDeath && j === J.MISS) || (this.perfect && j >= J.GREAT) || (this.perfectSS && j !== J.MARV) || (this.accChallenge != null && accuracy < this.accChallenge)) this.fail(t);
+      return;
+    }
     if ((this.suddenDeath && j === J.MISS) || (this.perfect && j >= J.GREAT) || (this.perfectSS && j !== J.MARV)) {
       this.value = 0; this.fail(t);
     } else {
@@ -122,8 +140,18 @@ class HealthSystem {
     this.timeline.push([Math.round(t), Math.round(this.value * 1000) / 1000]);
   }
   /** A hold released too early (its body breaks combo): Sudden Death fails, and in osu!lazer so do Perfect / SS. */
-  earlyRelease(t) { if (this.suddenDeath || (this.lazer && (this.perfect || this.perfectSS))) this.fail(t); }
-  fail(t) { if (this.noFail || this.failed) return; this.failed = true; this.failTime = t; }
+  earlyRelease(t) {
+    if (this.rules >= 4 && !this.failed) this.timeline.push([t, this.value]);
+    if ((this.rules >= 4 && this.value < 1e-7) || this.suddenDeath || (this.lazer && (this.perfect || this.perfectSS))) this.fail(t);
+  }
+  fail(t) {
+    if (this.rules < 4) { if (this.noFail || this.failed) return; this.failed = true; this.failTime = t; return; }
+    if (this.noFailMod || this.failed) return;
+    if (this.extraLives > 0) { this.extraLives--; this.value = 1; return; }
+    this.wouldFail = true;
+    if (this.failTime == null) this.failTime = t;
+    if (!this.noFail) this.failed = true;
+  }
 }
 
 /** Note states */
@@ -155,8 +183,8 @@ class GameplayEngine {
     this.holding = new Array(keys).fill(null);
     const totalJ = this.notes.reduce((a, n) => a + (n.isLN ? 2 : 1), 0);
     this.totalJudgements = totalJ;
-    this.score = new ScoreSystem(totalJ, { mods, accuracyMode });
-    this.health = new HealthSystem({ hp, mods, noFail, notes: this.notes, breaks, hpOverride: modConfig.hp ?? null, accChallenge: modConfig.acc ?? null, rules, hpMult });
+    this.score = new ScoreSystem(totalJ, { mods, accuracyMode, modConfig, rules });
+    this.health = new HealthSystem({ hp, mods, noFail, notes: this.notes, breaks, hpOverride: modConfig.hp ?? null, accChallenge: modConfig.acc ?? null, easyRetries: modConfig.easyRetries ?? 2, rules, hpMult });
     this.hitErrors = [];            // {t, err (real ms), j, tail}
     this.judgementLog = [];         // {t, j, col}
     this.lastJudgement = null;
@@ -170,6 +198,7 @@ class GameplayEngine {
   _emit(e) { for (const fn of this.listeners) fn(e); }
 
   _judge(n, j, t, err, tail) {
+    if (this.rules >= 4 && this.health.failed) { this.remaining--; return; }
     this.score.add(j);
     // osu!lazer: misses on either end of a hold (head or tail) cost half a note's health; rules 1: only the tail
     this.health.apply(j, t, this.lazer ? n.isLN : tail, this.score.accuracy);

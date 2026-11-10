@@ -181,7 +181,7 @@ const Sync = {
   /** What a play keeps for your other devices: what its results show — not the hit-by-hit timing or the health
    *  over time (too big: they stay on the device it was played on). */
   KEEP: ['id', 'mapHash', 'title', 'artist', 'version', 'creator', 'status', 'keys', 'stars', 'pp', 'mods', 'rate', 'score', 'scoreStd', 'accuracy', 'maxCombo',
-    'counts', 'grade', 'passed', 'date', 'duration', 'player', 'meanError', 'unstableRate', 'early', 'late', 'totalJudgements', 'accuracyMode', 'windows', 'od', 'modConfig', 'srVersion'],
+    'counts', 'grade', 'passed', 'date', 'duration', 'player', 'meanError', 'unstableRate', 'early', 'late', 'totalJudgements', 'accuracyMode', 'windows', 'od', 'modConfig', 'srVersion', 'rules'],
   compact(s) {
     const o = {};
     for (const k of this.KEEP) if (s[k] !== undefined) o[k] = s[k];

@@ -56,7 +56,7 @@ try {
   });
   assert.equal(input.stillHeld, true, 'releasing one of two bindings keeps the column held');
   assert.deepEqual(input.events, [1500, 0, 1, 1500.504, 0, 0, 1501, 0, 1, 4000, 0, 0]);
-  assert.equal(input.tail, 4); assert.equal(input.rules, 3); assert.equal(input.rate, 1.5);
+  assert.equal(input.tail, 4); assert.equal(input.rules, 4); assert.equal(input.rate, 1.5);
   assert.deepEqual(input.windows, input.expected, 'gameplay passes its actual modded rate to the window calculation');
 
   // Actual keyboard handlers and audio clock: play a map at DT, then compare stored playback and verification.
@@ -83,7 +83,7 @@ try {
     return { counts: score.counts, replayCounts: engine.summary().counts, acc: score.accuracy, rules: replay.rules, events: replay.events.length };
   });
   assert.equal(result.counts[5], 0, JSON.stringify(result)); assert.ok(result.acc > .95, JSON.stringify(result));
-  assert.deepEqual(result.counts, result.replayCounts); assert.equal(result.rules, 3); assert.ok(result.events > 100);
+  assert.deepEqual(result.counts, result.replayCounts); assert.equal(result.rules, 4); assert.ok(result.events > 100);
   assert.deepEqual(errors, []);
   console.log('PASS: short releases, dual bindings, hold regrabs, DT live keyboard/audio timing and saved replay parity', JSON.stringify(result));
 } finally { await browser?.close(); await new Promise(r => server.close(r)); }

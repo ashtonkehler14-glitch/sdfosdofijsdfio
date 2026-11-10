@@ -1,6 +1,7 @@
 # osu!mania timing reference
 
-New plays use timing rules **3**. The reference is osu!lazer / ppy/osu commit
+The timing introduced in rules **3** remains in rules **4**, which adds the
+[health/scoring audit](lazer-scoring-parity.md). The timing reference is osu!lazer / ppy/osu commit
 [`3f39cfce35f238c7d1a87abcca3ff5f405a91abb`](https://github.com/ppy/osu/tree/3f39cfce35f238c7d1a87abcca3ff5f405a91abb), checked on 9 November 2026.
 
 The relevant upstream files are:

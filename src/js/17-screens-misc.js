@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.10j', title: 'Lazer health and scoring', sections: [
+    { icon: 'keyboard', title: 'Gameplay', items: ['Health recovery, fail conditions and Easy’s extra lives follow osu!lazer', 'Score uses lazer’s accuracy weights and rounding', 'PP uses full-precision difficulty; live pp counts the judgements you have earned'] },
+  ] },
   { id: '2026.11.10i', title: 'Cleaner Advanced components', sections: [
     { icon: 'brush', title: 'Skin editor', items: ['Advanced only lists background pieces available in the current skin and key count', 'Column width, note borders, spacing and stage sizing save separately for each skin and key count'] },
   ] },

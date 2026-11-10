@@ -109,7 +109,6 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Gameplay', g: 'Judgement', k: 'gameplay.judgementMode', l: 'Timing windows', t: 'select', d: 'od', o: [['od', 'Beatmap OD'], ['custom', 'Custom OD'], ['ms', 'Custom (ms)']] },
   { x: 1, s: 'Gameplay', g: 'Judgement', k: 'gameplay.customOD', l: 'Custom OD', t: 'range', d: 8, min: 0, max: 10, step: 0.1, fmt: v => v.toFixed(1), when: () => Settings.get('gameplay.judgementMode') === 'custom' },
   { x: 1, s: 'Gameplay', g: 'Judgement', k: 'gameplay.windowsMs', l: 'Windows (ms): MAX / 300 / 200 / 100 / 50 / Miss', t: 'text', d: '16,40,73,103,127,164', when: () => Settings.get('gameplay.judgementMode') === 'ms' },
-  { x: 1, s: 'Gameplay', g: 'Judgement', k: 'gameplay.accuracyMode', l: 'Accuracy', t: 'select', d: 'v2', o: [['v2', 'Weighted'], ['v1', 'Classic']], hint: 'Weighted counts MAX slightly above 300 (osu!lazer); Classic counts them the same.' },
   { x: 1, s: 'Gameplay', g: 'Flow', k: 'gameplay.unpauseDelay', l: 'Unpause countdown', t: 'range', d: 1200, min: 0, max: 3000, step: 100, fmt: v => v ? `${(v / 1000).toFixed(1)}s` : 'Instant' },
   { x: 1, s: 'Gameplay', g: 'Flow', k: 'gameplay.breakMin', l: 'Minimum break length', t: 'range', d: 10000, min: 10000, max: 30000, step: 1000, fmt: v => `${(v / 1000).toFixed(1)}s` },
   { x: 1, s: 'Gameplay', g: 'Flow', k: 'gameplay.retryOnFail', l: 'Automatically retry on fail', t: 'bool', d: false },

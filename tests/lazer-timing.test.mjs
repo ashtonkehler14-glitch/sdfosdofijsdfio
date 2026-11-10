@@ -12,8 +12,8 @@ function engine({ od = 8, rate = 1, mods = [], rules = RULES, notes = [note()], 
   return new GameplayEngine({ notes, keys: 2, windows, rate, mods, rules, noFail: true, hpMult: 1 });
 }
 
-test('new plays use rules 3; pinned lazer window fixtures survive replay serialisation', () => {
-  assert.equal(RULES, 3);
+test('new plays use rules 4; pinned lazer window fixtures survive replay serialisation', () => {
+  assert.equal(RULES, 4);
   for (const f of fixtures) {
     const e = engine(f);
     assert.deepEqual(Array.from(e.W), f.windows, JSON.stringify(f));

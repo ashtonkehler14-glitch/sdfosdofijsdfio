@@ -122,7 +122,7 @@ const BeatmapParser = {
 
   /** Convert parsed beatmap to mania notes. Returns [{col, time, end, isLN, hs, sample}] sorted by time.
    *  An osu! (standard) map is converted the way lazer does it (03b-mania-convert.js). */
-  toManiaNotes(bm, target = 0) {
+  toManiaNotes(bm, target = 0, { legacy = false } = {}) {
     if (bm.mode !== 3 && bm.mode !== 0) throw new BeatmapError(`Not an osu!mania or osu! beatmap (mode ${bm.mode}); osu!taiko and osu!catch difficulties can't be played`);
     const keys = this.keyCount(bm, target);
     let notes = [], spin = null, slide = null;
@@ -141,8 +141,11 @@ const BeatmapParser = {
       const isLN = end > ho.time;
       notes.push({ col, time: ho.time, end: isLN ? end : ho.time, isLN, hs: ho.hitSound, sample: ho.sample || [] });
     }
+    // BeatmapConverter and LegacyBeatmapDecoder use stable OrderBy(StartTime): tied notes retain file order.
+    notes.sort((a, b) => a.time - b.time);
+    if (!legacy) return notes;
+    // Historical replays used column-sorted chords and dropped overlapping notes; retain their old objects.
     notes.sort((a, b) => a.time - b.time || a.col - b.col);
-    // Drop exact duplicates in the same column (broken maps), and trim overlapping LNs.
     const lastEnd = new Array(keys).fill(-Infinity);
     const out = [];
     for (const n of notes) {
@@ -268,9 +271,12 @@ const BeatmapParser = {
 class BeatmapError extends Error {}
 
 /** DifficultyCalculator — star rating via the osu!lazer mania strain model (see 09a-osu-math.js). */
-const SR_VERSION = 2;
+const SR_VERSION = 3;
 const DifficultyCalculator = {
-  calculate(notes, keys, rate = 1) { return Math.round(ManiaStarRating.calculate(notes, keys, rate) * 100) / 100; },
+  calculate(notes, keys, rate = 1, { legacy = false } = {}) {
+    const value = ManiaStarRating.calculate(notes, keys, rate, legacy);
+    return legacy ? Math.round(value * 100) / 100 : value;
+  },
 };
 
 /** BeatmapValidator: explain what is wrong with a difficulty instead of crashing. */
