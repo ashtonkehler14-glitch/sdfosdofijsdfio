@@ -130,9 +130,9 @@ const SETTINGS_SCHEMA = [
   { s: 'Graphics', g: 'Renderer', k: 'graphics.fpsLimit', l: 'Frame limiter', t: 'select', d: 0, o: [[0, 'VSync / Unlimited'], [60, '60 fps'], [120, '120 fps'], [144, '144 fps'], [165, '165 fps'], [240, '240 fps'], [360, '360 fps']], num: true },
   { x: 1, s: 'Graphics', g: 'Renderer', k: 'graphics.lowLatency', l: 'Low-latency playfield', t: 'bool', d: false, hint: 'Draws the playfield without waiting for the display\'s refresh. It can show a frame sooner, but the stage may tear, which makes notes look like they stutter. Applies from the next play.' },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.showFps', l: 'Show FPS', t: 'bool', d: false, hint: kbHint('Ctrl+F11 toggles it anywhere.') },
-  { s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: false, hint: 'When a song can\'t keep up, the playfield is drawn at a lower resolution until it can.' },
+  { s: 'Graphics', g: 'Renderer', k: 'graphics.autoScale', l: 'Automatic resolution', t: 'bool', d: false, hint: 'When a song can\'t keep up, the playfield is drawn at a lower resolution until it can. Performance mode keeps this off so notes stay sharp.', when: () => !Settings.get('graphics.performanceMode') },
   { s: 'Graphics', g: 'Renderer', k: 'graphics.renderScale', l: 'Render scale', t: 'range', d: 1, min: 0.5, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Resolution scale for the whole game: menus, overlays, effects and gameplay. Layout size, hit positions and timing stay the same.' },
-  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Everything as light as it gets, for low-end devices: no hit lighting or stage light while playing, the menus without animations, blur, glow or moving backgrounds, and song pictures at a lower resolution.' },
+  { s: 'Graphics', g: 'Effects', k: 'graphics.performanceMode', l: 'Performance mode', t: 'bool', d: false, hint: 'Notes keep their resolution. Removes hit and stage lighting, menu animations, blur, glow and moving backgrounds, and uses lower-resolution song pictures.' },
   { x: 1, s: 'Graphics', g: 'Effects', k: 'graphics.effects', l: 'Interface blur & glow', t: 'bool', d: true },
   // ── Input
   { s: 'Input', g: 'Mouse', k: 'input.noWheelVolumeInGame', l: 'Disable mouse wheel adjusting volume during gameplay', t: 'bool', d: false },
@@ -232,7 +232,7 @@ for (const it of SETTINGS_SCHEMA) {
 const Settings = {
   values: {},
   schema: new Map(SETTINGS_SCHEMA.map(s => [s.k, s])),
-  PERF_OFF: new Set(['gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'ui.parallax']),
+  PERF_OFF: new Set(['gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'ui.parallax', 'graphics.autoScale']),
   _saveT: 0,
   async load() {
     const stored = await DB.kvGet('settings', {});

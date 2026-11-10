@@ -28,7 +28,8 @@ const SettingsPanel = {
     scroll.addEventListener('scroll', () => { if (!navRaf) navRaf = requestAnimationFrame(() => { navRaf = 0; if (this.scrollEl) this.syncNav(); }); }, { passive: true });
     // picking another skin shows or hides the Custom skin's options
     const offSkin = Bus.on('skin:changed', () => { if (this.o && this.scrollEl) { const st = this.scrollEl.scrollTop; this.build(this.q || ''); this.scrollEl.scrollTop = st; } });
-    this.o = makeOverlay(panel, { cls: 'sp-wrap', flags: ['settings'], onClose: () => { offSkin(); this.o = null; KeyConfig.stop(); window.removeEventListener('keydown', this._type, true); Toolbar.sync(); } });
+    const offPerformance = Bus.on('settings:changed', k => { if (k === 'graphics.performanceMode' && this.o && this.scrollEl) { const st = this.scrollEl.scrollTop; this.build(this.q || ''); this.scrollEl.scrollTop = st; } });
+    this.o = makeOverlay(panel, { cls: 'sp-wrap', flags: ['settings'], onClose: () => { offSkin(); offPerformance(); this.o = null; KeyConfig.stop(); window.removeEventListener('keydown', this._type, true); Toolbar.sync(); } });
     Toolbar.sync();
     requestAnimationFrame(() => { if (section) this.scrollTo(section); else this.syncNav(); });
     // like lazer, the search box has focus as soon as the panel opens, and typing anywhere else in it goes there too

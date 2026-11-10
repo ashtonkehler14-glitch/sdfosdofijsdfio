@@ -303,8 +303,9 @@ const GameplayScreen = {
     this._settingsSub = Bus.on('settings:changed', k => {
       // (dim and blur only change the picture behind: no new layout for the playfield, on every slider step)
       if (/^gameplay\.(bgDim|bgBlur)$/.test(k)) { if (this.s || this.bgRec) this.applyBackground(); return; }
+      if (this.s && ['graphics.performanceMode', 'graphics.autoScale', '*'].includes(k)) this.initAutoScale();
       if (this.s && ['gameplay.showHealth', 'gameplay.showPp', 'gameplay.healthStyle', 'gameplay.progressDisplay', 'gameplay.judgementCounter', 'gameplay.judgementCounterFlow', 'gameplay.hitErrorMeter'].includes(k)) this.buildHud();
-      if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k.startsWith('wom.') || k === 'graphics.renderScale' || k === '*')) { this.renderer.resize(true); this.applyBackground(); const rp = this.hud && this.hud.querySelector('.hud-replay'); if (rp) rp.classList.toggle('low', this.renderer.up); }
+      if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k.startsWith('wom.') || ['graphics.renderScale', 'graphics.performanceMode', 'graphics.autoScale', '*'].includes(k))) { this.renderer.resize(true); this.applyBackground(); const rp = this.hud && this.hud.querySelector('.hud-replay'); if (rp) rp.classList.toggle('low', this.renderer.up); }
       if (k === 'debug.overlay' && this.debugEl) this.debugEl.hidden = !Settings.get('debug.overlay'); });
     // (this entry's token, taken now: a frame that only comes after the screen was left — a tab in the background —
     // starts nothing)
@@ -1065,6 +1066,7 @@ const GameplayScreen = {
     const on = Settings.get('graphics.autoScale');
     this._as = { on, scale: on ? clamp(Settings.get('perf.autoScale') || 1, this.autoMin(), 1) : 1, times: [], work: [], t0: 0, bad: 0, smooth: 0, windows: 0, capped: 0 };
     this.renderer.autoScale = this._as.scale;
+    if (!on) { this._asPending = null; this._asToast = false; }
   },
   adaptResolution(dt, realNow, lim) {
     const a = this._as;

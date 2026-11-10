@@ -10,9 +10,8 @@ const lowEndRenderScale = () => clamp(Math.round(20 / (window.devicePixelRatio |
 /** Performance or graphics (saved as setup.device: 'chromebook' / 'pc', the names earlier versions used). */
 const SETUP_DEVICES = {
   chromebook: { label: 'Performance', sub: 'Smoothest everywhere: Performance mode on — no heavy effects in songs or menus', icon: 'bolt',
-    // (Performance mode brings the pictures down to a lower resolution; the playfield's comes down only while a song
-    // can't keep up — Automatic resolution, turned on here)
-    values: () => ({ 'graphics.performanceMode': true, 'graphics.autoScale': true, 'gameplay.video': false, 'graphics.menuBlur': 12, 'ui.parallax': false }) },
+    // Keep notes sharp: reduce background/effect work, without enabling automatic playfield downscaling.
+    values: () => ({ 'graphics.performanceMode': true, 'graphics.autoScale': false, 'gameplay.video': false, 'graphics.menuBlur': 12, 'ui.parallax': false }) },
   pc: { label: 'Graphics', sub: 'Every effect, video and full sharpness', icon: 'sec-graphics',
     values: () => ({ 'graphics.performanceMode': false, 'graphics.effects': true, 'gameplay.hitLighting': true, 'skin.effects': true, 'gameplay.comboEffects': true,
       'graphics.autoScale': false, 'gameplay.video': true, 'graphics.renderScale': 1, 'graphics.menuBlur': 12, 'ui.parallax': true }) },
