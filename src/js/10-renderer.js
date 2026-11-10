@@ -25,7 +25,7 @@ const _visibleBoxes = new WeakMap();
 /** Pre-scaled (and cropped) sprites, by image and size — shared by every renderer, so the skin previews, the skin
  *  editor and each new play don't make them all again (that was most of what opening those cost on a slow device).
  *  Each image keeps its 24 most recent sizes. */
-const SPRITES = { spr: new WeakMap(), crop: new WeakMap(), outlines: new WeakMap() };
+const SPRITES = { spr: new WeakMap(), crop: new WeakMap(), outlines: new WeakMap(), moving: new WeakMap() };
 function visibleBox(img) {
   let b = _visibleBoxes.get(img);
   if (b !== undefined) return b;
@@ -301,8 +301,8 @@ class ManiaRenderer {
           if (!tex) continue;
           const h = this._noteH(tex, c);
           for (const f of frames(tex)) {
-            this._sprite(f, w, h, flip);
-            if (Settings.get('gameplay.noteBorderWidth')) this._outlinedNote(f, w, h, flip);
+            const base = this._sprite(f, w, h, flip);
+            this._movingSprite(Settings.get('gameplay.noteBorderWidth') ? this._outlinedNote(f, w, h, flip).img : base);
           }
         }
         for (const [t, flip] of [[L.tex.key[c], this.fl.key[c]], [L.tex.keyD[c], this.fl.keyD[c]]]) {
@@ -445,6 +445,19 @@ class ManiaRenderer {
     const tx = this._tx; // translation from stage space to device pixels
     this.ctx.drawImage(this._sprite(img, w, h, flipY), Math.round(x + tx) - tx, Math.round(yTop));
   }
+  /** A transparent one-pixel gutter lets the browser interpolate the silhouette when a cached sprite moves.
+   *  An opaque image touching its canvas edges can otherwise snap at half pixels even with fractional draw
+   *  coordinates. Cache this once per sprite; stationary receptors and lights keep their existing images. */
+  _movingSprite(base) {
+    let c = SPRITES.moving.get(base);
+    if (!c) {
+      c = document.createElement('canvas'); c.width = base.width + 2; c.height = base.height + 2;
+      c.getContext('2d').drawImage(base, 1, 1);
+      SPRITES.moving.set(base, c);
+      if (this._made) this._made.push(c);
+    }
+    return c;
+  }
   /** A moving note: like _spriteImg, but only snapped across (its column never moves). Down the lane it keeps its
    *  exact sub-pixel position, so it travels the same distance every frame instead of stepping by whole pixels —
    *  which showed as uneven motion, most of all when the playfield is drawn below full resolution. */
@@ -453,9 +466,9 @@ class ManiaRenderer {
     if (this._snapC) img = this._tint(img, this._snapC, true); // (timing-based note colouring)
     if (this.up) yTop = this.H - yTop - h;
     const tx = this._tx;
-    if (!Settings.get('gameplay.noteBorderWidth')) { this.ctx.drawImage(this._sprite(img, w, h, flipY), Math.round(x + tx) - tx, yTop); return; }
+    if (!Settings.get('gameplay.noteBorderWidth')) { this.ctx.drawImage(this._movingSprite(this._sprite(img, w, h, flipY)), Math.round(x + tx) - tx - 1, yTop - 1); return; }
     const note = this._outlinedNote(img, w, h, flipY);
-    this.ctx.drawImage(note.img, Math.round(x + tx) - tx - note.pad, yTop - note.pad);
+    this.ctx.drawImage(this._movingSprite(note.img), Math.round(x + tx) - tx - note.pad - 1, yTop - note.pad - 1);
   }
 
   /** Outlined note sprite, cached outside the frame loop's drawing work. Uses alpha rather than a rectangle,
@@ -867,7 +880,7 @@ class ManiaRenderer {
     if (note) {
       const h = spr.height * clamp(Settings.get('gameplay.noteHeight') ?? 1, 0.25, 2);
       const outlined = this._outlinedNote(spr, spr.width, h);
-      ctx.drawImage(outlined.img, cx - spr.width / 2 - outlined.pad, yy - h / 2 - outlined.pad);
+      ctx.drawImage(this._movingSprite(outlined.img), cx - spr.width / 2 - outlined.pad - 1, yy - h / 2 - outlined.pad - 1);
       return;
     }
     if (!deg) { ctx.drawImage(spr, cx - spr.width / 2, yy - spr.height / 2); return; }

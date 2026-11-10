@@ -56,3 +56,22 @@ Browser scheduling, garbage collection elsewhere in the app, GPU contention, tab
 still delay frames. A web client cannot guarantee zero stutters on every device. Native 120/144/240 Hz hardware
 was not available here; those cadences are tested with deterministic timestamps. Actual Chromium canvas rendering,
 keyboard gameplay/replay parity and skin-editor integration are exercised separately.
+
+## Fractional pixel motion correction
+
+The follow-up visual audit found that passing fractional coordinates is insufficient to guarantee fractional
+motion in the browser's output. A tightly cropped opaque note drawn 1:1 in Chromium stayed at the same raster
+position for offsets 0, 0.125, 0.25 and 0.375, then jumped a whole pixel at 0.5. The original coordinate-argument
+test could not detect this behaviour. This is a rasterisation issue even at a perfectly steady frame rate.
+
+Moving note sprites now include a one-pixel transparent gutter, cached once and prepared with their base sprites.
+The draw anchor compensates for that pixel, retaining the original dimensions and position. The gutter gives the
+browser transparent samples around the silhouette, allowing fractional translation to interpolate its edge instead
+of stepping. It applies to tap notes, hold caps, custom outlines and moving WOM image notes. Static receptors and
+the judgement clock are unchanged. The frame still draws each note with one cached image operation.
+
+The raster regression measures the alpha-weighted position of the actual output pixels over nine phases from
+0 to 1 pixel. It covers 32 combinations of full/reduced resolution, up/down scrolling, custom borders, flips and
+standard/WOM image paths. Every eighth-pixel step must actually move the rendered shape; position error must stay
+below 0.02 pixel and opacity within 1%. Integer-position samples must match the previous image exactly, including
+colours, borders and anchors. The unmodified renderer fails this test at its first eighth-pixel step.

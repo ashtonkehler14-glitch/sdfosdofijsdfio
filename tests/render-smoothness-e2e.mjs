@@ -79,6 +79,49 @@ try {
       for (let i = 1; i < positions.length; i++) if (Math.abs(positions[i] - positions[i - 1] - expected) > 1e-8) throw new Error('Note motion was pixel-snapped');
       motionCases++;
     }
+    // Fractional draw arguments alone do NOT prove smooth pixels: an opaque sprite drawn 1:1 can still snap
+    // inside the browser. Measure the rendered alpha centroid across eighth-pixel movements instead.
+    const solid = document.createElement('canvas'); solid.width = 16; solid.height = 4;
+    const solidCtx = solid.getContext('2d'); solidCtx.fillStyle = '#ffffff'; solidCtx.fillRect(0, 0, 16, 4);
+    solidCtx.fillStyle = '#ff3a79'; solidCtx.fillRect(0, 0, 16, 1);
+    solidCtx.fillStyle = '#5fd8ff'; solidCtx.fillRect(0, 3, 16, 1);
+    solidCtx.fillStyle = '#ffec50'; solidCtx.fillRect(0, 1, 4, 2);
+    let rasterMotionCases = 0, maxRasterError = 0;
+    const borderBefore = Settings.get('gameplay.noteBorderWidth');
+    Settings.set('gameplay.noteHeight', 1);
+    for (const scale of [1, .6]) for (const up of [false, true]) for (const border of [0, 2]) for (const flip of [false, true]) for (const wom of [false, true]) {
+      Settings.set('gameplay.noteBorderWidth', border); r.autoScale = scale; r.resize(true); r.up = up; r._snapC = null;
+      const x0 = 32, y0 = Math.floor(up ? r.H - 202 : 202) - 32;
+      let origin = null, last = null, initialWeight = null;
+      for (let i = 0; i <= 8; i++) {
+        const offset = i / 8;
+        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, r.H);
+        if (wom) r._womBlit(solid, 58, 202 + offset, 0, true);
+        else r._noteImg(solid, 50, 200 + offset, 16, 4, flip);
+        const data = ctx.getImageData(x0, y0, 64, 72).data;
+        if (i === 0) {
+          // At an integer position the padded copy must retain the exact original colour, shape and anchor.
+          ctx.clearRect(0, 0, canvas.width, r.H);
+          const original = r._outlinedNote(solid, 16, 4, wom ? false : flip);
+          const yy = wom ? (up ? r.H - 202 : 202) - 2 : up ? r.H - 204 : 200;
+          ctx.drawImage(original.img, 50 - original.pad, yy - original.pad);
+          const expected = ctx.getImageData(x0, y0, 64, 72).data;
+          for (let j = 0; j < data.length; j++) if (data[j] !== expected[j]) throw new Error('Integer-position note appearance changed');
+        }
+        let weight = 0, weightedY = 0;
+        for (let y = 0; y < 72; y++) for (let x = 0; x < 64; x++) { const a = data[(y * 64 + x) * 4 + 3]; weight += a; weightedY += y * a; }
+        if (!weight) throw new Error('Raster motion sample is empty');
+        const centre = weightedY / weight;
+        if (origin === null) { origin = centre; initialWeight = weight; }
+        const error = Math.abs(centre - origin - offset * (up ? -1 : 1));
+        maxRasterError = Math.max(maxRasterError, error);
+        if (error > .02 || (last !== null && (centre - last) * (up ? -1 : 1) <= .05)) throw new Error('Rendered note snapped between pixels: ' + JSON.stringify({ scale, up, border, flip, wom, offset, centre, origin, error }));
+        if (Math.abs(weight / initialWeight - 1) > .01) throw new Error('Note opacity changed during motion');
+        last = centre;
+      }
+      rasterMotionCases++;
+    }
+    Settings.set('gameplay.noteBorderWidth', borderBefore);
     r.autoScale = 1; r.resize(true); r.legacy = false; r.up = false;
     const results = [];
     for (const baseline of window.RenderBaseline ? [true, false] : [false]) {
@@ -95,8 +138,23 @@ try {
       } finally { r._img = original; }
       times.sort((a, b) => a - b); results.push({ baseline, drawCallsPerFrame: calls / 24, medianSubmitMs: times[12], p95SubmitMs: times[22] });
     }
+    const noteResults = [];
+    for (const border of [0, 2]) {
+      Settings.set('gameplay.noteBorderWidth', border); r.resize(true); r.up = false; r._snapC = null;
+      const tex = layout.tex.note[0], image = tex.frames[0], w = r.colW[0], h = r._noteH(tex, 0);
+      for (const baseline of window.RenderBaseline ? [true, false] : [false]) {
+        const drawNote = baseline ? RenderBaseline.prototype._noteImg : r._noteImg, times = [];
+        for (let frame = 0; frame < 30; frame++) {
+          const start = performance.now();
+          for (let n = 0; n < 100; n++) drawNote.call(r, image, 30 + (n % 4) * (w + 5), 40 + (n % 12) * 37 + frame * .375, w, h, false);
+          times.push(performance.now() - start);
+          ctx.clearRect(0, 0, canvas.width, r.H);
+        }
+        times.sort((a, b) => a - b); noteResults.push({ baseline, border, notesPerFrame: 100, medianSubmitMs: times[15], p95SubmitMs: times[28] });
+      }
+    }
     r.destroy?.(); canvas.remove();
-    return { pixelCases, nonEmptyCases, maxDifference, motionCases, firstNoteCanvasAllocations: created, results };
+    return { pixelCases, nonEmptyCases, maxDifference, motionCases, rasterMotionCases, maxRasterError, firstNoteCanvasAllocations: created, results, noteResults };
   });
   assert.equal(result.firstNoteCanvasAllocations, 0, 'Outlines are prepared before their first note appears');
   assert.equal(result.nonEmptyCases, 24, 'Visual comparisons must include actual visible hold pixels');

@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.10b', title: 'Smoother note movement', sections: [
+    { icon: 'keyboard', title: 'Gameplay', items: ['Note edges now move smoothly between pixels instead of stepping, including custom outlines and hold caps'] },
+  ] },
   { id: '2026.11.10', title: 'Smoother note rendering', sections: [
     { icon: 'keyboard', title: 'Gameplay', items: ['Long hold notes take less work to draw smoothly', 'Reduced first-note hitches with custom note borders', 'Automatic resolution now responds to dropped frames on high refresh rate displays'] },
   ] },
