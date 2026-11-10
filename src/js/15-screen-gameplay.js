@@ -921,19 +921,25 @@ const GameplayScreen = {
    *  between frames, not by when the frame's code happened to run, so they move by exactly the same distance every
    *  refresh; the clock is phase-locked to the audio and drifts back to it gently (or jumps after a seek or a stall). */
   /** osu!lazer's InterpolatingFramedClock (osu-framework), the clock its playfield scrolls by: each frame it moves on
-   *  by the real time since the last frame × the playback rate, then eases towards the audio's position with a 50 ms
-   *  half-life (DampContinuously); it only jumps to the audio if it's more than two 60 Hz frames (33 ms) out, and it
-   *  never runs backwards while the song plays forwards. */
+   *  by the real time since the last frame × the playback rate, then eases towards the audio's position. Lazer's
+   *  FramedBeatmapClock overrides the framework default with an 80 ms half-life. Interpolation begins after a
+   *  source update, and is re-armed after a large drift correction, as in InterpolatingFramedClock.ProcessFrame.
+   *  Browser seeks / pauses reset it explicitly; forward playback never moves backwards from a stale timestamp. */
   frameTime(ts) {
     const truth = this.gameTime(ts), c = this._vc, s = this.s, rate = (s.rate || 1) * (s.speed || 1);
-    if (!c || c.gen !== Music.gen || !Music.playing || s.failClock || !(ts > c.ts) || ts - c.ts > 250 || c.off !== this.offsetMs()) {
-      this._vc = { ts, t: truth, gen: Music.gen, off: this.offsetMs() };
+    if (!c || c.gen !== Music.gen || !Music.playing || s.failClock || ts - c.ts > 250 || c.off !== this.offsetMs()) {
+      this._vc = { ts, t: truth, source: truth, interpolating: false, gen: Music.gen, off: this.offsetMs() };
       return truth;
     }
+    if (!(ts > c.ts)) return c.t; // an old / repeated browser frame must not reset the clock or step backwards
     const dt = ts - c.ts, last = c.t;
-    let t = last + dt * rate;
-    t = truth + (t - truth) * Math.pow(0.5, dt / 50);           // DampContinuously(current, source, 50, elapsed)
-    if (Math.abs(truth - t) > (1000 / 60) * 2 * rate) t = truth;  // AllowableErrorMilliseconds
+    let t = truth;
+    if (c.interpolating) {
+      const predicted = last + dt * rate;
+      t = predicted + (truth - predicted) * (1 - Math.pow(0.5, dt / 80)); // DampContinuously / Lerp
+      if (Math.abs(truth - t) > (1000 / 60) * 2 * rate) { t = truth; c.interpolating = false; }
+    } else if (truth !== c.source) c.interpolating = true; // start interpolation on the NEXT frame
+    c.source = truth;
     c.t = Math.max(last, t); c.ts = ts;                           // (never backwards)
     return c.t;
   },

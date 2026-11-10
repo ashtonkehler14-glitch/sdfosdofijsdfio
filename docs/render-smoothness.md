@@ -2,14 +2,17 @@
 
 Checked on 10 November 2026 against:
 
-- [osu-framework `InterpolatingFramedClock`, pinned at `0d5edae`](https://github.com/ppy/osu-framework/blob/0d5edae7264553239183f38ea32fdb5ef2a98dd9/osu.Framework/Timing/InterpolatingFramedClock.cs).
+- [Lazer's `FramedBeatmapClock`, pinned at `3f39cfc`](https://github.com/ppy/osu/blob/3f39cfce35f238c7d1a87abcca3ff5f405a91abb/osu.Game/Beatmaps/FramedBeatmapClock.cs).
+- [The framework version lazer uses: `2026.1030.0` / `f05a31a`](https://github.com/ppy/osu-framework/blob/f05a31a9d82972e9b752060370ec17df17bdabda/osu.Framework/Timing/InterpolatingFramedClock.cs).
 - [ppy: latency and unlimited frame rates](https://github.com/ppy/osu/wiki/Latency-and-unlimited-frame-rates).
 - [MDN: `requestAnimationFrame`](https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame).
 - [MDN: optimising canvas](https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/Tutorial/Optimizing_canvas).
 
-The existing visual clock already follows lazer's core approach: interpolate using elapsed real time, recover audio
-drift with a 50 ms half-life, and resynchronise on large deviations or seeks. Animation already uses the browser's
-frame timestamp and moving notes retain fractional vertical positions. These paths are preserved. MDN's general
+The visual clock follows lazer's core approach: interpolate using elapsed real time, recover audio drift with an
+80 ms half-life, and resynchronise on large deviations or seeks. The initial audit checked the framework's 50 ms
+default but missed lazer's gameplay override; the subsequent [source parity audit](lazer-render-parity.md) corrects
+that and verifies interpolation startup/recovery against independent reference traces. Animation uses the browser's
+frame timestamp and moving notes retain fractional vertical positions. MDN's general
 integer-coordinate advice is useful for static edges, but rounding moving notes would introduce visible stepping,
 especially at reduced resolution. Existing sprite caching, cropped canvas and GPU warmup are also retained.
 
@@ -32,7 +35,7 @@ especially at reduced resolution. Existing sprite caching, cropped canvas and GP
    Disabling automatic resolution still disables scaling. Stable intentional caps and browser battery caps retain
    their previous protections. The frame limiter and its timestamp scheduling are unchanged.
 
-Judgement windows, input timestamps, engine rules, audio offsets, replay events and scoring are unchanged.
+Judgement windows, input timestamp mapping, engine rules, audio offsets, replay format and scoring are unchanged.
 
 ## Validation
 

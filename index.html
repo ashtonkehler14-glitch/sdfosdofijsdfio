@@ -21498,19 +21498,25 @@ const GameplayScreen = {
    *  between frames, not by when the frame's code happened to run, so they move by exactly the same distance every
    *  refresh; the clock is phase-locked to the audio and drifts back to it gently (or jumps after a seek or a stall). */
   /** osu!lazer's InterpolatingFramedClock (osu-framework), the clock its playfield scrolls by: each frame it moves on
-   *  by the real time since the last frame × the playback rate, then eases towards the audio's position with a 50 ms
-   *  half-life (DampContinuously); it only jumps to the audio if it's more than two 60 Hz frames (33 ms) out, and it
-   *  never runs backwards while the song plays forwards. */
+   *  by the real time since the last frame × the playback rate, then eases towards the audio's position. Lazer's
+   *  FramedBeatmapClock overrides the framework default with an 80 ms half-life. Interpolation begins after a
+   *  source update, and is re-armed after a large drift correction, as in InterpolatingFramedClock.ProcessFrame.
+   *  Browser seeks / pauses reset it explicitly; forward playback never moves backwards from a stale timestamp. */
   frameTime(ts) {
     const truth = this.gameTime(ts), c = this._vc, s = this.s, rate = (s.rate || 1) * (s.speed || 1);
-    if (!c || c.gen !== Music.gen || !Music.playing || s.failClock || !(ts > c.ts) || ts - c.ts > 250 || c.off !== this.offsetMs()) {
-      this._vc = { ts, t: truth, gen: Music.gen, off: this.offsetMs() };
+    if (!c || c.gen !== Music.gen || !Music.playing || s.failClock || ts - c.ts > 250 || c.off !== this.offsetMs()) {
+      this._vc = { ts, t: truth, source: truth, interpolating: false, gen: Music.gen, off: this.offsetMs() };
       return truth;
     }
+    if (!(ts > c.ts)) return c.t; // an old / repeated browser frame must not reset the clock or step backwards
     const dt = ts - c.ts, last = c.t;
-    let t = last + dt * rate;
-    t = truth + (t - truth) * Math.pow(0.5, dt / 50);           // DampContinuously(current, source, 50, elapsed)
-    if (Math.abs(truth - t) > (1000 / 60) * 2 * rate) t = truth;  // AllowableErrorMilliseconds
+    let t = truth;
+    if (c.interpolating) {
+      const predicted = last + dt * rate;
+      t = predicted + (truth - predicted) * (1 - Math.pow(0.5, dt / 80)); // DampContinuously / Lerp
+      if (Math.abs(truth - t) > (1000 / 60) * 2 * rate) { t = truth; c.interpolating = false; }
+    } else if (truth !== c.source) c.interpolating = true; // start interpolation on the NEXT frame
+    c.source = truth;
     c.t = Math.max(last, t); c.ts = ts;                           // (never backwards)
     return c.t;
   },
@@ -25265,6 +25271,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.10c', title: 'Steadier note scrolling', sections: [
+    { icon: 'keyboard', title: 'Gameplay', items: ["Scrolling now follows lazer's gameplay smoothing, including when playback starts or audio timing resynchronises"] },
+  ] },
   { id: '2026.11.10b', title: 'Smoother note movement', sections: [
     { icon: 'keyboard', title: 'Gameplay', items: ['Note edges now move smoothly between pixels instead of stepping, including custom outlines and hold caps'] },
   ] },
@@ -35633,7 +35642,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'a0efc1337bad';
+const APP_BUILD = 'f2c1adce602f';
 
 const App = {
   lastReport: null,

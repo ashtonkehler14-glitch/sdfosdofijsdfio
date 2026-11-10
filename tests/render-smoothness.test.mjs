@@ -9,7 +9,7 @@ function setup() {
     Settings: { get: k => values[k], set: (k, v) => { values[k] = v; writes.push([k, v]); } }, Zoom: { dpr: () => 1 },
     Music: { gen: 1, playing: true } });
   const files = ['00-util.js', '08-mods.js', '09-gameplay.js', '09a-osu-math.js', '10-renderer.js', '15-screen-gameplay.js'];
-  vm.runInContext(files.map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n') + '\n;this.G = GameplayScreen; this.R = ManiaRenderer;', ctx);
+  vm.runInContext(files.map(f => readFileSync(new URL('../src/js/' + f, import.meta.url), 'utf8')).join('\n') + '\n;this.G = GameplayScreen; this.R = ManiaRenderer; this.S = ScrollMap;', ctx);
   return { ctx, G: Object.create(ctx.G), R: ctx.R, values, writes };
 }
 
@@ -105,11 +105,56 @@ test('visual clock smooths stepped audio readings and resets on seeks, pauses an
   let previous = G.frameTime(1000);
   for (let i = 1; i < 500; i++) {
     const ts = 1000 + i * 1000 / 144, t = G.frameTime(ts);
-    assert.ok(t > previous, 'notes must keep moving between audio updates');
+    assert.ok(t >= previous, 'a waiting source cannot move backwards');
+    if (i > 4) assert.ok(t > previous, 'notes must keep moving between audio updates once interpolation starts');
     assert.ok(Math.abs(t - G.gameTime(ts)) < 34); previous = t;
   }
   ctx.Music.gen++; G.gameTime = () => 500; assert.equal(G.frameTime(5000), 500, 'a replay seek resets interpolation');
   ctx.Music.playing = false; assert.equal(G.frameTime(5100), 500); assert.equal(G.frameTime(5200), 500);
   ctx.Music.playing = true; offset = 20; G.gameTime = () => 480;
   assert.equal(G.frameTime(5300), 480, 'changing offset applies immediately');
+});
+
+const lazerReference = JSON.parse(readFileSync(new URL('fixtures/lazer-render/reference.json', import.meta.url)));
+
+test('visual clock matches the pinned lazer gameplay reference, including 80ms damping and source re-arming', () => {
+  assert.equal(lazerReference.frameworkPackage, '2026.1030.0');
+  for (const trace of lazerReference.clocks) {
+    const { G } = setup(); G.s = {}; G.offsetMs = () => 0;
+    for (const [ts, rate, source, expected, interpolating] of trace.frames) {
+      G.s.rate = rate; G.gameTime = () => source;
+      assert.ok(Math.abs(G.frameTime(ts) - expected) < 1e-9, `${trace.name} @ ${ts}`);
+      assert.equal(G._vc.interpolating, interpolating, `${trace.name} interpolation @ ${ts}`);
+    }
+  }
+});
+
+test('repeated or stale browser frame timestamps cannot move notes backwards or restart interpolation', () => {
+  const { G, ctx } = setup(); G.s = { rate: 1 }; G.offsetMs = () => 0; G.gameTime = ts => ts;
+  assert.equal(G.frameTime(1000), 1000);
+  assert.equal(G.frameTime(1010), 1010); assert.equal(G._vc.interpolating, true);
+  assert.equal(G.frameTime(1005), 1010); assert.equal(G.frameTime(1010), 1010);
+  assert.equal(G._vc.ts, 1010); assert.equal(G._vc.interpolating, true);
+  assert.equal(G.frameTime(1020), 1020);
+  ctx.Music.gen++; assert.equal(G.frameTime(500), 500, 'explicit backward seeks still reset the clock');
+});
+
+test('render frame scroll distances match lazer across speed, rate, BPM/SV segments and stops', () => {
+  const { ctx, G, R, values } = setup();
+  const points = lazerReference.points;
+  let pos = 0;
+  const segments = points.map(([time, vel], i) => {
+    if (i) pos += (time - points[i - 1][0]) * points[i - 1][1];
+    return { time, vel, pos };
+  });
+  const scroll = new ctx.S(segments), renderer = Object.create(R.prototype);
+  renderer.layout = { columnWidth: [64] }; renderer.colScale = 1;
+  let frame; renderer.render = g => { frame = g; }; G.renderer = renderer;
+  for (const [height, rate, speed, now, noteTime, expected] of lazerReference.scrolls) {
+    renderer.H = height; renderer.s = height / 480;
+    G.s = { scroll, rate }; values['gameplay.scrollSpeed'] = speed;
+    G.stillFrame(now);
+    const actual = (scroll.posAt(noteTime) - frame.posNow) * frame.pxPerMs;
+    assert.ok(Math.abs(actual - expected) <= Math.max(1e-5, Math.abs(expected) * 1e-7), JSON.stringify({ height, rate, speed, now, actual, expected }));
+  }
 });
