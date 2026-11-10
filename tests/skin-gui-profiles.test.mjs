@@ -51,7 +51,7 @@ test('each skin and key count restores independent DOM, canvas, background and v
 
 test('preview, save, undo and reset only touch the current combination', () => {
   const { S, HudLayout: H, e } = setup();
-  S.useGui('skin-A', 7); S.set('hud.layout', { combo: { x: .12, s: .8 } }); S.set('gameplay.noteOffset', 9);
+  S.useGui('skin-A', 7); S.set('hud.layout', { combo: { x: .12, s: .8 } }); S.set('skin.receptorAlpha', 59);
   const other = plain(S.values['hud.profiles']);
   S.useGui('skin-A', 4);
   e.setPart('combo', { s: 1.4 }); e.setPart('sc', { y: .2 });
@@ -64,7 +64,7 @@ test('preview, save, undo and reset only touch the current combination', () => {
   S.reset('hud.layout'); assert.deepEqual(plain(H.get()), {});
   S.set('gameplay.showPp', false); S.reset('gameplay.showPp'); assert.equal(S.get('gameplay.showPp'), true);
   assert.deepEqual(plain(S.values['hud.profiles']['["skin-A",7]']), other['["skin-A",7]']);
-  S.useGui('skin-A', 7); assert.equal(H.combo().s, .8); assert.equal(S.get('gameplay.noteOffset'), 9);
+  S.useGui('skin-A', 7); assert.equal(H.combo().s, .8); assert.equal(S.get('skin.receptorAlpha'), 59);
 });
 
 test('settings export/import retains every combination and sync preserves the local active combination', async () => {

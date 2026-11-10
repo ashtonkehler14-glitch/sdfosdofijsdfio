@@ -111,7 +111,6 @@ const WomImport = {
     set('wom.stagePosition', num(w.stagePosition, -1, 1));
     set('wom.stageOpacity', num(w.stageOpacity, 0, 1));
     set('wom.stageSidesOpacity', num(w.stageSidesOpacity, 0, 1));
-    set('wom.noteOffset', num(w.noteOffset, -500, 500));
     set('wom.receptorOpacity', num(ui.receptorOpacity, 0, 1));
     if (typeof ui.receptorLighting === 'boolean') set('wom.receptorLighting', ui.receptorLighting);
     set('wom.hudY', num(ui.stageHudYPosition, 0, 1));

@@ -354,6 +354,7 @@ const GameplayScreen = {
     this.gpChatIn.placeholder = open ? kbHint('press Enter to chat', 'tap to chat') : 'chat is available when your song is over';
   },
   leave() {
+    if (SkinEditor.on) SkinEditor.close({ leaving: true });
     if (this._quitO) { const o = this._quitO; this._quitO = null; o.close(); } // ("Quit match?" still up as the song ended)
     if (this._gpChatOff) { this._gpChatOff(); this._gpChatOff = null; } this.gpChatIn = null; this.gpChat = null; this._gpW = this._gpSx = null;
     document.title = APP_NAME;
@@ -412,8 +413,10 @@ const GameplayScreen = {
     const mods = replay ? replay.mods : ModSystem.normalize(p.mods || []);
     // (a key mod on a converted osu! map: converted to that many columns, as lazer does)
     const keyMod = bm.mode === 0 ? ModSystem.keyMod(mods) : 0;
-    const keys = BeatmapParser.keyCount(bm, keyMod);
-    const mapNotes = keyMod ? BeatmapParser.toManiaNotes(bm, keyMod) : loaded.notes;
+    const sourceKeys = BeatmapParser.keyCount(bm, keyMod);
+    const sourceNotes = keyMod ? BeatmapParser.toManiaNotes(bm, keyMod) : loaded.notes;
+    const keys = p.skinEditor ? SkinEditor.keyCount() : sourceKeys;
+    const mapNotes = p.skinEditor ? SkinEditor.previewNotes(sourceNotes, sourceKeys, keys) : sourceNotes;
     const practice = p.mode === 'practice';
     const auto = mods.includes('AT');
     this.el.classList.toggle('cinema', mods.includes('CN')); // (lazer's Cinema: the background alone, no playfield or HUD)
@@ -438,20 +441,8 @@ const GameplayScreen = {
     if (this._tok !== tok) return;
     await Music.setRate(rate, preserve && !silent, f => this.loaderStatus(`Preparing audio… ${Math.round(f * 100)}%`, 0.7 + f * 0.25));
     if (this._tok !== tok) return;
-    this.renderer.setLayout(layout);
     this.initAutoScale();
-    // health bar: the skin's own scorebar when it has one (and that's the chosen style), else osu!lazer's in the HUD
-    this.healthMode = healthModeFor(layout);
-    // (a phone held upright: the stage spans the screen, so a bar beside it would be off-screen — lazer's bar at the top;
-    // held sideways there's room, and the skin's own bar goes beside the stage as on a computer)
-    const upright = window.innerHeight > window.innerWidth;
-    if (typeof Mobile !== 'undefined' && Mobile.touch && upright && (this.healthMode === 'stage' || this.healthMode === 'skinstage' || this.healthMode === 'skin')) this.healthMode = 'lazer';
-    // the canvas draws the slim stage bar and the skin's bar beside the stage; the other two are part of the HUD
-    this.renderer.healthMode = this.healthMode === 'stage' || this.healthMode === 'skinstage' ? this.healthMode : null;
-    this.renderer.resize(true); // (the canvas is cropped to what's drawn beside the stage, the health bar among it)
-    // (sideways the stage can still span the screen — many keys on a tablet — leaving no room for a bar beside it,
-    // which ended up off the edge: lazer's bar at the top there too)
-    { const r = this.renderer; if (r.healthMode && r.fnf && r.stageX + r.stageW + r._cropMargins()[1] > r.W) { this.healthMode = 'lazer'; r.healthMode = null; r.resize(true); } }
+    this.setSkinLayout(layout);
     this.renderer.coverage = (mods.includes('HD') || mods.includes('FI') || mods.includes('CO')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
@@ -470,6 +461,7 @@ const GameplayScreen = {
 
     const s = this.s = {
       rec, bm, keys, mods, rate, preserve, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig, rules, speed: 1,
+      editorSourceNotes: p.skinEditor ? sourceNotes : null, editorSourceKeys: sourceKeys,
       endTime, redTiming, bars: Settings.get('gameplay.barLines') ? BeatmapParser.barLines(BeatmapParser.timing(bm).red, endTime) : null,
       firstNote: baseNotes.length ? baseNotes[0].time : 0,
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
@@ -495,7 +487,7 @@ const GameplayScreen = {
     this.applyBackground();
     this.buildHud();
     const leadIn = Math.max(Settings.get('gameplay.leadIn'), bm.audioLeadIn) * rate;
-    const startPos = Math.min(0, s.firstNote - leadIn);
+    const startPos = p.skinEditor ? 0 : Math.min(0, s.firstNote - leadIn);
     s.skipTarget = s.firstNote - leadIn;
     s.startPos = startPos;
     s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) && !keyMod ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
@@ -680,11 +672,22 @@ const GameplayScreen = {
     setTimeout(() => el.remove(), 500);
   },
 
+  /** Apply the selected skin's geometry and health placement, including editor key-count changes. */
+  setSkinLayout(layout) {
+    this.renderer.setLayout(layout);
+    this.healthMode = healthModeFor(layout);
+    const upright = window.innerHeight > window.innerWidth;
+    if (typeof Mobile !== 'undefined' && Mobile.touch && upright && ['stage', 'skinstage', 'skin'].includes(this.healthMode)) this.healthMode = 'lazer';
+    this.renderer.healthMode = ['stage', 'skinstage'].includes(this.healthMode) ? this.healthMode : null;
+    this.renderer.resize(true);
+    const r = this.renderer;
+    if (r.healthMode && r.fnf && r.stageX + r.stageW + r._cropMargins()[1] > r.W) { this.healthMode = 'lazer'; r.healthMode = null; r.resize(true); }
+  },
   newEngine(fromTime) {
     const s = this.s;
     let notes = s.baseNotes;
     if (fromTime != null) notes = notes.filter(n => n.time >= fromTime && (s.loopB == null || n.time <= s.loopB));
-    s.engine = new GameplayEngine({ notes, keys: s.keys, windows: s.windows, rate: s.rate, mods: s.mods, hp: s.bm.hp, accuracyMode: s.accuracyMode, noFail: s.practice || !!s.mp || !!(s.replay && s.replay.noFail),
+    s.engine = new GameplayEngine({ notes, keys: s.keys, windows: s.windows, rate: s.rate, mods: s.mods, hp: s.bm.hp, accuracyMode: s.accuracyMode, noFail: s.practice || !!this.params.skinEditor || !!s.editorPreview || !!s.mp || !!(s.replay && s.replay.noFail),
       breaks: s.mods.includes('IN') ? [] : s.bm.events.breaks, modConfig: s.modConfig, rules: s.rules }); // (Invert has no breaks)
     s.engine.onEvent(e => this.onEngineEvent(e));
     s.held.fill(false);
@@ -902,7 +905,7 @@ const GameplayScreen = {
     }
     if (s.practice) this.buildPracticeBar();
     this.replayBar = null;
-    if (s.feed && !s.practice && !s.mp && !s.spectate) this.buildReplayBar(); // (no seeking ahead of a live play)
+    if (s.feed && !s.practice && !s.mp && !s.spectate && !this.params.skinEditor && !s.editorPreview) this.buildReplayBar(); // (no seeking ahead of a live play)
     this.debugEl = h('div.debug-overlay', { hidden: !Settings.get('debug.overlay') });
     this.el.appendChild(this.debugEl);
     // the skin editor's layout: where each HUD component goes, its size, and which are hidden
@@ -1464,6 +1467,10 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   checkEnd(now) {
     const s = this.s, e = s.engine;
     if (s.finished) return;
+    if (this.params.skinEditor || s.editorPreview) {
+      if (!Music.playing && Music.pausedPos >= Music.duration - 5 && now > 0) SkinEditor.loopSong();
+      return;
+    }
     if (e.health.failed && !s.practice) { this.fail(now); return; }
     // (lazer: a storyboard that carries on past the last note is waited for — its outro — and can be skipped)
     const done = e.finished && now > Math.max(s.endTime + 400 * s.rate, this.outroEnd(s));
@@ -1698,6 +1705,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
    *  Used when the phone is turned, fullscreen is left or another app comes up. */
   tapToResume() {
     const s = this.s;
+    if (this.params.skinEditor || s?.editorPreview) return;
     if (!s || s.finished || !(s.running || this.repause())) return;
     this.pause({ quiet: true });
     if (this.tapEl) this.tapEl.remove();
@@ -1714,6 +1722,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   /** Leaving the window (or fullscreen) mid-song, or mid-countdown: the pause menu, or on a phone a tap to go back. */
   pauseAway() {
+    if (this.params.skinEditor || this.s?.editorPreview) return;
     if (this.phone()) this.tapToResume();
     else if (this.s.running) this.pause();
     else if (this.repause()) this.showPause('Paused');
@@ -1728,6 +1737,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   pause({ quiet = false } = {}) {
     const s = this.s;
+    if (this.params.skinEditor || s?.editorPreview) return;
     if (!s || !s.running || s.finished) return;
     this.releaseAll();
     s.running = false;
@@ -2146,6 +2156,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   replayToggle() {
     const s = this.s;
+    if (this.params.skinEditor || s?.editorPreview) return;
     if (!s || s.finished || s.failed || this.pauseEl || s.changingSpeed) return;
     if (s.running) { s.running = false; Music.pause(); }
     else { s.running = true; Music.play(Music.pausedPos); }

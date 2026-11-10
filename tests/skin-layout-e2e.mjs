@@ -31,7 +31,7 @@ try {
   assert.equal(identity.player, 'LayoutTester'); assert.equal(identity.id, 'o-' + identity.expected);
   const settings = await page.evaluate(() => {
     const hidden = SETTINGS_SCHEMA.filter(x => x.g === 'HUD' || ['gameplay.hitPositionOffset', 'gameplay.noteOffset'].includes(x.k)).every(x => x.x);
-    const notes = ['gameplay.laneWidth', 'gameplay.noteHeight', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].every(k => { const x = SETTINGS_SCHEMA.find(x => x.k === k); return x.s === 'Skin' && x.g === 'Custom skin' && !!x.when; });
+    const notes = !Settings.schema.has('gameplay.noteHeight') && ['gameplay.laneWidth', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].every(k => { const x = SETTINGS_SCHEMA.find(x => x.k === k); return x.s === 'Skin' && x.g === 'Custom skin' && !!x.when; });
     return { hidden, notes };
   }); assert.deepEqual(settings, { hidden: true, notes: true });
   await page.evaluate(() => RenderScale.root.append(h('div#resolution-probe', { style: { position: 'fixed', left: 0, top: 0, width: '600px', height: '70px', zIndex: 99999, background: '#000', color: '#fff', font: '24px Arial' } }, 'Resolution sample 123456789')));
@@ -45,11 +45,13 @@ try {
   assert.ok(!fullPixels.equals(halfPixels), 'Menu text is actually rasterized at the chosen density, not just assigned cancelling CSS transforms');
   await page.evaluate(() => document.querySelector('#resolution-probe').remove());
   await page.evaluate(() => { Settings.set('graphics.renderScale', 1); Settings.set('gameplay.healthStyle', 'stage'); Settings.set('gameplay.showPp', false); Settings.set('gameplay.showHealth', false); SkinEditor.open(); });
-  await page.waitForFunction(() => SkinEditor.on && GameplayScreen.s?.running && SkinEditor.boxEls.has('pp') && SkinEditor.boxEls.has('hp'), null, { timeout: 30000 });
+  await page.waitForFunction(() => SkinEditor.on && GameplayScreen.s?.running, null, { timeout: 30000 });
+  await page.locator('.se-hud > summary').click();
+  await page.waitForFunction(() => SkinEditor.boxEls.has('pp') && SkinEditor.boxEls.has('hp'));
   assert.ok(await page.locator('.se-item[data-id=pp]').count()); assert.ok(await page.locator('.se-item[data-id=hp]').count());
-  const advanced = page.getByRole('switch', { name: 'Advanced mode', exact: true });
-  assert.equal(await advanced.getAttribute('aria-checked'), 'false');
-  assert.equal(await page.locator('.se-item[data-id=background]').count(), 0);
+  const advanced = page.locator('.se-advanced > summary');
+  assert.equal(await advanced.evaluate(el => el.parentElement.open), false);
+  assert.equal(await page.locator('.se-item[data-id=background]').isVisible(), false);
   assert.equal(await page.evaluate(() => SkinEditor.boxEls.has('stageBackground')), false);
   const before = await page.evaluate(() => ({ hp: { ...GameplayScreen.renderer._hudRects.hp }, W: GameplayScreen.renderer.W, H: GameplayScreen.renderer.H }));
   await page.evaluate(() => { SkinEditor.setShown(HUD_PARTS.find(x => x.id === 'hp'), true); SkinEditor.setPart('hp', { x: .1, y: -.1, s: 1.3 }); SkinEditor.setShown(HUD_PARTS.find(x => x.id === 'pp'), true); SkinEditor.setPart('pp', { x: -.1, y: .1, s: 1.2 }); });
@@ -57,7 +59,7 @@ try {
   const after = await page.evaluate(() => ({ hp: GameplayScreen.renderer._hudRects.hp, pp: GameplayScreen.ppEl.style.translate, layout: Settings.get('hud.layout') }));
   assert.ok(after.hp.x > before.hp.x + before.W * .05, JSON.stringify({ before, after })); assert.ok(after.hp.w > before.hp.w);
   assert.ok(after.pp.includes('calc')); assert.equal(after.layout.pp.s, 1.2);
-  await advanced.click(); assert.equal(await advanced.getAttribute('aria-checked'), 'true');
+  await advanced.click(); assert.equal(await advanced.evaluate(el => el.parentElement.open), true);
   await page.locator('.se-item[data-id=background]').click();
   assert.equal(await page.locator('.se-item[data-id=video], .se-item[data-id=storyboard]').count(), 0, 'The three layers have one component');
   await page.getByRole('slider', { name: 'Background dim', exact: true }).evaluate(el => { el.value = '.35'; el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); });
@@ -79,9 +81,12 @@ try {
   await advanced.focus(); await page.keyboard.press('Space');
   assert.equal(await page.evaluate(() => SkinEditor.sel), null); assert.equal(await page.evaluate(() => SkinEditor.boxEls.has('stageBackground')), false);
   assert.equal(await page.evaluate(() => Settings.get('hud.layout').stageBackground.s), .9, 'Basic mode keeps advanced edits applied');
-  await page.keyboard.press('Space'); assert.equal(await advanced.getAttribute('aria-checked'), 'true');
-  await page.evaluate(() => SkinEditor.select('noteoptions')); await page.getByRole('slider', { name: 'Note height', exact: true }).waitFor();
-  await page.evaluate(() => SkinEditor.select('hudoptions')); await page.getByRole('switch', { name: 'Show performance points counter', exact: true }).waitFor();
+  await page.keyboard.press('Space'); assert.equal(await advanced.evaluate(el => el.parentElement.open), true);
+  await page.locator('.se-stage > summary').click();
+  await page.evaluate(() => SkinEditor.select('noteoptions')); await page.getByRole('slider', { name: 'Note border thickness', exact: true }).waitFor();
+  assert.equal(await page.getByRole('slider', { name: 'Note height', exact: true }).count(), 0);
+  await page.evaluate(() => SkinEditor.select('hudoptions')); await page.getByRole('combobox', { name: 'Health bar style', exact: true }).waitFor();
+  assert.equal(await page.getByRole('switch', { name: 'Show performance points counter', exact: true }).count(), 0);
   await page.evaluate(() => SkinEditor.close());
   await page.waitForFunction(() => !Screens.busy && Screens.currentName !== 'gameplay');
   const customScope = await page.evaluate(() => Settings.values['hud.activeProfile']);
@@ -91,8 +96,9 @@ try {
   });
   await page.waitForFunction(() => SkinEditor.on && GameplayScreen.renderer?._hudRects.stageLeft && GameplayScreen.renderer._hudRects.hp && GameplayScreen.s?.running);
   assert.deepEqual(await page.evaluate(() => Settings.get('hud.layout')), {}, 'The imported skin starts with its own layout');
-  assert.equal(await page.getByRole('switch', { name: 'Advanced mode', exact: true }).getAttribute('aria-checked'), 'true', 'The editor remembers its mode');
+  assert.equal(await page.locator('.se-advanced').evaluate(el => el.open), false, 'Each editor opens with Advanced collapsed');
   const sideBefore = await page.evaluate(() => ({ ...GameplayScreen.renderer._hudRects.stageLeft }));
+  await page.locator('.se-advanced > summary').click();
   await page.evaluate(() => { SkinEditor.select('stageLeft'); SkinEditor.setPart('stageLeft', { x: -.1, y: .03, s: 1.4 }); });
   await page.waitForFunction(() => GameplayScreen.renderer._hudRects.stageLeft?.w > 0 && SkinEditor.boxEls.has('stageLeft'));
   const sideAfter = await page.evaluate(() => ({ ...GameplayScreen.renderer._hudRects.stageLeft }));
@@ -109,7 +115,7 @@ try {
   await page.evaluate(async () => { SkinEditor.close(); await Settings.flush(); });
   await page.reload(); await page.waitForFunction(() => document.querySelector('#loading-screen.done'));
   assert.deepEqual(await page.evaluate(() => { const l = Settings.get('hud.layout'); return [l.stageLeft.s, l.stageBottom.s]; }), [1.4, 1.5]);
-  assert.equal(await page.evaluate(() => Settings.get('ui.skinEditorAdvanced')), true);
+  assert.equal(await page.locator('.se').count(), 0);
   assert.deepEqual(await page.evaluate(scope => { const l = Settings.values['hud.profiles'][scope]['hud.layout']; return [l.pp.s, l.hp.s, l.background.s]; }, customScope), [1.2, 1.3, .85], 'The previous skin keeps its own HUD and background edits');
   await page.evaluate(() => { Settings.set('gameplay.judgementCounter', true); Settings.set('gameplay.unpauseDelay', 0); NeruCameo.make = () => null; const m = [...BeatmapManager.maps.values()].find(m => m.keys === 4 && !m.problems.length); Game.launch({ mapId: m.id, mods: ['NF'], mode: 'play' }); });
   await page.waitForFunction(() => GameplayScreen.s?.running && GameplayScreen.loaderGone && !!document.querySelector('.hud-jc'));
@@ -131,9 +137,8 @@ try {
   await page.evaluate(() => Screens.go('home')); await page.waitForFunction(() => !Screens.busy);
   await page.setViewportSize({ width: 844, height: 390 }); await page.evaluate(() => SkinEditor.open());
   await page.waitForFunction(() => SkinEditor.on && GameplayScreen.s?.running);
-  await page.getByRole('switch', { name: 'Advanced mode', exact: true }).click();
-  assert.equal(await page.locator('.se-item[data-id=background]').count(), 0);
-  await page.getByRole('switch', { name: 'Advanced mode', exact: true }).click();
+  assert.equal(await page.locator('.se-item[data-id=background]').isVisible(), false);
+  await page.locator('.se-advanced > summary').click();
   await page.locator('.se-item[data-id=background]').click(); await page.getByRole('dialog', { name: 'Skin editor', exact: true }).getByRole('slider', { name: 'Background blur', exact: true }).waitFor();
   if (process.env.SHOT_DIR) await page.screenshot({ path: process.env.SHOT_DIR + '/skin-editor-advanced-mobile.png' });
   await page.evaluate(() => SkinEditor.close());

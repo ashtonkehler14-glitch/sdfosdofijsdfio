@@ -93,11 +93,77 @@ const HudLayout = {
 
 const SkinEditor = {
   on: false,
+  keyCount() { const k = Number(Settings.get('ui.skinEditorKeys')); return Number.isInteger(k) && k >= 1 && k <= 18 ? k : 4; },
+  /** Remap preview art without changing the imported beatmap. Merge chords and trim overlapping holds when
+   * fewer preview columns are chosen, so Auto's inputs remain valid even at 1K. */
+  previewNotes(notes, from, keys) {
+    const out = [], last = new Array(keys);
+    for (const n of notes) {
+      const col = clamp(Math.floor((n.col + .5) * keys / from), 0, keys - 1), prev = last[col];
+      if (prev && prev.time === n.time) { prev.end = Math.max(prev.end, n.end); prev.isLN = prev.end > prev.time; continue; }
+      if (prev && prev.end >= n.time) { prev.end = Math.max(prev.time, n.time - 1); prev.isLN = prev.end > prev.time; }
+      const next = { ...n, col }; out.push(next); last[col] = next;
+    }
+    return out;
+  },
+  /** An in-progress solo play is parked while its music supplies an isolated Auto preview. */
+  parkPlay() {
+    const g = GameplayScreen, s = g.s;
+    this._parked = { s, pos: Music.time };
+    g.releaseAll(); s.running = false; g.repause(); g.closePause(); g.tapEl?.remove(); g.tapEl = null;
+    Spectate.hostAct(s, 'pause', g.gameTime());
+    g.s = { ...s, editorPreview: true, editorSourceNotes: s.baseNotes, editorSourceKeys: s.keys,
+      mods: ['AT'], mode: 'auto', auto: true, replay: null, practice: false, mp: null, spectate: null,
+      running: true, finished: false, failed: false, ramp: null, adaptive: false, muted: null,
+      hidden: null, percy: 0, flashlight: 0, loopA: null, loopB: null, events: [],
+      held: new Array(s.keys).fill(false), down: Array.from({ length: s.keys }, () => new Set()) };
+    g.newEngine(g.gameTime());
+    g.s.feed = generateAutoInputs(g.s.engine.notes, s.keys).flat(); g.s.feedIdx = 0;
+    if (!Music.playing) Music.play(this._parked.pos);
+  },
+  async changeKeyCount(value) {
+    const keys = Number(value), g = GameplayScreen, s = g.s;
+    if (!this.on || !s || (!g.params.skinEditor && !s.editorPreview) || !Number.isInteger(keys) || keys < 1 || keys > 18) return;
+    this._cancelDrag?.();
+    const tok = this._keysTok = {}, skin = s.layout.skin;
+    this.keySelect.value = String(keys); this.keySelect.setAttribute('aria-busy', 'true');
+    try {
+      const layout = await skin.mania(keys);
+      if (!this.on || this._keysTok !== tok || g.s !== s) return;
+      const base = skin.base || skin;
+      Settings.useGui(base.id, keys); Settings.set('ui.skinEditorKeys', keys);
+      s.keys = keys; s.layout = layout;
+      s.baseNotes = prepareNotes(this.previewNotes(s.editorSourceNotes, s.editorSourceKeys, keys), keys, ['AT'], s.seed, { red: s.redTiming.red });
+      s.held = new Array(keys).fill(false); s.down = Array.from({ length: keys }, () => new Set()); s.keyMap = new Map(); s.keyLabels = [];
+      Settings.keybinds(keys).forEach((codes, col) => { codes.forEach(c => s.keyMap.set(c, col)); s.keyLabels[col] = keyLabel(codes[0]); });
+      g.newEngine(g.gameTime()); s.feed = generateAutoInputs(s.engine.notes, keys).flat(); s.feedIdx = 0;
+      g.setSkinLayout(layout); g.buildHud(); g._vc = null;
+      this.sel = null; this.selection.clear(); this.undo = []; this.el.classList.remove('se-multi');
+      clearEl(this.boxesEl); this.boxEls.clear(); this._hitEl = null; this._seenKey = null; this.present = null;
+      this.metaEl.textContent = `${base.name} · ${keys}K · gameplay HUD`;
+      this.paintList(); this.paintSettings(); this.frame();
+    } catch (e) {
+      if (this.on && this._keysTok === tok) { this.keySelect.value = String(s.keys); Toast.err('Could not change preview columns', friendlyError(e)); }
+    } finally { if (this._keysTok === tok) this.keySelect?.removeAttribute('aria-busy'); }
+  },
+  loopSong() {
+    const g = GameplayScreen, s = g.s;
+    if (!s || (!g.params.skinEditor && !s.editorPreview)) return;
+    g.newEngine(); s.feed = generateAutoInputs(s.engine.notes, s.keys).flat(); s.feedIdx = 0;
+    s.running = true; s.finished = false; g._vc = null; g._lastCombo = 0;
+    g.renderer.effects.length = 0; g.buildHud(); Music.play(0);
+  },
   toggle() { this.on ? this.close() : this.open(); },
   /** From the menus: Auto plays the selected beatmap (or any) to edit over; in gameplay: right there. */
   open() {
     if (this.on) return;
-    if (Screens.currentName === 'gameplay' && GameplayScreen.s) { this.attach(); return; }
+    if (Screens.currentName === 'gameplay' && GameplayScreen.s) {
+      const s = GameplayScreen.s;
+      if (!GameplayScreen.params.skinEditor && !s.mp && !s.spectate) this.parkPlay();
+      this.attach();
+      if (GameplayScreen.s.editorPreview) this.changeKeyCount(this.keyCount());
+      return;
+    }
     const m = BeatmapManager.maps.get(SongSelect.selectedId) || BeatmapManager.maps.get(Settings.get('last.map')) || BeatmapManager.maps.values().next().value;
     if (!m) { Toast.err('The skin editor needs a beatmap', 'Import one first: you edit the HUD while Auto plays it.'); return; }
     if (typeof Overlays !== 'undefined') while (Overlays.top()) Overlays.top().close();
@@ -109,17 +175,24 @@ const SkinEditor = {
     this.on = true; this.sel = null; this.selection = new Set(); this.undo = []; this.boxEls = new Map(); this._hitEl = null;
     this._dragging = false; this._cancelDrag = null;
     const skin = GameplayScreen.s.layout.skin.base || GameplayScreen.s.layout.skin;
-    this.advanced = !!Settings.get('ui.skinEditorAdvanced');
+    this.keySelect = h('select.select', { 'aria-label': 'Preview key count', title: 'Preview key count', disabled: !!(GameplayScreen.s.mp || GameplayScreen.s.spectate) },
+      ...Array.from({ length: 18 }, (_, i) => h('option', { value: i + 1, selected: GameplayScreen.s.keys === i + 1 }, `${i + 1}K`)));
+    this.keySelect.addEventListener('change', () => this.changeKeyCount(this.keySelect.value));
+    this.section = 'stage'; this.advanced = false;
     { const r = GameplayScreen.renderer; if (r) r.resize(true); } // (the stage uncropped while editing: see ManiaRenderer.resize)
     UISounds.click();
     const btn = (label, ic, fn, cls = '') => h(`button.se-btn${cls}`, { title: label, onclick: () => { UISounds.click(); fn(); } }, icon(ic), h('span', label));
     this.stageEl = h('div.se-list');
     this.listEl = h('div.se-list', { role: 'listbox', 'aria-label': 'HUD components', 'aria-multiselectable': 'true' });
     this.sceneEl = h('div.se-list', { role: 'listbox', 'aria-label': 'Background and stage components', 'aria-multiselectable': 'true' });
-    this.modeButton = h('button.se-mode', { role: 'switch', 'aria-label': 'Advanced mode', 'aria-checked': String(this.advanced), onclick: () => { UISounds.click(); this.setAdvanced(!this.advanced); } },
-      h('span', 'Advanced mode', h('small', 'Backgrounds and stage graphics')), h('i', { 'aria-hidden': 'true' }));
-    this.sceneGroup = h('div.se-advanced', { hidden: !this.advanced }, h('div.se-ph', 'Backgrounds & stage'), this.sceneEl);
     this.countEl = h('span.se-cnt');
+    const group = (id, name, contents) => {
+      const details = h(`details.se-section.se-${id}`, { open: id === 'stage' }, h('summary', { 'aria-label': name, onclick: e => { e.preventDefault(); UISounds.click(); this.setSection(this.section === id ? null : id); } }, name), contents);
+      details.addEventListener('toggle', () => { if (!this.on) return; if (details.open && this.section !== id) this.setSection(id); else if (!details.open && this.section === id) this.setSection(null); });
+      return details;
+    };
+    this.groups = { stage: group('stage', 'Main controls', this.stageEl), advanced: group('advanced', 'Advanced', this.sceneEl), hud: group('hud', 'HUD elements', h('div', this.countEl, this.listEl)) };
+    this.sceneGroup = this.groups.advanced;
     this.setEl = h('div.se-set');
     this.boxesEl = h('div.se-boxes');
     this.boxesEl.addEventListener('pointerdown', e => { if (e.target === this.boxesEl) this.select(null); });
@@ -127,13 +200,11 @@ const SkinEditor = {
     this.el = h('div.se', { role: 'dialog', 'aria-label': 'Skin editor', 'aria-modal': 'true' },
       this.boxesEl,
       h('div.se-top',
-        h('div.se-title', h('span.se-logo', icon('brush')), h('div.se-tt', h('b', 'Skin editor'), h('span', h('i', skin.name), ` · ${GameplayScreen.s.keys}K · gameplay HUD`))),
+        h('div.se-title', h('span.se-logo', icon('brush')), h('div.se-tt', h('b', 'Skin editor'), this.metaEl = h('span', `${skin.name} · ${GameplayScreen.s.keys}K · gameplay HUD`))),
+        h('label.se-keycount', h('span', 'Key count'), this.keySelect),
         h('div.se-acts', this.undoBtn, btn('Reset all', 'retry', () => this.resetAll()), btn('Done', 'check', () => this.close(), '.primary'))),
       h('div.se-side.se-l',
-        this.modeButton,
-        h('div.se-ph', 'Stage'), this.stageEl,
-        h('div.se-ph', 'HUD', this.countEl), this.listEl,
-        this.sceneGroup,
+        this.groups.stage, this.groups.advanced, this.groups.hud,
         h('p.se-hint', kbHint('Shift/Ctrl-click to add or remove items · drag to move selection · corner to scale one item · arrow keys nudge (Shift: 10px) · Delete hides · Ctrl+Z undoes · Esc clears selection, then closes', 'Drag to move, the corner to scale. Tap the eye to show or hide.'))),
       this.rEl = h('div.se-side.se-r', h('div.se-ph', 'Settings'), this.setEl));
     document.body.append(this.el);
@@ -150,14 +221,28 @@ const SkinEditor = {
     const loop = () => { if (!this.on) return; this._raf = requestAnimationFrame(loop); if (this._dragging || (n++ & 3) === 0) this.frame(); };
     this._raf = requestAnimationFrame(loop);
   },
-  close() {
+  close({ leaving = false } = {}) {
     if (!this.on) return;
     this._cancelDrag?.();
     this.on = false;
+    this._keysTok = null;
+    if (typeof GameDropdowns !== 'undefined' && GameDropdowns.current?.select === this.keySelect) GameDropdowns.close(false);
     cancelAnimationFrame(this._raf);
     window.removeEventListener('keydown', this._key, true);
     if (this.el) this.el.remove();
     document.body.classList.remove('se-open');
+    if (this._parked) {
+      const saved = this._parked, game = GameplayScreen; this._parked = null;
+      game.s = saved.s;
+      const base = saved.s.layout.skin.base || saved.s.layout.skin;
+      Settings.useGui(base.id, saved.s.keys);
+      if (!leaving) {
+        Music.pause(); Music.pausedPos = saved.pos; game._vc = null;
+        game.setSkinLayout(saved.s.layout); game.buildHud();
+        game.showPause(saved.s.failed ? 'Failed' : 'Paused', !!saved.s.failed);
+      }
+    }
+    if (leaving) return;
     { const r = GameplayScreen.renderer; if (r) r.resize(true); }
     const g = GameplayScreen.el; if (g) { g.style.translate = ''; g.style.scale = ''; g.style.transformOrigin = ''; }
     UISounds.back();
@@ -173,6 +258,7 @@ const SkinEditor = {
     if (e.key === 'Tab') { e.stopImmediatePropagation(); return; }
     e.preventDefault(); e.stopImmediatePropagation();
     if (e.repeat && !/^Arrow/.test(e.key)) return;
+    if ((e.key === 'Enter' || e.key === ' ') && e.target?.closest('summary')) { e.target.closest('summary').click(); return; }
     if ((e.key === 'Enter' || e.key === ' ') && e.target?.closest('button')) { e.target.closest('button').click(); return; }
     if ((e.key === 'Enter' || e.key === ' ') && e.target?.closest('.se-item[data-id]')) { this.selectEvent(e.target.closest('.se-item').dataset.id, e); return; }
     if (e.key === 'Escape') { if (this.sel) this.select(null); else this.close(); return; }
@@ -188,16 +274,16 @@ const SkinEditor = {
   },
 
   // ── the layout
-  parts() { return HUD_PARTS.filter(p => this.advanced || !p.advanced); },
-  setAdvanced(value) {
+  appearanceRows(hud) {
+    return SETTINGS_SCHEMA.filter(it => hud ? it.editor === 'hud' && !HUD_PARTS.some(p => p.setting === it.k) : ['gameplay.laneWidth', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].includes(it.k));
+  },
+  parts() { return HUD_PARTS.filter(p => this.section === 'advanced' ? p.advanced : this.section === 'hud' ? !p.advanced : false); },
+  setAdvanced(value) { this.setSection(value ? 'advanced' : 'stage'); },
+  setSection(section) {
     this._cancelDrag?.();
-    this.advanced = !!value; Settings.set('ui.skinEditorAdvanced', this.advanced);
-    this.modeButton.setAttribute('aria-checked', String(this.advanced)); this.sceneGroup.hidden = !this.advanced;
-    if (!this.advanced) {
-      for (const p of HUD_PARTS) if (p.advanced) this.selection?.delete(p.id);
-      if (HUD_PARTS.some(p => p.id === this.sel && p.advanced)) this.sel = [...(this.selection || [])].at(-1) || null;
-    }
-    this.el?.classList.toggle('se-multi', this.selectionIds().length > 1);
+    this.section = section; this.advanced = section === 'advanced';
+    for (const [id, group] of Object.entries(this.groups)) group.open = id === section;
+    this.selection.clear(); this.sel = null; this.undo = []; this.el.classList.remove('se-multi');
     this._seenKey = null; this.present = null; this.paintList(); this.paintSettings(); this.frame();
     if (this.advanced) this.sceneGroup.scrollIntoView({ block: 'start' });
   },
@@ -229,16 +315,13 @@ const SkinEditor = {
     this.commit({});
     for (const d of this.STAGE) if (this.stageVal(d) !== (d.def || 0)) Settings.set(d.key, d.def || 0);
     this.paintList(); this.paintSettings();
-    Toast.show('HUD layout reset', `This skin's ${GameplayScreen.s.keys}K layout is back where the skin puts it, the hit position, note offset and receptors too.`);
+    Toast.show('HUD layout reset', `This skin's ${GameplayScreen.s.keys}K layout is back where the skin puts it, the hit position and receptors too.`);
   },
 
-  // ── the stage: where notes are judged (the hit position — the receptors, from the skin's own HitPosition, moved up
-  // or down) and where they're drawn against it (the note offset)
+  // ── the stage: the receptors' hit position and opacity
   STAGE: [
     { id: 'hitpos', key: 'gameplay.hitPositionOffset', name: 'Hit position', icon: 'keyboard', min: -120, max: 60, unit: '', redraw: true,
       note: 'Where the notes are judged — the receptors. Drag the line on the stage, or slide it here: up is negative, down is positive.' },
-    { id: 'noteoff', key: 'gameplay.noteOffset', name: 'Note offset', icon: 'mania', min: -40, max: 40, unit: 'px',
-      note: 'Where the notes are drawn against the receptors (only how they look — the timing stays the same). Negative draws them higher, positive lower.' },
     // (a percentage, 100 as the skin draws them: up the arrow keys for more)
     { id: 'keyalpha', key: 'skin.receptorAlpha', name: 'Receptor opacity', label: 'Opacity', icon: 'eye', min: 0, max: 100, unit: '%', def: 100, redraw: true, upMore: true, pct: true,
       note: 'How see-through the receptors (the keys at the bottom of each column) are — 0% hides them. Any skin.' },
@@ -306,7 +389,8 @@ const SkinEditor = {
     this.commit(L);
   },
   select(id, { toggle = false, preserve = false } = {}) {
-    if (!this.advanced && HUD_PARTS.some(p => p.id === id && p.advanced)) return;
+    if (HUD_PARTS.some(p => p.id === id) && !this.parts().some(p => p.id === id)) return;
+    if (id && (this.stageDef(id) || id === 'noteoptions' || id === 'hudoptions') && this.section !== 'stage') return;
     this._cancelDrag?.();
     this.selection ||= new Set();
     if (HUD_PARTS.some(p => p.id === id)) {
@@ -334,7 +418,7 @@ const SkinEditor = {
         h('span.se-nm', p.name, !on ? h('small', 'hidden') : na ? h('small', p.id === 'hp' ? 'drawn by the skin on the stage' : 'not on screen right now') : null),
         h('button.se-eye', { title: on ? 'Hide' : 'Show', 'aria-label': `${on ? 'Hide' : 'Show'} ${p.name}`, 'aria-pressed': String(on), onclick: e => { e.stopPropagation(); UISounds.play(on ? 'check-off' : 'check-on'); this.setShown(p, !on); } }, icon(on ? 'eye' : 'eye-slash')));
     };
-    const parts = this.parts();
+    const parts = HUD_PARTS;
     clearEl(this.listEl).append(...parts.filter(p => !p.advanced).map(row));
     clearEl(this.sceneEl).append(...parts.filter(p => p.advanced).map(row));
     this.countEl.textContent = `${n} of ${HUD_PARTS.filter(p => !p.advanced).length} shown`;
@@ -365,7 +449,7 @@ const SkinEditor = {
     }
     if (this.sel === 'hudoptions' || this.sel === 'noteoptions') {
       const hud = this.sel === 'hudoptions';
-      const rows = SETTINGS_SCHEMA.filter(it => hud ? it.editor === 'hud' : ['gameplay.laneWidth', 'gameplay.noteHeight', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].includes(it.k));
+      const rows = this.appearanceRows(hud);
       clearEl(this.setEl).append(h('div.se-head', hud ? 'HUD appearance' : 'Note appearance'), ...rows.map(it => SettingsPanel.row({ ...it, when: undefined, x: 0 })));
       return;
     }
@@ -467,7 +551,7 @@ const SkinEditor = {
   /** The judgement line on the stage, as a thin box you drag up and down. */
   hitBox() {
     const r = GameplayScreen.renderer, cv = r && r.canvas;
-    if (!r || !cv || !cv.isConnected || !r.H || r.fnf) { if (this._hitEl) { this._hitEl.remove(); this._hitEl = null; } return; }
+    if (this.section !== 'stage' || !r || !cv || !cv.isConnected || !r.H || r.fnf) { if (this._hitEl) { this._hitEl.remove(); this._hitEl = null; } return; }
     const cr = cv.getBoundingClientRect();
     if (!cr.height) return;
     const k = cr.height / r.H, yPx = (r.up ? r.H - r.hitY : r.hitY) * k;

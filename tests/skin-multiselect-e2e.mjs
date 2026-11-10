@@ -32,7 +32,9 @@ try {
     Settings.set('ui.skinEditorAdvanced', false); Settings.set('hud.layout', start); NeruCameo.make = () => null;
     SkinEditor.open();
   }, start);
-  await page.waitForFunction(() => SkinEditor.on && GameplayScreen.s?.running && ['sc', 'acc', 'combo'].every(id => SkinEditor.boxEls.has(id)), null, { timeout: 30000 });
+  await page.waitForFunction(() => SkinEditor.on && GameplayScreen.s?.running, null, { timeout: 30000 });
+  await page.locator('.se-hud > summary').click();
+  await page.waitForFunction(() => ['sc', 'acc', 'combo'].every(id => SkinEditor.boxEls.has(id)));
   const row = id => page.locator(`.se-l .se-item[data-id="${id}"]`), box = id => page.locator(`.se-box[data-id="${id}"]`);
   const selected = () => page.evaluate(() => SkinEditor.selectionIds());
   const layout = () => page.evaluate(() => Settings.get('hud.layout'));
@@ -77,16 +79,19 @@ try {
   assert.equal(await box('sc').locator('.se-handle').isVisible(), true, 'A plain click without dragging returns to single-item editing');
   await page.keyboard.press('Escape'); assert.deepEqual(await selected(), []); assert.equal(await page.evaluate(() => SkinEditor.on), true);
 
-  // DOM HUD, scene background and a canvas-rendered stage part share the same group displacement.
-  await row('sc').click(); await page.getByRole('switch', { name: 'Advanced mode', exact: true }).click();
+  // Expanding Advanced clears HUD selection and limits dragging to the scene/stage components.
+  await row('sc').click(); await page.locator('.se-advanced > summary').click();
   await row('stageBackground').click({ modifiers: ['Control'] }); await row('background').click({ modifiers: ['Shift'] });
-  assert.deepEqual(await selected(), ['sc', 'stageBackground', 'background']);
+  assert.deepEqual(await selected(), ['stageBackground', 'background']);
   await page.waitForFunction(() => SkinEditor.boxEls.has('stageBackground') && SkinEditor.boxEls.has('background'));
-  const mixedSize = await dimensions(); await drag('sc', -32, 16);
-  const mixed = await layout(); moved(start, mixed, ['sc', 'stageBackground', 'background'], -32 / mixedSize.w, 16 / mixedSize.h);
+  assert.equal(await box('sc').count(), 0);
+  const mixedSize = await dimensions(); await drag('stageBackground', -32, 16);
+  const mixed = await layout(); moved(start, mixed, ['stageBackground', 'background'], -32 / mixedSize.w, 16 / mixedSize.h);
   assert.deepEqual(mixed.hp, start.hp);
-  await page.getByRole('switch', { name: 'Advanced mode', exact: true }).click();
-  assert.deepEqual(await selected(), ['sc']); assert.equal(await box('sc').locator('.se-handle').isVisible(), true);
+  assert.deepEqual(mixed.sc, start.sc);
+  await page.locator('.se-hud > summary').click();
+  assert.deepEqual(await selected(), []);
+  await row('sc').click(); await box('sc').locator('.se-handle').waitFor({ state: 'visible' });
   await page.keyboard.press('ArrowLeft'); assert.deepEqual((await layout()).background, mixed.background);
 
   // Closing during a drag cancels the preview, and saved group positions survive a reload.

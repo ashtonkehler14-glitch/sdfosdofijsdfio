@@ -76,7 +76,6 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.mobileLayout', l: 'Mobile layout', t: 'select', d: 'auto', o: [['auto', 'Automatic (as you hold it)'], ['portrait', 'Portrait'], ['landscape', 'Landscape'], ['expanded', 'Landscape (expanded columns)']],
     hint: 'How songs are played on a phone or tablet: whichever way you hold it, or always as osu!lazer\'s — upright, or sideways with the columns as on a computer or widened to fill the screen.', when: () => TOUCH_DEVICE },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.laneWidth', l: 'Column width (lane width)', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.noteHeight', l: 'Note height', t: 'range', d: 1, min: 0.25, max: 2, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Stretches tap notes and hold caps vertically, independently of column width. Works with custom and imported skins; timing stays the same.' },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.noteBorderWidth', l: 'Note border thickness', t: 'range', d: 0, min: 0, max: 4, step: 0.5, fmt: v => v ? `${v}px` : 'Off', hint: 'An outline around tap notes and hold caps, following the skin’s visible shape.' },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.noteBorderColor', l: 'Note border colour', t: 'color', d: '#000000' },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.hitPositionOffset', l: 'Hit position', t: 'range', d: 0, min: -120, max: 60, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}`, hint: 'Moves where notes are judged (the receptors) up or down from where the skin puts them. Also in the skin editor, where you can drag it.' },
@@ -84,7 +83,6 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Gameplay', g: 'Playfield', k: 'gameplay.laneSpacing', l: 'Lane spacing', t: 'range', d: 0, min: 0, max: 20, step: 1, fmt: v => `${v}px` },
   { x: 1, s: 'Gameplay', g: 'Playfield', k: 'gameplay.stageOffset', l: 'Stage horizontal offset', t: 'range', d: 0, min: -40, max: 40, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}%` },
   { x: 1, s: 'Gameplay', g: 'Playfield', k: 'gameplay.stageOpacity', l: 'Stage background opacity', t: 'range', d: 1, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.noteOffset', l: 'Note offset', t: 'range', d: 0, min: -40, max: 40, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}px`, hint: 'Draws the notes higher (negative) or lower (positive) against the receptors — only how they look, the timing stays the same.' },
   { x: 1, s: 'Gameplay', g: 'Background', k: 'gameplay.showBackground', l: 'Show beatmap background', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.bgDim', l: 'Background dim', t: 'range', d: 0.5, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.lightenBreaks', l: 'Lighten during breaks', t: 'bool', d: true },
@@ -197,7 +195,6 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Skin', k: 'skin.receptorAlpha', d: 100 }, // (the skin editor's "Receptor opacity", %: any skin's keys)
   { x: 1, s: 'Skin', k: 'wom.receptorLighting', d: true },
   { x: 1, s: 'Skin', k: 'wom.hudY', d: 0.66 },
-  { x: 1, s: 'Skin', k: 'wom.noteOffset', d: 0 },
   { x: 1, s: 'Skin', k: 'wom.earlyLate', d: 200 },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'Use high resolution (@2x) textures', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
   // ── Data / maintenance
@@ -218,15 +215,15 @@ const SETTINGS_SCHEMA = [
   { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'keys' },
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
   { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: TOUCH_DEVICE ? 0.55 : 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'medals.backfilled2', d: false }, { k: 'songselect.lbScope', d: 'global' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'hud.layout', d: {} }, { k: 'mods.presets', d: [] },
-  { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 }, { k: 'ui.skinEditorAdvanced', d: false },
+  { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 }, { k: 'ui.skinEditorAdvanced', d: false }, { k: 'ui.skinEditorKeys', d: 4 },
   { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1, coDir: 0 } },
 ];
 // Appearance belongs to the skin and its editor; keep stored values compatible with existing skins.
 for (const it of SETTINGS_SCHEMA) {
-  if (['gameplay.laneWidth', 'gameplay.noteHeight', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].includes(it.k)) { it.s = 'Skin'; it.g = 'Custom skin'; it.when = customSkinOn; }
+  if (['gameplay.laneWidth', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].includes(it.k)) { it.s = 'Skin'; it.g = 'Custom skin'; it.when = customSkinOn; }
   if (it.g === 'Custom skin' && !it.when) it.when = customSkinOn;
   if (it.g === 'HUD' || ['input.keyOverlay', 'gameplay.showJudgements', 'gameplay.showMax', 'gameplay.earlyLate'].includes(it.k)) { it.x = 1; it.editor = 'hud'; }
-  if (['gameplay.hitPositionOffset', 'gameplay.noteOffset'].includes(it.k)) it.x = 1;
+  if (it.k === 'gameplay.hitPositionOffset') it.x = 1;
 }
 
 
@@ -235,7 +232,7 @@ const Settings = {
   schema: new Map(SETTINGS_SCHEMA.map(s => [s.k, s])),
   EMPTY_GUI: Object.freeze({}),
   // HUD appearance and the editor's stage adjustments belong to the same skin/key-count layout.
-  GUI_KEYS: new Set(['hud.layout', 'gameplay.hitPositionOffset', 'gameplay.noteOffset', 'skin.receptorAlpha', ...SETTINGS_SCHEMA.filter(s => s.editor === 'hud').map(s => s.k)]),
+  GUI_KEYS: new Set(['hud.layout', 'gameplay.hitPositionOffset', 'skin.receptorAlpha', ...SETTINGS_SCHEMA.filter(s => s.editor === 'hud').map(s => s.k)]),
   PERF_OFF: new Set(['gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'ui.parallax', 'graphics.autoScale']),
   _saveT: 0,
   async load() {
@@ -245,6 +242,8 @@ const Settings = {
     if (!this.values['ui.v2']) { if (this.values['ui.theme'] === 'kori') delete this.values['ui.theme']; this.values['ui.v2'] = true; }
     // v3: background blur is a percentage (was px); breaks are 10s or longer
     const v = this.values;
+    delete v['gameplay.noteOffset']; delete v['wom.noteOffset']; delete v['gameplay.noteHeight'];
+    for (const p of Object.values(v['hud.profiles'] || {})) if (p && typeof p === 'object') { delete p['gameplay.noteOffset']; delete p['wom.noteOffset']; delete p['gameplay.noteHeight']; }
     if (v['gameplay.bgBlur'] > 1) v['gameplay.bgBlur'] = Math.min(1, v['gameplay.bgBlur'] / 30);
     if (v['gameplay.breakMin'] < 10000) delete v['gameplay.breakMin'];
     delete v['ui.theme']; // (the accent colour setting is gone: always Kori purple)
@@ -374,10 +373,18 @@ const Settings = {
     for (const [k, v] of Object.entries(obj)) {
       if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
       if (k === 'graphics.particles') continue; // Removed hit-particle effect: discard its obsolete saved toggle.
+      if (k === 'gameplay.noteOffset' || k === 'wom.noteOffset' || k === 'gameplay.noteHeight') continue;
       const s = this.schema.get(k);
       // (nothing at all where a number or an on/off goes is wrong too; a word's setting may be empty)
       if (s && s.d != null && (v == null ? typeof s.d === 'number' || typeof s.d === 'boolean' : typeof v !== typeof s.d || (typeof v === 'number' && !Number.isFinite(v)))) continue;
-      out[k] = v;
+      if (k === 'hud.profiles' && v && typeof v === 'object') {
+        out[k] = Object.fromEntries(Object.entries(v).map(([scope, p]) => {
+          if (!p || typeof p !== 'object') return [scope, p];
+          const profile = { ...p };
+          delete profile['gameplay.noteOffset']; delete profile['wom.noteOffset']; delete profile['gameplay.noteHeight'];
+          return [scope, profile];
+        }));
+      } else out[k] = v;
     }
     return out;
   },

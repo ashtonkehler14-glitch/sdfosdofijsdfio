@@ -376,12 +376,12 @@ class ManiaRenderer {
     c.drawImage(img, 0, 0, img.width, sh, x, yTop, w, h);
   }
   _rect(x, yTop, w, h) { if (this.up) yTop = this.H - yTop - h; this.ctx.fillRect(x, yTop, w, h); }
-  _noteH(tex, i, scaleHeight = true) {
+  _noteH(tex, i) {
     const L = this.layout;
     if (!tex) return 0;
     // note height follows the narrowest column (or WidthForNoteHeightScale) so every column's notes match
     const w = this._noteRefW || (this._noteRefW = L.widthForNoteHeightScale > 0 ? L.widthForNoteHeightScale * this.s * Settings.get('gameplay.laneWidth') * (this.colScale || 1) : Math.min(...this.colW));
-    return tex.h * (w / tex.w) * (scaleHeight ? clamp(Settings.get('gameplay.noteHeight') ?? 1, 0.25, 2) : 1);
+    return tex.h * (w / tex.w);
   }
   /** A copy of `img` pre-scaled to exactly w×h device pixels (optionally flipped), cached per image and size.
    *  Drawing it 1:1 at a whole-pixel position is much cheaper than resampling the texture for every note. */
@@ -541,8 +541,8 @@ class ManiaRenderer {
         ctx.fillRect(x - w / 2, 0, w, this.hitY);
       }
     }
-    // note y for a scroll position: hitY + noteOffset - (pos - posNow) * pxPerMs
-    this._y0 = this.hitY + Settings.get('gameplay.noteOffset') * s + g.posNow * g.pxPerMs;
+    // Note y for a scroll position: hitY - (pos - posNow) * pxPerMs.
+    this._y0 = this.hitY + g.posNow * g.pxPerMs;
     // stage light (key press glow)
     if (Settings.get('skin.effects')) {
       for (let i = 0; i < K; i++) {
@@ -677,7 +677,7 @@ class ManiaRenderer {
         // built-in keys: drawn at their own proportions (tall enough to reach the screen edge), the receptor
         // (t.anchor down the texture) centred on the notes as they're hit
         const h = t.h * (this.colW[i] / t.w);
-        const nh = this._noteH(L.tex.note[i], i, false);
+        const nh = this._noteH(L.tex.note[i], i);
         const top = this.hitY - nh / 2 - h * (t.anchor ?? 0.25);
         this._spriteImg(t.img, this.colX[i], top, this.colW[i], h, flip);
       }
@@ -880,7 +880,7 @@ class ManiaRenderer {
     if (!spr) return;
     const ctx = this.ctx, yy = this.up ? this.H - y : y;
     if (note) {
-      const h = spr.height * clamp(Settings.get('gameplay.noteHeight') ?? 1, 0.25, 2);
+      const h = spr.height;
       const outlined = this._outlinedNote(spr, spr.width, h);
       ctx.drawImage(this._movingSprite(outlined.img), cx - spr.width / 2 - outlined.pad - 1, yy - h / 2 - outlined.pad - 1);
       return;
@@ -951,7 +951,7 @@ class ManiaRenderer {
       }
     }
     ctx.globalAlpha = 1;
-    this._y0 = this.hitY + (st('noteOffset') * d) + Settings.get('gameplay.noteOffset') * this.s + g.posNow * g.pxPerMs;
+    this._y0 = this.hitY + g.posNow * g.pxPerMs;
     if (g.engine) this._drawWomNotes(g);
     ctx.restore();
     if (g.engine) {
@@ -966,14 +966,13 @@ class ManiaRenderer {
     const L = this.layout, ctx = this.ctx, eng = g.engine, K = L.keys, sc = g.scroll, d = this.womD;
     const style = L.wom.style, ns = this.womNS, cols = this.womCol, y0 = this._y0, ppm = g.pxPerMs, top = -this.H * 0.1;
     const arrow = style === 'arrows' || style === 'thickArrows';
-    const height = clamp(Settings.get('gameplay.noteHeight') ?? 1, 0.25, 2);
     const darkHold = Settings.get('wom.darkerHolds') || Settings.get('wom.colorMode') === 'custom';
     for (let c = 0; c < K; c++) {
       const col = eng.columns[c], x = this.colX[c], w = this.colW[c], cx = x + w / 2, ms = w * ns, C = cols[c];
       const ang = arrow ? (this.womArrow[c] || 0) : 0; // (WOM flips arrows back in upscroll: they point the same way)
       const tap = (color, y, dark) => {
-        if (style === 'bars') { this._womNoteBar(x, y, w, w * 0.4 * height, dark ? this._womDark(color) : color); }
-        else this._womBlit(this._womSprite(style, color, ms, dark, ang), cx, y - ms * height / 2, 0, true); // (bottom on the line, as Kori's)
+        if (style === 'bars') { this._womNoteBar(x, y, w, w * 0.4, dark ? this._womDark(color) : color); }
+        else this._womBlit(this._womSprite(style, color, ms, dark, ang), cx, y - ms / 2, 0, true); // (bottom on the line, as Kori's)
       };
       for (let i = eng.ptr[c]; i < col.length; i++) {
         const n = col[i];
@@ -998,7 +997,7 @@ class ManiaRenderer {
         if (ctx.globalAlpha <= 0) { ctx.globalAlpha = 1; continue; }
         if (style === 'bars') {
           ctx.fillStyle = hold; this._womRect(x, yTail, w, len);
-          if (darkHold) { this._womNoteBar(x, yTail, w, w * 0.4 * height, hold); this._womNoteBar(x, yHead, w, w * 0.4 * height, broken ? this._womDark(C.holdHead) : C.holdHead); }
+          if (darkHold) { this._womNoteBar(x, yTail, w, w * 0.4, hold); this._womNoteBar(x, yHead, w, w * 0.4, broken ? this._womDark(C.holdHead) : C.holdHead); }
         } else {
           const bw = style === 'circles' ? ms : ms * (style === 'thickArrows' ? 0.85 : 0.6), o = ms / 2;
           ctx.fillStyle = hold; this._womRect(cx - bw / 2, yTail - o, bw, len);
@@ -1008,7 +1007,7 @@ class ManiaRenderer {
             const ty = this.up ? this.H - (yTail - o) : yTail - o, dir = this.up ? 1 : -1;
             ctx.beginPath(); ctx.moveTo(cx - bw / 2, ty); ctx.lineTo(cx, ty + dir * bw / 2); ctx.lineTo(cx + bw / 2, ty); ctx.closePath(); ctx.fill();
           }
-          this._womBlit(this._womSprite(style, C.holdHead, ms, broken, ang), cx, yHead - ms * height / 2, 0, true);
+          this._womBlit(this._womSprite(style, C.holdHead, ms, broken, ang), cx, yHead - ms / 2, 0, true);
         }
         // the head note itself until it's hit (WOM's hold head is a tap of its own)
         if (n.state === NS.PENDING) tap(C.holdHead, y0 - n._hp * ppm);

@@ -4612,6 +4612,8 @@ body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 
 .se-tt span { font-size: 12px; color: rgba(255, 255, 255, .5); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .se-tt span i { font-style: normal; color: rgba(255, 255, 255, .85); }
 .se-acts { display: flex; gap: 6px; flex: none; }
+.se-keycount { display: flex; align-items: center; gap: 8px; margin-left: auto; color: rgba(255, 255, 255, .65); font-size: 12px; white-space: nowrap; }
+.se-keycount .game-select { width: 88px; }
 .se-btn { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 13px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, .07); color: #fff; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s, opacity .15s, transform .1s; }
 .se-btn .ic { width: 14px; height: 14px; }
 .se-btn:hover:not(:disabled) { background: rgba(255, 255, 255, .13); }
@@ -4629,17 +4631,15 @@ body.se-open .screen.gameplay { box-shadow: 0 0 0 1px rgba(255, 255, 255, .12), 
 .se-ph:first-child { margin-top: 0; }
 .se-cnt { font-size: 10.5px; font-weight: 600; letter-spacing: .02em; text-transform: none; color: rgba(255, 255, 255, .35); font-variant-numeric: tabular-nums; }
 .se-list { display: flex; flex-direction: column; gap: 3px; }
-.se-mode { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex: none; width: 100%; margin-bottom: 6px; padding: 10px; border: 1px solid var(--se-line); border-radius: 8px; background: var(--se-bg2); color: #fff; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
-.se-l { scroll-padding-top: 76px; }
-.se-mode small { display: block; margin-top: 3px; color: rgba(255,255,255,.5); font-size: 10.5px; }
-.se-mode > i { position: relative; flex: none; width: 28px; height: 16px; border-radius: 12px; background: #55515d; }
-.se-mode > i::after { content: ''; position: absolute; left: 3px; top: 3px; width: 10px; height: 10px; border-radius: 50%; background: #fff; transition: translate .15s; }
-.se-mode[aria-checked=true] { border-color: #ffcc2259; background: linear-gradient(#ffcc2210, #ffcc2210), var(--se-bg2); }
-.se-mode[aria-checked=true] > i { background: #947714; }
-.se-mode[aria-checked=true] > i::after { translate: 12px 0; }
-.se-mode:focus-visible { outline: 2px solid var(--se-gold); outline-offset: 2px; }
-.se-advanced { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
-.se-advanced[hidden] { display: none; }
+.se-l { scroll-padding-top: 12px; }
+.se-section { flex: none; padding: 6px; border: 1px solid var(--se-line); border-radius: 8px; background: #ffffff03; }
+.se-section > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 4px; color: #ddd9e5; font-size: 12px; font-weight: 700; cursor: pointer; list-style: none; }
+.se-section > summary::-webkit-details-marker { display: none; }
+.se-section > summary::after { content: '›'; font-size: 20px; line-height: 12px; transition: rotate .15s; }
+.se-section[open] > summary { color: var(--se-gold); margin-bottom: 6px; }
+.se-section[open] > summary::after { rotate: 90deg; }
+.se-section > summary:focus-visible { outline: 2px solid var(--se-gold); outline-offset: 2px; border-radius: 4px; }
+.se-section .se-cnt { display: block; margin: 0 0 8px 4px; }
 .se-item { display: flex; align-items: center; gap: 9px; min-height: 40px; padding: 4px 5px 4px 6px; border-radius: 8px; background: rgba(255, 255, 255, .035); font-size: 13px; cursor: pointer; user-select: none; transition: background .15s, box-shadow .15s; }
 .se-item:hover { background: rgba(255, 255, 255, .075); }
 button.se-item { width: 100%; border: 0; color: inherit; font-family: inherit; text-align: left; }
@@ -4721,6 +4721,8 @@ button.se-item { width: 100%; border: 0; color: inherit; font-family: inherit; t
   .se-hint { font-size: 11px; }
 }
 @media (max-width: 699px) {
+  .se-keycount > span { display: none; }
+  .se-keycount .game-select { width: 72px; }
   .se-btn span { display: none; }
   .se-btn { padding: 0 10px; }
   .se-side { top: auto; bottom: 0; height: 42vh; box-shadow: 0 -4px 16px rgba(0, 0, 0, .3); animation-name: se-in-b; }
@@ -9169,7 +9171,6 @@ const SETTINGS_SCHEMA = [
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.mobileLayout', l: 'Mobile layout', t: 'select', d: 'auto', o: [['auto', 'Automatic (as you hold it)'], ['portrait', 'Portrait'], ['landscape', 'Landscape'], ['expanded', 'Landscape (expanded columns)']],
     hint: 'How songs are played on a phone or tablet: whichever way you hold it, or always as osu!lazer\'s — upright, or sideways with the columns as on a computer or widened to fill the screen.', when: () => TOUCH_DEVICE },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.laneWidth', l: 'Column width (lane width)', t: 'range', d: 1, min: 0.5, max: 2, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.noteHeight', l: 'Note height', t: 'range', d: 1, min: 0.25, max: 2, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Stretches tap notes and hold caps vertically, independently of column width. Works with custom and imported skins; timing stays the same.' },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.noteBorderWidth', l: 'Note border thickness', t: 'range', d: 0, min: 0, max: 4, step: 0.5, fmt: v => v ? `${v}px` : 'Off', hint: 'An outline around tap notes and hold caps, following the skin’s visible shape.' },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.noteBorderColor', l: 'Note border colour', t: 'color', d: '#000000' },
   { s: 'Gameplay', g: 'Playfield', k: 'gameplay.hitPositionOffset', l: 'Hit position', t: 'range', d: 0, min: -120, max: 60, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}`, hint: 'Moves where notes are judged (the receptors) up or down from where the skin puts them. Also in the skin editor, where you can drag it.' },
@@ -9177,7 +9178,6 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Gameplay', g: 'Playfield', k: 'gameplay.laneSpacing', l: 'Lane spacing', t: 'range', d: 0, min: 0, max: 20, step: 1, fmt: v => `${v}px` },
   { x: 1, s: 'Gameplay', g: 'Playfield', k: 'gameplay.stageOffset', l: 'Stage horizontal offset', t: 'range', d: 0, min: -40, max: 40, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}%` },
   { x: 1, s: 'Gameplay', g: 'Playfield', k: 'gameplay.stageOpacity', l: 'Stage background opacity', t: 'range', d: 1, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
-  { s: 'Gameplay', g: 'Playfield', k: 'gameplay.noteOffset', l: 'Note offset', t: 'range', d: 0, min: -40, max: 40, step: 1, fmt: v => `${v > 0 ? '+' : ''}${v}px`, hint: 'Draws the notes higher (negative) or lower (positive) against the receptors — only how they look, the timing stays the same.' },
   { x: 1, s: 'Gameplay', g: 'Background', k: 'gameplay.showBackground', l: 'Show beatmap background', t: 'bool', d: true },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.bgDim', l: 'Background dim', t: 'range', d: 0.5, min: 0, max: 1, step: 0.01, fmt: v => `${Math.round(v * 100)}%` },
   { s: 'Gameplay', g: 'Background', k: 'gameplay.lightenBreaks', l: 'Lighten during breaks', t: 'bool', d: true },
@@ -9290,7 +9290,6 @@ const SETTINGS_SCHEMA = [
   { x: 1, s: 'Skin', k: 'skin.receptorAlpha', d: 100 }, // (the skin editor's "Receptor opacity", %: any skin's keys)
   { x: 1, s: 'Skin', k: 'wom.receptorLighting', d: true },
   { x: 1, s: 'Skin', k: 'wom.hudY', d: 0.66 },
-  { x: 1, s: 'Skin', k: 'wom.noteOffset', d: 0 },
   { x: 1, s: 'Skin', k: 'wom.earlyLate', d: 200 },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.hd', l: 'Use high resolution (@2x) textures', t: 'select', d: 'auto', o: [['auto', 'Automatic'], ['always', 'Always'], ['never', 'Never']] },
   // ── Data / maintenance
@@ -9311,15 +9310,15 @@ const SETTINGS_SCHEMA = [
   { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'keys' },
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
   { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: TOUCH_DEVICE ? 0.55 : 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'medals.backfilled2', d: false }, { k: 'songselect.lbScope', d: 'global' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'hud.layout', d: {} }, { k: 'mods.presets', d: [] },
-  { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 }, { k: 'ui.skinEditorAdvanced', d: false },
+  { k: 'last.map', d: null }, { k: 'practice.speed', d: 1 }, { k: 'ui.skinEditorAdvanced', d: false }, { k: 'ui.skinEditorKeys', d: 4 },
   { k: 'mods.config', d: { acc: 0.9, od: 8, hp: 8, rate: 1.2, cover: 0.5, percy: 150, flSize: 1, muCount: 100, muInverse: 0, muMetronome: 1, coDir: 0 } },
 ];
 // Appearance belongs to the skin and its editor; keep stored values compatible with existing skins.
 for (const it of SETTINGS_SCHEMA) {
-  if (['gameplay.laneWidth', 'gameplay.noteHeight', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].includes(it.k)) { it.s = 'Skin'; it.g = 'Custom skin'; it.when = customSkinOn; }
+  if (['gameplay.laneWidth', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].includes(it.k)) { it.s = 'Skin'; it.g = 'Custom skin'; it.when = customSkinOn; }
   if (it.g === 'Custom skin' && !it.when) it.when = customSkinOn;
   if (it.g === 'HUD' || ['input.keyOverlay', 'gameplay.showJudgements', 'gameplay.showMax', 'gameplay.earlyLate'].includes(it.k)) { it.x = 1; it.editor = 'hud'; }
-  if (['gameplay.hitPositionOffset', 'gameplay.noteOffset'].includes(it.k)) it.x = 1;
+  if (it.k === 'gameplay.hitPositionOffset') it.x = 1;
 }
 
 
@@ -9328,7 +9327,7 @@ const Settings = {
   schema: new Map(SETTINGS_SCHEMA.map(s => [s.k, s])),
   EMPTY_GUI: Object.freeze({}),
   // HUD appearance and the editor's stage adjustments belong to the same skin/key-count layout.
-  GUI_KEYS: new Set(['hud.layout', 'gameplay.hitPositionOffset', 'gameplay.noteOffset', 'skin.receptorAlpha', ...SETTINGS_SCHEMA.filter(s => s.editor === 'hud').map(s => s.k)]),
+  GUI_KEYS: new Set(['hud.layout', 'gameplay.hitPositionOffset', 'skin.receptorAlpha', ...SETTINGS_SCHEMA.filter(s => s.editor === 'hud').map(s => s.k)]),
   PERF_OFF: new Set(['gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'ui.parallax', 'graphics.autoScale']),
   _saveT: 0,
   async load() {
@@ -9338,6 +9337,8 @@ const Settings = {
     if (!this.values['ui.v2']) { if (this.values['ui.theme'] === 'kori') delete this.values['ui.theme']; this.values['ui.v2'] = true; }
     // v3: background blur is a percentage (was px); breaks are 10s or longer
     const v = this.values;
+    delete v['gameplay.noteOffset']; delete v['wom.noteOffset']; delete v['gameplay.noteHeight'];
+    for (const p of Object.values(v['hud.profiles'] || {})) if (p && typeof p === 'object') { delete p['gameplay.noteOffset']; delete p['wom.noteOffset']; delete p['gameplay.noteHeight']; }
     if (v['gameplay.bgBlur'] > 1) v['gameplay.bgBlur'] = Math.min(1, v['gameplay.bgBlur'] / 30);
     if (v['gameplay.breakMin'] < 10000) delete v['gameplay.breakMin'];
     delete v['ui.theme']; // (the accent colour setting is gone: always Kori purple)
@@ -9467,10 +9468,18 @@ const Settings = {
     for (const [k, v] of Object.entries(obj)) {
       if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
       if (k === 'graphics.particles') continue; // Removed hit-particle effect: discard its obsolete saved toggle.
+      if (k === 'gameplay.noteOffset' || k === 'wom.noteOffset' || k === 'gameplay.noteHeight') continue;
       const s = this.schema.get(k);
       // (nothing at all where a number or an on/off goes is wrong too; a word's setting may be empty)
       if (s && s.d != null && (v == null ? typeof s.d === 'number' || typeof s.d === 'boolean' : typeof v !== typeof s.d || (typeof v === 'number' && !Number.isFinite(v)))) continue;
-      out[k] = v;
+      if (k === 'hud.profiles' && v && typeof v === 'object') {
+        out[k] = Object.fromEntries(Object.entries(v).map(([scope, p]) => {
+          if (!p || typeof p !== 'object') return [scope, p];
+          const profile = { ...p };
+          delete profile['gameplay.noteOffset']; delete profile['wom.noteOffset']; delete profile['gameplay.noteHeight'];
+          return [scope, profile];
+        }));
+      } else out[k] = v;
     }
     return out;
   },
@@ -11589,12 +11598,12 @@ class ManiaRenderer {
     c.drawImage(img, 0, 0, img.width, sh, x, yTop, w, h);
   }
   _rect(x, yTop, w, h) { if (this.up) yTop = this.H - yTop - h; this.ctx.fillRect(x, yTop, w, h); }
-  _noteH(tex, i, scaleHeight = true) {
+  _noteH(tex, i) {
     const L = this.layout;
     if (!tex) return 0;
     // note height follows the narrowest column (or WidthForNoteHeightScale) so every column's notes match
     const w = this._noteRefW || (this._noteRefW = L.widthForNoteHeightScale > 0 ? L.widthForNoteHeightScale * this.s * Settings.get('gameplay.laneWidth') * (this.colScale || 1) : Math.min(...this.colW));
-    return tex.h * (w / tex.w) * (scaleHeight ? clamp(Settings.get('gameplay.noteHeight') ?? 1, 0.25, 2) : 1);
+    return tex.h * (w / tex.w);
   }
   /** A copy of `img` pre-scaled to exactly w×h device pixels (optionally flipped), cached per image and size.
    *  Drawing it 1:1 at a whole-pixel position is much cheaper than resampling the texture for every note. */
@@ -11754,8 +11763,8 @@ class ManiaRenderer {
         ctx.fillRect(x - w / 2, 0, w, this.hitY);
       }
     }
-    // note y for a scroll position: hitY + noteOffset - (pos - posNow) * pxPerMs
-    this._y0 = this.hitY + Settings.get('gameplay.noteOffset') * s + g.posNow * g.pxPerMs;
+    // Note y for a scroll position: hitY - (pos - posNow) * pxPerMs.
+    this._y0 = this.hitY + g.posNow * g.pxPerMs;
     // stage light (key press glow)
     if (Settings.get('skin.effects')) {
       for (let i = 0; i < K; i++) {
@@ -11890,7 +11899,7 @@ class ManiaRenderer {
         // built-in keys: drawn at their own proportions (tall enough to reach the screen edge), the receptor
         // (t.anchor down the texture) centred on the notes as they're hit
         const h = t.h * (this.colW[i] / t.w);
-        const nh = this._noteH(L.tex.note[i], i, false);
+        const nh = this._noteH(L.tex.note[i], i);
         const top = this.hitY - nh / 2 - h * (t.anchor ?? 0.25);
         this._spriteImg(t.img, this.colX[i], top, this.colW[i], h, flip);
       }
@@ -12093,7 +12102,7 @@ class ManiaRenderer {
     if (!spr) return;
     const ctx = this.ctx, yy = this.up ? this.H - y : y;
     if (note) {
-      const h = spr.height * clamp(Settings.get('gameplay.noteHeight') ?? 1, 0.25, 2);
+      const h = spr.height;
       const outlined = this._outlinedNote(spr, spr.width, h);
       ctx.drawImage(this._movingSprite(outlined.img), cx - spr.width / 2 - outlined.pad - 1, yy - h / 2 - outlined.pad - 1);
       return;
@@ -12164,7 +12173,7 @@ class ManiaRenderer {
       }
     }
     ctx.globalAlpha = 1;
-    this._y0 = this.hitY + (st('noteOffset') * d) + Settings.get('gameplay.noteOffset') * this.s + g.posNow * g.pxPerMs;
+    this._y0 = this.hitY + g.posNow * g.pxPerMs;
     if (g.engine) this._drawWomNotes(g);
     ctx.restore();
     if (g.engine) {
@@ -12179,14 +12188,13 @@ class ManiaRenderer {
     const L = this.layout, ctx = this.ctx, eng = g.engine, K = L.keys, sc = g.scroll, d = this.womD;
     const style = L.wom.style, ns = this.womNS, cols = this.womCol, y0 = this._y0, ppm = g.pxPerMs, top = -this.H * 0.1;
     const arrow = style === 'arrows' || style === 'thickArrows';
-    const height = clamp(Settings.get('gameplay.noteHeight') ?? 1, 0.25, 2);
     const darkHold = Settings.get('wom.darkerHolds') || Settings.get('wom.colorMode') === 'custom';
     for (let c = 0; c < K; c++) {
       const col = eng.columns[c], x = this.colX[c], w = this.colW[c], cx = x + w / 2, ms = w * ns, C = cols[c];
       const ang = arrow ? (this.womArrow[c] || 0) : 0; // (WOM flips arrows back in upscroll: they point the same way)
       const tap = (color, y, dark) => {
-        if (style === 'bars') { this._womNoteBar(x, y, w, w * 0.4 * height, dark ? this._womDark(color) : color); }
-        else this._womBlit(this._womSprite(style, color, ms, dark, ang), cx, y - ms * height / 2, 0, true); // (bottom on the line, as Kori's)
+        if (style === 'bars') { this._womNoteBar(x, y, w, w * 0.4, dark ? this._womDark(color) : color); }
+        else this._womBlit(this._womSprite(style, color, ms, dark, ang), cx, y - ms / 2, 0, true); // (bottom on the line, as Kori's)
       };
       for (let i = eng.ptr[c]; i < col.length; i++) {
         const n = col[i];
@@ -12211,7 +12219,7 @@ class ManiaRenderer {
         if (ctx.globalAlpha <= 0) { ctx.globalAlpha = 1; continue; }
         if (style === 'bars') {
           ctx.fillStyle = hold; this._womRect(x, yTail, w, len);
-          if (darkHold) { this._womNoteBar(x, yTail, w, w * 0.4 * height, hold); this._womNoteBar(x, yHead, w, w * 0.4 * height, broken ? this._womDark(C.holdHead) : C.holdHead); }
+          if (darkHold) { this._womNoteBar(x, yTail, w, w * 0.4, hold); this._womNoteBar(x, yHead, w, w * 0.4, broken ? this._womDark(C.holdHead) : C.holdHead); }
         } else {
           const bw = style === 'circles' ? ms : ms * (style === 'thickArrows' ? 0.85 : 0.6), o = ms / 2;
           ctx.fillStyle = hold; this._womRect(cx - bw / 2, yTail - o, bw, len);
@@ -12221,7 +12229,7 @@ class ManiaRenderer {
             const ty = this.up ? this.H - (yTail - o) : yTail - o, dir = this.up ? 1 : -1;
             ctx.beginPath(); ctx.moveTo(cx - bw / 2, ty); ctx.lineTo(cx, ty + dir * bw / 2); ctx.lineTo(cx + bw / 2, ty); ctx.closePath(); ctx.fill();
           }
-          this._womBlit(this._womSprite(style, C.holdHead, ms, broken, ang), cx, yHead - ms * height / 2, 0, true);
+          this._womBlit(this._womSprite(style, C.holdHead, ms, broken, ang), cx, yHead - ms / 2, 0, true);
         }
         // the head note itself until it's hit (WOM's hold head is a tap of its own)
         if (n.state === NS.PENDING) tap(C.holdHead, y0 - n._hp * ppm);
@@ -20996,6 +21004,7 @@ const GameplayScreen = {
     this.gpChatIn.placeholder = open ? kbHint('press Enter to chat', 'tap to chat') : 'chat is available when your song is over';
   },
   leave() {
+    if (SkinEditor.on) SkinEditor.close({ leaving: true });
     if (this._quitO) { const o = this._quitO; this._quitO = null; o.close(); } // ("Quit match?" still up as the song ended)
     if (this._gpChatOff) { this._gpChatOff(); this._gpChatOff = null; } this.gpChatIn = null; this.gpChat = null; this._gpW = this._gpSx = null;
     document.title = APP_NAME;
@@ -21054,8 +21063,10 @@ const GameplayScreen = {
     const mods = replay ? replay.mods : ModSystem.normalize(p.mods || []);
     // (a key mod on a converted osu! map: converted to that many columns, as lazer does)
     const keyMod = bm.mode === 0 ? ModSystem.keyMod(mods) : 0;
-    const keys = BeatmapParser.keyCount(bm, keyMod);
-    const mapNotes = keyMod ? BeatmapParser.toManiaNotes(bm, keyMod) : loaded.notes;
+    const sourceKeys = BeatmapParser.keyCount(bm, keyMod);
+    const sourceNotes = keyMod ? BeatmapParser.toManiaNotes(bm, keyMod) : loaded.notes;
+    const keys = p.skinEditor ? SkinEditor.keyCount() : sourceKeys;
+    const mapNotes = p.skinEditor ? SkinEditor.previewNotes(sourceNotes, sourceKeys, keys) : sourceNotes;
     const practice = p.mode === 'practice';
     const auto = mods.includes('AT');
     this.el.classList.toggle('cinema', mods.includes('CN')); // (lazer's Cinema: the background alone, no playfield or HUD)
@@ -21080,20 +21091,8 @@ const GameplayScreen = {
     if (this._tok !== tok) return;
     await Music.setRate(rate, preserve && !silent, f => this.loaderStatus(`Preparing audio… ${Math.round(f * 100)}%`, 0.7 + f * 0.25));
     if (this._tok !== tok) return;
-    this.renderer.setLayout(layout);
     this.initAutoScale();
-    // health bar: the skin's own scorebar when it has one (and that's the chosen style), else osu!lazer's in the HUD
-    this.healthMode = healthModeFor(layout);
-    // (a phone held upright: the stage spans the screen, so a bar beside it would be off-screen — lazer's bar at the top;
-    // held sideways there's room, and the skin's own bar goes beside the stage as on a computer)
-    const upright = window.innerHeight > window.innerWidth;
-    if (typeof Mobile !== 'undefined' && Mobile.touch && upright && (this.healthMode === 'stage' || this.healthMode === 'skinstage' || this.healthMode === 'skin')) this.healthMode = 'lazer';
-    // the canvas draws the slim stage bar and the skin's bar beside the stage; the other two are part of the HUD
-    this.renderer.healthMode = this.healthMode === 'stage' || this.healthMode === 'skinstage' ? this.healthMode : null;
-    this.renderer.resize(true); // (the canvas is cropped to what's drawn beside the stage, the health bar among it)
-    // (sideways the stage can still span the screen — many keys on a tablet — leaving no room for a bar beside it,
-    // which ended up off the edge: lazer's bar at the top there too)
-    { const r = this.renderer; if (r.healthMode && r.fnf && r.stageX + r.stageW + r._cropMargins()[1] > r.W) { this.healthMode = 'lazer'; r.healthMode = null; r.resize(true); } }
+    this.setSkinLayout(layout);
     this.renderer.coverage = (mods.includes('HD') || mods.includes('FI') || mods.includes('CO')) ? modConfig.cover : 0.5;
 
     const seed = replay ? replay.seed : (Math.random() * 2 ** 31) | 0;
@@ -21112,6 +21111,7 @@ const GameplayScreen = {
 
     const s = this.s = {
       rec, bm, keys, mods, rate, preserve, practice, auto, replay, seed, windows, accuracyMode, layout, scroll, baseNotes, modConfig, rules, speed: 1,
+      editorSourceNotes: p.skinEditor ? sourceNotes : null, editorSourceKeys: sourceKeys,
       endTime, redTiming, bars: Settings.get('gameplay.barLines') ? BeatmapParser.barLines(BeatmapParser.timing(bm).red, endTime) : null,
       firstNote: baseNotes.length ? baseNotes[0].time : 0,
       held: new Array(keys).fill(false), keyMap: new Map(), keyLabels: [], down: Array.from({ length: keys }, () => new Set()),
@@ -21137,7 +21137,7 @@ const GameplayScreen = {
     this.applyBackground();
     this.buildHud();
     const leadIn = Math.max(Settings.get('gameplay.leadIn'), bm.audioLeadIn) * rate;
-    const startPos = Math.min(0, s.firstNote - leadIn);
+    const startPos = p.skinEditor ? 0 : Math.min(0, s.firstNote - leadIn);
     s.skipTarget = s.firstNote - leadIn;
     s.startPos = startPos;
     s.stars = rate === 1 && rec.srVersion === SR_VERSION && !convertsNotes(mods) && !keyMod ? rec.stars : DifficultyCalculator.calculate(baseNotes, keys, rate);
@@ -21322,11 +21322,22 @@ const GameplayScreen = {
     setTimeout(() => el.remove(), 500);
   },
 
+  /** Apply the selected skin's geometry and health placement, including editor key-count changes. */
+  setSkinLayout(layout) {
+    this.renderer.setLayout(layout);
+    this.healthMode = healthModeFor(layout);
+    const upright = window.innerHeight > window.innerWidth;
+    if (typeof Mobile !== 'undefined' && Mobile.touch && upright && ['stage', 'skinstage', 'skin'].includes(this.healthMode)) this.healthMode = 'lazer';
+    this.renderer.healthMode = ['stage', 'skinstage'].includes(this.healthMode) ? this.healthMode : null;
+    this.renderer.resize(true);
+    const r = this.renderer;
+    if (r.healthMode && r.fnf && r.stageX + r.stageW + r._cropMargins()[1] > r.W) { this.healthMode = 'lazer'; r.healthMode = null; r.resize(true); }
+  },
   newEngine(fromTime) {
     const s = this.s;
     let notes = s.baseNotes;
     if (fromTime != null) notes = notes.filter(n => n.time >= fromTime && (s.loopB == null || n.time <= s.loopB));
-    s.engine = new GameplayEngine({ notes, keys: s.keys, windows: s.windows, rate: s.rate, mods: s.mods, hp: s.bm.hp, accuracyMode: s.accuracyMode, noFail: s.practice || !!s.mp || !!(s.replay && s.replay.noFail),
+    s.engine = new GameplayEngine({ notes, keys: s.keys, windows: s.windows, rate: s.rate, mods: s.mods, hp: s.bm.hp, accuracyMode: s.accuracyMode, noFail: s.practice || !!this.params.skinEditor || !!s.editorPreview || !!s.mp || !!(s.replay && s.replay.noFail),
       breaks: s.mods.includes('IN') ? [] : s.bm.events.breaks, modConfig: s.modConfig, rules: s.rules }); // (Invert has no breaks)
     s.engine.onEvent(e => this.onEngineEvent(e));
     s.held.fill(false);
@@ -21544,7 +21555,7 @@ const GameplayScreen = {
     }
     if (s.practice) this.buildPracticeBar();
     this.replayBar = null;
-    if (s.feed && !s.practice && !s.mp && !s.spectate) this.buildReplayBar(); // (no seeking ahead of a live play)
+    if (s.feed && !s.practice && !s.mp && !s.spectate && !this.params.skinEditor && !s.editorPreview) this.buildReplayBar(); // (no seeking ahead of a live play)
     this.debugEl = h('div.debug-overlay', { hidden: !Settings.get('debug.overlay') });
     this.el.appendChild(this.debugEl);
     // the skin editor's layout: where each HUD component goes, its size, and which are hidden
@@ -22106,6 +22117,10 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   checkEnd(now) {
     const s = this.s, e = s.engine;
     if (s.finished) return;
+    if (this.params.skinEditor || s.editorPreview) {
+      if (!Music.playing && Music.pausedPos >= Music.duration - 5 && now > 0) SkinEditor.loopSong();
+      return;
+    }
     if (e.health.failed && !s.practice) { this.fail(now); return; }
     // (lazer: a storyboard that carries on past the last note is waited for — its outro — and can be skipped)
     const done = e.finished && now > Math.max(s.endTime + 400 * s.rate, this.outroEnd(s));
@@ -22340,6 +22355,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
    *  Used when the phone is turned, fullscreen is left or another app comes up. */
   tapToResume() {
     const s = this.s;
+    if (this.params.skinEditor || s?.editorPreview) return;
     if (!s || s.finished || !(s.running || this.repause())) return;
     this.pause({ quiet: true });
     if (this.tapEl) this.tapEl.remove();
@@ -22356,6 +22372,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   /** Leaving the window (or fullscreen) mid-song, or mid-countdown: the pause menu, or on a phone a tap to go back. */
   pauseAway() {
+    if (this.params.skinEditor || this.s?.editorPreview) return;
     if (this.phone()) this.tapToResume();
     else if (this.s.running) this.pause();
     else if (this.repause()) this.showPause('Paused');
@@ -22370,6 +22387,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   pause({ quiet = false } = {}) {
     const s = this.s;
+    if (this.params.skinEditor || s?.editorPreview) return;
     if (!s || !s.running || s.finished) return;
     this.releaseAll();
     s.running = false;
@@ -22788,6 +22806,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
   },
   replayToggle() {
     const s = this.s;
+    if (this.params.skinEditor || s?.editorPreview) return;
     if (!s || s.finished || s.failed || this.pauseEl || s.changingSpeed) return;
     if (s.running) { s.running = false; Music.pause(); }
     else { s.running = true; Music.play(Music.pausedPos); }
@@ -23210,11 +23229,77 @@ const HudLayout = {
 
 const SkinEditor = {
   on: false,
+  keyCount() { const k = Number(Settings.get('ui.skinEditorKeys')); return Number.isInteger(k) && k >= 1 && k <= 18 ? k : 4; },
+  /** Remap preview art without changing the imported beatmap. Merge chords and trim overlapping holds when
+   * fewer preview columns are chosen, so Auto's inputs remain valid even at 1K. */
+  previewNotes(notes, from, keys) {
+    const out = [], last = new Array(keys);
+    for (const n of notes) {
+      const col = clamp(Math.floor((n.col + .5) * keys / from), 0, keys - 1), prev = last[col];
+      if (prev && prev.time === n.time) { prev.end = Math.max(prev.end, n.end); prev.isLN = prev.end > prev.time; continue; }
+      if (prev && prev.end >= n.time) { prev.end = Math.max(prev.time, n.time - 1); prev.isLN = prev.end > prev.time; }
+      const next = { ...n, col }; out.push(next); last[col] = next;
+    }
+    return out;
+  },
+  /** An in-progress solo play is parked while its music supplies an isolated Auto preview. */
+  parkPlay() {
+    const g = GameplayScreen, s = g.s;
+    this._parked = { s, pos: Music.time };
+    g.releaseAll(); s.running = false; g.repause(); g.closePause(); g.tapEl?.remove(); g.tapEl = null;
+    Spectate.hostAct(s, 'pause', g.gameTime());
+    g.s = { ...s, editorPreview: true, editorSourceNotes: s.baseNotes, editorSourceKeys: s.keys,
+      mods: ['AT'], mode: 'auto', auto: true, replay: null, practice: false, mp: null, spectate: null,
+      running: true, finished: false, failed: false, ramp: null, adaptive: false, muted: null,
+      hidden: null, percy: 0, flashlight: 0, loopA: null, loopB: null, events: [],
+      held: new Array(s.keys).fill(false), down: Array.from({ length: s.keys }, () => new Set()) };
+    g.newEngine(g.gameTime());
+    g.s.feed = generateAutoInputs(g.s.engine.notes, s.keys).flat(); g.s.feedIdx = 0;
+    if (!Music.playing) Music.play(this._parked.pos);
+  },
+  async changeKeyCount(value) {
+    const keys = Number(value), g = GameplayScreen, s = g.s;
+    if (!this.on || !s || (!g.params.skinEditor && !s.editorPreview) || !Number.isInteger(keys) || keys < 1 || keys > 18) return;
+    this._cancelDrag?.();
+    const tok = this._keysTok = {}, skin = s.layout.skin;
+    this.keySelect.value = String(keys); this.keySelect.setAttribute('aria-busy', 'true');
+    try {
+      const layout = await skin.mania(keys);
+      if (!this.on || this._keysTok !== tok || g.s !== s) return;
+      const base = skin.base || skin;
+      Settings.useGui(base.id, keys); Settings.set('ui.skinEditorKeys', keys);
+      s.keys = keys; s.layout = layout;
+      s.baseNotes = prepareNotes(this.previewNotes(s.editorSourceNotes, s.editorSourceKeys, keys), keys, ['AT'], s.seed, { red: s.redTiming.red });
+      s.held = new Array(keys).fill(false); s.down = Array.from({ length: keys }, () => new Set()); s.keyMap = new Map(); s.keyLabels = [];
+      Settings.keybinds(keys).forEach((codes, col) => { codes.forEach(c => s.keyMap.set(c, col)); s.keyLabels[col] = keyLabel(codes[0]); });
+      g.newEngine(g.gameTime()); s.feed = generateAutoInputs(s.engine.notes, keys).flat(); s.feedIdx = 0;
+      g.setSkinLayout(layout); g.buildHud(); g._vc = null;
+      this.sel = null; this.selection.clear(); this.undo = []; this.el.classList.remove('se-multi');
+      clearEl(this.boxesEl); this.boxEls.clear(); this._hitEl = null; this._seenKey = null; this.present = null;
+      this.metaEl.textContent = `${base.name} · ${keys}K · gameplay HUD`;
+      this.paintList(); this.paintSettings(); this.frame();
+    } catch (e) {
+      if (this.on && this._keysTok === tok) { this.keySelect.value = String(s.keys); Toast.err('Could not change preview columns', friendlyError(e)); }
+    } finally { if (this._keysTok === tok) this.keySelect?.removeAttribute('aria-busy'); }
+  },
+  loopSong() {
+    const g = GameplayScreen, s = g.s;
+    if (!s || (!g.params.skinEditor && !s.editorPreview)) return;
+    g.newEngine(); s.feed = generateAutoInputs(s.engine.notes, s.keys).flat(); s.feedIdx = 0;
+    s.running = true; s.finished = false; g._vc = null; g._lastCombo = 0;
+    g.renderer.effects.length = 0; g.buildHud(); Music.play(0);
+  },
   toggle() { this.on ? this.close() : this.open(); },
   /** From the menus: Auto plays the selected beatmap (or any) to edit over; in gameplay: right there. */
   open() {
     if (this.on) return;
-    if (Screens.currentName === 'gameplay' && GameplayScreen.s) { this.attach(); return; }
+    if (Screens.currentName === 'gameplay' && GameplayScreen.s) {
+      const s = GameplayScreen.s;
+      if (!GameplayScreen.params.skinEditor && !s.mp && !s.spectate) this.parkPlay();
+      this.attach();
+      if (GameplayScreen.s.editorPreview) this.changeKeyCount(this.keyCount());
+      return;
+    }
     const m = BeatmapManager.maps.get(SongSelect.selectedId) || BeatmapManager.maps.get(Settings.get('last.map')) || BeatmapManager.maps.values().next().value;
     if (!m) { Toast.err('The skin editor needs a beatmap', 'Import one first: you edit the HUD while Auto plays it.'); return; }
     if (typeof Overlays !== 'undefined') while (Overlays.top()) Overlays.top().close();
@@ -23226,17 +23311,24 @@ const SkinEditor = {
     this.on = true; this.sel = null; this.selection = new Set(); this.undo = []; this.boxEls = new Map(); this._hitEl = null;
     this._dragging = false; this._cancelDrag = null;
     const skin = GameplayScreen.s.layout.skin.base || GameplayScreen.s.layout.skin;
-    this.advanced = !!Settings.get('ui.skinEditorAdvanced');
+    this.keySelect = h('select.select', { 'aria-label': 'Preview key count', title: 'Preview key count', disabled: !!(GameplayScreen.s.mp || GameplayScreen.s.spectate) },
+      ...Array.from({ length: 18 }, (_, i) => h('option', { value: i + 1, selected: GameplayScreen.s.keys === i + 1 }, `${i + 1}K`)));
+    this.keySelect.addEventListener('change', () => this.changeKeyCount(this.keySelect.value));
+    this.section = 'stage'; this.advanced = false;
     { const r = GameplayScreen.renderer; if (r) r.resize(true); } // (the stage uncropped while editing: see ManiaRenderer.resize)
     UISounds.click();
     const btn = (label, ic, fn, cls = '') => h(`button.se-btn${cls}`, { title: label, onclick: () => { UISounds.click(); fn(); } }, icon(ic), h('span', label));
     this.stageEl = h('div.se-list');
     this.listEl = h('div.se-list', { role: 'listbox', 'aria-label': 'HUD components', 'aria-multiselectable': 'true' });
     this.sceneEl = h('div.se-list', { role: 'listbox', 'aria-label': 'Background and stage components', 'aria-multiselectable': 'true' });
-    this.modeButton = h('button.se-mode', { role: 'switch', 'aria-label': 'Advanced mode', 'aria-checked': String(this.advanced), onclick: () => { UISounds.click(); this.setAdvanced(!this.advanced); } },
-      h('span', 'Advanced mode', h('small', 'Backgrounds and stage graphics')), h('i', { 'aria-hidden': 'true' }));
-    this.sceneGroup = h('div.se-advanced', { hidden: !this.advanced }, h('div.se-ph', 'Backgrounds & stage'), this.sceneEl);
     this.countEl = h('span.se-cnt');
+    const group = (id, name, contents) => {
+      const details = h(`details.se-section.se-${id}`, { open: id === 'stage' }, h('summary', { 'aria-label': name, onclick: e => { e.preventDefault(); UISounds.click(); this.setSection(this.section === id ? null : id); } }, name), contents);
+      details.addEventListener('toggle', () => { if (!this.on) return; if (details.open && this.section !== id) this.setSection(id); else if (!details.open && this.section === id) this.setSection(null); });
+      return details;
+    };
+    this.groups = { stage: group('stage', 'Main controls', this.stageEl), advanced: group('advanced', 'Advanced', this.sceneEl), hud: group('hud', 'HUD elements', h('div', this.countEl, this.listEl)) };
+    this.sceneGroup = this.groups.advanced;
     this.setEl = h('div.se-set');
     this.boxesEl = h('div.se-boxes');
     this.boxesEl.addEventListener('pointerdown', e => { if (e.target === this.boxesEl) this.select(null); });
@@ -23244,13 +23336,11 @@ const SkinEditor = {
     this.el = h('div.se', { role: 'dialog', 'aria-label': 'Skin editor', 'aria-modal': 'true' },
       this.boxesEl,
       h('div.se-top',
-        h('div.se-title', h('span.se-logo', icon('brush')), h('div.se-tt', h('b', 'Skin editor'), h('span', h('i', skin.name), ` · ${GameplayScreen.s.keys}K · gameplay HUD`))),
+        h('div.se-title', h('span.se-logo', icon('brush')), h('div.se-tt', h('b', 'Skin editor'), this.metaEl = h('span', `${skin.name} · ${GameplayScreen.s.keys}K · gameplay HUD`))),
+        h('label.se-keycount', h('span', 'Key count'), this.keySelect),
         h('div.se-acts', this.undoBtn, btn('Reset all', 'retry', () => this.resetAll()), btn('Done', 'check', () => this.close(), '.primary'))),
       h('div.se-side.se-l',
-        this.modeButton,
-        h('div.se-ph', 'Stage'), this.stageEl,
-        h('div.se-ph', 'HUD', this.countEl), this.listEl,
-        this.sceneGroup,
+        this.groups.stage, this.groups.advanced, this.groups.hud,
         h('p.se-hint', kbHint('Shift/Ctrl-click to add or remove items · drag to move selection · corner to scale one item · arrow keys nudge (Shift: 10px) · Delete hides · Ctrl+Z undoes · Esc clears selection, then closes', 'Drag to move, the corner to scale. Tap the eye to show or hide.'))),
       this.rEl = h('div.se-side.se-r', h('div.se-ph', 'Settings'), this.setEl));
     document.body.append(this.el);
@@ -23267,14 +23357,28 @@ const SkinEditor = {
     const loop = () => { if (!this.on) return; this._raf = requestAnimationFrame(loop); if (this._dragging || (n++ & 3) === 0) this.frame(); };
     this._raf = requestAnimationFrame(loop);
   },
-  close() {
+  close({ leaving = false } = {}) {
     if (!this.on) return;
     this._cancelDrag?.();
     this.on = false;
+    this._keysTok = null;
+    if (typeof GameDropdowns !== 'undefined' && GameDropdowns.current?.select === this.keySelect) GameDropdowns.close(false);
     cancelAnimationFrame(this._raf);
     window.removeEventListener('keydown', this._key, true);
     if (this.el) this.el.remove();
     document.body.classList.remove('se-open');
+    if (this._parked) {
+      const saved = this._parked, game = GameplayScreen; this._parked = null;
+      game.s = saved.s;
+      const base = saved.s.layout.skin.base || saved.s.layout.skin;
+      Settings.useGui(base.id, saved.s.keys);
+      if (!leaving) {
+        Music.pause(); Music.pausedPos = saved.pos; game._vc = null;
+        game.setSkinLayout(saved.s.layout); game.buildHud();
+        game.showPause(saved.s.failed ? 'Failed' : 'Paused', !!saved.s.failed);
+      }
+    }
+    if (leaving) return;
     { const r = GameplayScreen.renderer; if (r) r.resize(true); }
     const g = GameplayScreen.el; if (g) { g.style.translate = ''; g.style.scale = ''; g.style.transformOrigin = ''; }
     UISounds.back();
@@ -23290,6 +23394,7 @@ const SkinEditor = {
     if (e.key === 'Tab') { e.stopImmediatePropagation(); return; }
     e.preventDefault(); e.stopImmediatePropagation();
     if (e.repeat && !/^Arrow/.test(e.key)) return;
+    if ((e.key === 'Enter' || e.key === ' ') && e.target?.closest('summary')) { e.target.closest('summary').click(); return; }
     if ((e.key === 'Enter' || e.key === ' ') && e.target?.closest('button')) { e.target.closest('button').click(); return; }
     if ((e.key === 'Enter' || e.key === ' ') && e.target?.closest('.se-item[data-id]')) { this.selectEvent(e.target.closest('.se-item').dataset.id, e); return; }
     if (e.key === 'Escape') { if (this.sel) this.select(null); else this.close(); return; }
@@ -23305,16 +23410,16 @@ const SkinEditor = {
   },
 
   // ── the layout
-  parts() { return HUD_PARTS.filter(p => this.advanced || !p.advanced); },
-  setAdvanced(value) {
+  appearanceRows(hud) {
+    return SETTINGS_SCHEMA.filter(it => hud ? it.editor === 'hud' && !HUD_PARTS.some(p => p.setting === it.k) : ['gameplay.laneWidth', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].includes(it.k));
+  },
+  parts() { return HUD_PARTS.filter(p => this.section === 'advanced' ? p.advanced : this.section === 'hud' ? !p.advanced : false); },
+  setAdvanced(value) { this.setSection(value ? 'advanced' : 'stage'); },
+  setSection(section) {
     this._cancelDrag?.();
-    this.advanced = !!value; Settings.set('ui.skinEditorAdvanced', this.advanced);
-    this.modeButton.setAttribute('aria-checked', String(this.advanced)); this.sceneGroup.hidden = !this.advanced;
-    if (!this.advanced) {
-      for (const p of HUD_PARTS) if (p.advanced) this.selection?.delete(p.id);
-      if (HUD_PARTS.some(p => p.id === this.sel && p.advanced)) this.sel = [...(this.selection || [])].at(-1) || null;
-    }
-    this.el?.classList.toggle('se-multi', this.selectionIds().length > 1);
+    this.section = section; this.advanced = section === 'advanced';
+    for (const [id, group] of Object.entries(this.groups)) group.open = id === section;
+    this.selection.clear(); this.sel = null; this.undo = []; this.el.classList.remove('se-multi');
     this._seenKey = null; this.present = null; this.paintList(); this.paintSettings(); this.frame();
     if (this.advanced) this.sceneGroup.scrollIntoView({ block: 'start' });
   },
@@ -23346,16 +23451,13 @@ const SkinEditor = {
     this.commit({});
     for (const d of this.STAGE) if (this.stageVal(d) !== (d.def || 0)) Settings.set(d.key, d.def || 0);
     this.paintList(); this.paintSettings();
-    Toast.show('HUD layout reset', `This skin's ${GameplayScreen.s.keys}K layout is back where the skin puts it, the hit position, note offset and receptors too.`);
+    Toast.show('HUD layout reset', `This skin's ${GameplayScreen.s.keys}K layout is back where the skin puts it, the hit position and receptors too.`);
   },
 
-  // ── the stage: where notes are judged (the hit position — the receptors, from the skin's own HitPosition, moved up
-  // or down) and where they're drawn against it (the note offset)
+  // ── the stage: the receptors' hit position and opacity
   STAGE: [
     { id: 'hitpos', key: 'gameplay.hitPositionOffset', name: 'Hit position', icon: 'keyboard', min: -120, max: 60, unit: '', redraw: true,
       note: 'Where the notes are judged — the receptors. Drag the line on the stage, or slide it here: up is negative, down is positive.' },
-    { id: 'noteoff', key: 'gameplay.noteOffset', name: 'Note offset', icon: 'mania', min: -40, max: 40, unit: 'px',
-      note: 'Where the notes are drawn against the receptors (only how they look — the timing stays the same). Negative draws them higher, positive lower.' },
     // (a percentage, 100 as the skin draws them: up the arrow keys for more)
     { id: 'keyalpha', key: 'skin.receptorAlpha', name: 'Receptor opacity', label: 'Opacity', icon: 'eye', min: 0, max: 100, unit: '%', def: 100, redraw: true, upMore: true, pct: true,
       note: 'How see-through the receptors (the keys at the bottom of each column) are — 0% hides them. Any skin.' },
@@ -23423,7 +23525,8 @@ const SkinEditor = {
     this.commit(L);
   },
   select(id, { toggle = false, preserve = false } = {}) {
-    if (!this.advanced && HUD_PARTS.some(p => p.id === id && p.advanced)) return;
+    if (HUD_PARTS.some(p => p.id === id) && !this.parts().some(p => p.id === id)) return;
+    if (id && (this.stageDef(id) || id === 'noteoptions' || id === 'hudoptions') && this.section !== 'stage') return;
     this._cancelDrag?.();
     this.selection ||= new Set();
     if (HUD_PARTS.some(p => p.id === id)) {
@@ -23451,7 +23554,7 @@ const SkinEditor = {
         h('span.se-nm', p.name, !on ? h('small', 'hidden') : na ? h('small', p.id === 'hp' ? 'drawn by the skin on the stage' : 'not on screen right now') : null),
         h('button.se-eye', { title: on ? 'Hide' : 'Show', 'aria-label': `${on ? 'Hide' : 'Show'} ${p.name}`, 'aria-pressed': String(on), onclick: e => { e.stopPropagation(); UISounds.play(on ? 'check-off' : 'check-on'); this.setShown(p, !on); } }, icon(on ? 'eye' : 'eye-slash')));
     };
-    const parts = this.parts();
+    const parts = HUD_PARTS;
     clearEl(this.listEl).append(...parts.filter(p => !p.advanced).map(row));
     clearEl(this.sceneEl).append(...parts.filter(p => p.advanced).map(row));
     this.countEl.textContent = `${n} of ${HUD_PARTS.filter(p => !p.advanced).length} shown`;
@@ -23482,7 +23585,7 @@ const SkinEditor = {
     }
     if (this.sel === 'hudoptions' || this.sel === 'noteoptions') {
       const hud = this.sel === 'hudoptions';
-      const rows = SETTINGS_SCHEMA.filter(it => hud ? it.editor === 'hud' : ['gameplay.laneWidth', 'gameplay.noteHeight', 'gameplay.noteBorderWidth', 'gameplay.noteBorderColor'].includes(it.k));
+      const rows = this.appearanceRows(hud);
       clearEl(this.setEl).append(h('div.se-head', hud ? 'HUD appearance' : 'Note appearance'), ...rows.map(it => SettingsPanel.row({ ...it, when: undefined, x: 0 })));
       return;
     }
@@ -23584,7 +23687,7 @@ const SkinEditor = {
   /** The judgement line on the stage, as a thin box you drag up and down. */
   hitBox() {
     const r = GameplayScreen.renderer, cv = r && r.canvas;
-    if (!r || !cv || !cv.isConnected || !r.H || r.fnf) { if (this._hitEl) { this._hitEl.remove(); this._hitEl = null; } return; }
+    if (this.section !== 'stage' || !r || !cv || !cv.isConnected || !r.H || r.fnf) { if (this._hitEl) { this._hitEl.remove(); this._hitEl = null; } return; }
     const cr = cv.getBoundingClientRect();
     if (!cr.height) return;
     const k = cr.height / r.H, yPx = (r.up ? r.H - r.hitY : r.hitY) * k;
@@ -25389,6 +25492,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.10h', title: 'Independent skin previews', sections: [
+    { icon: 'brush', title: 'Skin editor', items: ['Choose the preview key count independently of the background song', 'Music keeps playing while you edit and change columns', 'Expandable sections let you move only the components you are working on', 'Removed Note offset, Note height and duplicate HUD appearance controls'] },
+  ] },
   { id: '2026.11.10g', title: 'Layouts for each skin and key count', sections: [
     { icon: 'brush', title: 'Skin editor', items: ['HUD positions, sizes, visibility and appearance are saved separately for each skin and key count', 'The editor shows which key count you are adjusting'] },
   ] },
@@ -28148,7 +28254,6 @@ const WomImport = {
     set('wom.stagePosition', num(w.stagePosition, -1, 1));
     set('wom.stageOpacity', num(w.stageOpacity, 0, 1));
     set('wom.stageSidesOpacity', num(w.stageSidesOpacity, 0, 1));
-    set('wom.noteOffset', num(w.noteOffset, -500, 500));
     set('wom.receptorOpacity', num(ui.receptorOpacity, 0, 1));
     if (typeof ui.receptorLighting === 'boolean') set('wom.receptorLighting', ui.receptorLighting);
     set('wom.hudY', num(ui.stageHudYPosition, 0, 1));
@@ -35774,7 +35879,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '19e491b040d1';
+const APP_BUILD = '14276ad256d4';
 
 const App = {
   lastReport: null,

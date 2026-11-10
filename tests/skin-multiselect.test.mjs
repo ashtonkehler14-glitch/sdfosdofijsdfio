@@ -7,7 +7,7 @@ function setup(layout = {}) {
   const values = { 'hud.layout': layout }, editor = Object.create(SkinEditor);
   ctx.Settings = { values, get: k => values[k], set: (k, v) => { values[k] = v; } };
   ctx.GameplayScreen = { hud: null, renderer: { resize() {} } };
-  editor.selection = new Set(); editor.sel = null; editor.undo = []; editor.advanced = false;
+  editor.selection = new Set(); editor.sel = null; editor.undo = []; editor.advanced = false; editor.section = 'hud';
   editor.paintList = editor.paintSettings = () => {};
   return { editor, values, ctx };
 }
@@ -57,11 +57,15 @@ test('group hide affects every selected part and preserves other layout fields, 
   e.undoStep(); assert.deepEqual(plain(values['hud.layout']), original);
 });
 
-test('stage controls and appearance settings stay single selections; basic mode rejects advanced items', () => {
+test('selection stays within the expanded section; stage controls stay single selections', () => {
   const { editor: e } = setup(); e.select('sc'); e.selectEvent('hitpos', { ctrlKey: true });
+  assert.deepEqual(Array.from(e.selectionIds()), ['sc']);
+  e.section = 'stage'; e.selectEvent('hitpos', { ctrlKey: true });
   assert.deepEqual(Array.from(e.selectionIds()), []); assert.equal(e.sel, 'hitpos');
+  e.section = 'hud';
   e.select('sc'); e.selectEvent('background', { shiftKey: true }); assert.deepEqual(Array.from(e.selectionIds()), ['sc']);
+  e.section = 'stage';
   e.select('hudoptions'); assert.deepEqual(Array.from(e.selectionIds()), []); assert.equal(e.sel, 'hudoptions');
-  e.advanced = true; e.select('background'); e.select('sc', { toggle: true }); assert.deepEqual(Array.from(e.selectionIds()), ['background', 'sc']);
+  e.advanced = true; e.section = 'advanced'; e.select('background'); e.select('sc', { toggle: true }); assert.deepEqual(Array.from(e.selectionIds()), ['background']);
   e.select(null); assert.deepEqual(Array.from(e.selectionIds()), []); assert.equal(e.sel, null);
 });
