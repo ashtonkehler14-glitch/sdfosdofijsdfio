@@ -84,11 +84,13 @@ try {
   await page.evaluate(() => SkinEditor.select('hudoptions')); await page.getByRole('switch', { name: 'Show performance points counter', exact: true }).waitFor();
   await page.evaluate(() => SkinEditor.close());
   await page.waitForFunction(() => !Screens.busy && Screens.currentName !== 'gameplay');
+  const customScope = await page.evaluate(() => Settings.values['hud.activeProfile']);
   await page.evaluate(async () => {
     const blob = await (await fetch('/tests/fixtures/chemuss.osk')).blob(); await SkinManager.importOsk(new File([blob], 'chemuss.osk'));
     await SkinManager.select(SkinManager.skins.find(s => /chemuss/i.test(s.name)).id); Settings.set('gameplay.healthStyle', 'skinstage'); SkinEditor.open();
   });
   await page.waitForFunction(() => SkinEditor.on && GameplayScreen.renderer?._hudRects.stageLeft && GameplayScreen.renderer._hudRects.hp && GameplayScreen.s?.running);
+  assert.deepEqual(await page.evaluate(() => Settings.get('hud.layout')), {}, 'The imported skin starts with its own layout');
   assert.equal(await page.getByRole('switch', { name: 'Advanced mode', exact: true }).getAttribute('aria-checked'), 'true', 'The editor remembers its mode');
   const sideBefore = await page.evaluate(() => ({ ...GameplayScreen.renderer._hudRects.stageLeft }));
   await page.evaluate(() => { SkinEditor.select('stageLeft'); SkinEditor.setPart('stageLeft', { x: -.1, y: .03, s: 1.4 }); });
@@ -106,9 +108,9 @@ try {
   if (process.env.SHOT_DIR) await page.screenshot({ path: process.env.SHOT_DIR + '/skin-editor-layout.png' });
   await page.evaluate(async () => { SkinEditor.close(); await Settings.flush(); });
   await page.reload(); await page.waitForFunction(() => document.querySelector('#loading-screen.done'));
-  assert.deepEqual(await page.evaluate(() => { const l = Settings.get('hud.layout'); return [l.pp.s, l.hp.s, l.stageLeft.s, l.stageBottom.s]; }), [1.2, 1.3, 1.4, 1.5]);
+  assert.deepEqual(await page.evaluate(() => { const l = Settings.get('hud.layout'); return [l.stageLeft.s, l.stageBottom.s]; }), [1.4, 1.5]);
   assert.equal(await page.evaluate(() => Settings.get('ui.skinEditorAdvanced')), true);
-  assert.equal(await page.evaluate(() => Settings.get('hud.layout').background.s), .85);
+  assert.deepEqual(await page.evaluate(scope => { const l = Settings.values['hud.profiles'][scope]['hud.layout']; return [l.pp.s, l.hp.s, l.background.s]; }, customScope), [1.2, 1.3, .85], 'The previous skin keeps its own HUD and background edits');
   await page.evaluate(() => { Settings.set('gameplay.judgementCounter', true); Settings.set('gameplay.unpauseDelay', 0); NeruCameo.make = () => null; const m = [...BeatmapManager.maps.values()].find(m => m.keys === 4 && !m.problems.length); Game.launch({ mapId: m.id, mods: ['NF'], mode: 'play' }); });
   await page.waitForFunction(() => GameplayScreen.s?.running && GameplayScreen.loaderGone && !!document.querySelector('.hud-jc'));
   const hitFeedback = await page.evaluate(() => {

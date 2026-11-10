@@ -2,7 +2,7 @@
  * shrinks into the middle of the screen with Auto playing (the song loops), the HUD's components get boxes — drag
  * one to move it, its corner handle to scale it — the Components list on the left shows and hides them, and the
  * Settings on the right set the chosen one's scale and position. The layout is kept (`hud.layout`: each component's
- * offset as a fraction of the screen, its scale, and whether it's hidden) and every play uses it. */
+ * offset as a fraction of the screen, its scale, and whether it's hidden), separately for each skin and key count. */
 
 const HUD_PARTS = [
   // (score, accuracy, pp and mods are placed and sized each on its own, as lazer's separate HUD components)
@@ -56,8 +56,8 @@ const HudLayout = {
   },
   /** The combo counter's place, size and visibility ({ x, y, s, off }), for the stage renderer. */
   // (read every frame by the stage renderer: the setting as it's kept, not a fresh copy of it each time)
-  part(id) { const v = this.override || Settings.values['hud.layout']; return (v && typeof v === 'object' && v[id]) || null; },
-  combo() { const v = this.override || Settings.values['hud.layout']; return (v && typeof v === 'object' && v.combo) || null; },
+  part(id) { const v = this.override || Settings.get('hud.layout'); return (v && typeof v === 'object' && v[id]) || null; },
+  combo() { return this.part('combo'); },
   /** "x y" from a computed `translate` (the CSS one the element already has: the offset goes on top of it). */
   split(t) {
     if (!t || t === 'none') return ['0px', '0px'];
@@ -108,6 +108,7 @@ const SkinEditor = {
     if (this.on) return;
     this.on = true; this.sel = null; this.selection = new Set(); this.undo = []; this.boxEls = new Map(); this._hitEl = null;
     this._dragging = false; this._cancelDrag = null;
+    const skin = GameplayScreen.s.layout.skin.base || GameplayScreen.s.layout.skin;
     this.advanced = !!Settings.get('ui.skinEditorAdvanced');
     { const r = GameplayScreen.renderer; if (r) r.resize(true); } // (the stage uncropped while editing: see ManiaRenderer.resize)
     UISounds.click();
@@ -126,7 +127,7 @@ const SkinEditor = {
     this.el = h('div.se', { role: 'dialog', 'aria-label': 'Skin editor', 'aria-modal': 'true' },
       this.boxesEl,
       h('div.se-top',
-        h('div.se-title', h('span.se-logo', icon('brush')), h('div.se-tt', h('b', 'Skin editor'), h('span', h('i', SkinManager.current ? SkinManager.current.name : 'Skin'), ' · gameplay HUD'))),
+        h('div.se-title', h('span.se-logo', icon('brush')), h('div.se-tt', h('b', 'Skin editor'), h('span', h('i', skin.name), ` · ${GameplayScreen.s.keys}K · gameplay HUD`))),
         h('div.se-acts', this.undoBtn, btn('Reset all', 'retry', () => this.resetAll()), btn('Done', 'check', () => this.close(), '.primary'))),
       h('div.se-side.se-l',
         this.modeButton,
@@ -228,7 +229,7 @@ const SkinEditor = {
     this.commit({});
     for (const d of this.STAGE) if (this.stageVal(d) !== (d.def || 0)) Settings.set(d.key, d.def || 0);
     this.paintList(); this.paintSettings();
-    Toast.show('HUD layout reset', 'Everything is back where the skin puts it, the hit position, note offset and receptors too.');
+    Toast.show('HUD layout reset', `This skin's ${GameplayScreen.s.keys}K layout is back where the skin puts it, the hit position, note offset and receptors too.`);
   },
 
   // ── the stage: where notes are judged (the hit position — the receptors, from the skin's own HitPosition, moved up
@@ -249,8 +250,8 @@ const SkinEditor = {
   /** Live while dragging or sliding (the stage drawn again at once); saved when you let go. */
   preview(d, v) {
     v = clamp(Math.round(v), d.min, d.max);
-    if (Settings.values[d.key] === v) return v;
-    Settings.values[d.key] = v;
+    if (Settings.get(d.key) === v) return v;
+    Settings.assign(d.key, v);
     const r = GameplayScreen.renderer; if (r && d.redraw) r.resize(true);
     return v;
   },
@@ -258,7 +259,6 @@ const SkinEditor = {
   setStage(d, v, before) {
     v = clamp(Math.round(v), d.min, d.max);
     this.undo.push(before ?? this.snapshot());
-    Settings.values[d.key] = before != null ? (JSON.parse(before).stage || {})[d.key] ?? (d.def || 0) : this.stageVal(d); // (so the change below is seen)
     Settings.set(d.key, v);
     this.paintList(); this.paintSettings();
   },

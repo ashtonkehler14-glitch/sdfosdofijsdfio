@@ -300,11 +300,14 @@ const GameplayScreen = {
       e.preventDefault();
       if (this.pauseEl && !this.s.failed && this.pauseEl.querySelector('.pm-btn.primary')) this.resume(); else if (!this.pauseEl) this.pause();
     });
-    this._settingsSub = Bus.on('settings:changed', k => {
+    this._settingsSub = Bus.on('settings:changed', (k, value, guiSource) => {
+      // Replacing profiles (for example after restoring a skin) refreshes the running HUD too. Individual
+      // editor writes already emitted their own setting change; their sync notification needs no second rebuild.
+      if (this.s && k === 'hud.profiles' && !guiSource) { this.buildHud(); this.renderer.resize(true); this.applyBackground(); return; }
       // (dim and blur only change the picture behind: no new layout for the playfield, on every slider step)
       if (/^gameplay\.(bgDim|bgBlur)$/.test(k)) { if (this.s || this.bgRec) this.applyBackground(); return; }
       if (this.s && ['graphics.performanceMode', 'graphics.autoScale', '*'].includes(k)) this.initAutoScale();
-      if (this.s && ['gameplay.showHealth', 'gameplay.showPp', 'gameplay.healthStyle', 'gameplay.progressDisplay', 'gameplay.judgementCounter', 'gameplay.judgementCounterFlow', 'gameplay.hitErrorMeter'].includes(k)) this.buildHud();
+      if (this.s && ['gameplay.showHealth', 'gameplay.showPp', 'gameplay.healthStyle', 'gameplay.progressDisplay', 'gameplay.judgementCounter', 'gameplay.judgementCounterFlow', 'gameplay.hitErrorMeter', '*'].includes(k)) this.buildHud();
       if (this.s && k !== 'gameplay.scrollSpeed' && (k.startsWith('gameplay.') || k.startsWith('skin.') || k.startsWith('wom.') || ['graphics.renderScale', 'graphics.performanceMode', 'graphics.autoScale', '*'].includes(k))) { this.renderer.resize(true); this.applyBackground(); const rp = this.hud && this.hud.querySelector('.hud-replay'); if (rp) rp.classList.toggle('low', this.renderer.up); }
       if (k === 'debug.overlay' && this.debugEl) this.debugEl.hidden = !Settings.get('debug.overlay'); });
     // (this entry's token, taken now: a frame that only comes after the screen was left — a tab in the background —
@@ -421,6 +424,7 @@ const GameplayScreen = {
     if (practice) rate = Settings.get('practice.speed') || 1;
     const preserve = (practice || !ModSystem.pitchShift(mods)) && Settings.get('audio.preservePitch');
     let skin = SkinManager.current;
+    Settings.useGui(skin.id, keys);
     // (lazer's Beatmap skins: the beatmap's own skin pictures over your skin's)
     const bmSet = rec.setId && BeatmapManager.setById.get(rec.setId);
     if (bmSet && !skin.builtin && Settings.get('skin.beatmapSkins') && BeatmapSkin.has(bmSet)) skin = SkinManager.forBeatmap(skin, bmSet);

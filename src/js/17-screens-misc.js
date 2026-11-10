@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.10g', title: 'Layouts for each skin and key count', sections: [
+    { icon: 'brush', title: 'Skin editor', items: ['HUD positions, sizes, visibility and appearance are saved separately for each skin and key count', 'The editor shows which key count you are adjusting'] },
+  ] },
   { id: '2026.11.10f', title: 'Sharp notes in Performance mode', sections: [
     { icon: 'keyboard', title: 'Gameplay', items: ['Performance mode keeps notes sharp instead of automatically lowering playfield resolution'] },
   ] },

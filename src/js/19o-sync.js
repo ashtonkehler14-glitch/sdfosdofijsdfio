@@ -8,7 +8,7 @@
 
 const Sync = {
   /** Settings that belong to the device, not to you: never sent, never taken from another device. */
-  LOCAL: /^(graphics\.|perf\.|setup\.|debug\.|migr\.|last\.|songselect\.(lastDiff|collection|hidden)$|audio\.offset$|input\.latency$|gameplay\.video$|ui\.(parallax|scale)$|skin\.hd$)/,
+  LOCAL: /^(graphics\.|perf\.|setup\.|debug\.|migr\.|last\.|hud\.activeProfile$|songselect\.(lastDiff|collection|hidden)$|audio\.offset$|input\.latency$|gameplay\.video$|ui\.(parallax|scale)$|skin\.hd$)/,
   /** …and whatever the setup's Performance / Graphics page sets: a device's choice, never brought from another. */
   local(k) {
     if (!this._preset) this._preset = new Set(typeof SETUP_DEVICES === 'undefined' ? [] : Object.values(SETUP_DEVICES).flatMap(d => Object.keys(d.values())));
@@ -301,12 +301,14 @@ const Sync = {
       else {
         const here = SkinManager.skins.find(k => k.id === want.id) || SkinManager.skins.find(k => want.name && k.name === want.name);
         if (here) {
+          Settings.remapGuiSkin(want.id, here.id);
           if (!(SkinManager.current && SkinManager.current.id === here.id)) await SkinManager.select(here.id);
           if (d.skin && d.skin.name === here.name) this.mark('am.skinSent', `${pid}|${here.id}`); // (the server has it already)
         } else if (d.skin && (d.skin.id === want.id || d.skin.name === want.name)) {
           try {
             onStatus(`Downloading your skin (${d.skin.name})…`, 0);
             const meta = await SkinManager.importOsk(await this.skinFile(d.skin, f => onStatus(`Downloading your skin (${d.skin.name})…`, f)));
+            Settings.remapGuiSkin(want.id, meta.id);
             await SkinManager.select(meta.id);
             this.mark('am.skinSent', `${pid}|${meta.id}`); // (it's the one the server has)
             got.skin = meta.name;

@@ -155,7 +155,7 @@ const SETTINGS_SCHEMA = [
   { s: 'User Interface', g: 'Song Select', k: 'songselect.converts', l: 'Show converted beatmaps', t: 'bool', d: true, hint: 'osu! (standard) difficulties, played as osu!mania the way lazer converts them.' },
   // ── Skin
   { s: 'Skin', g: 'Skin', k: 'skin.current', l: 'Current skin', t: 'skin', d: 'default' },
-  { s: 'Skin', g: 'Skin', k: 'skin.layoutEditor', l: 'Skin layout editor', t: 'skineditor', hint: kbHint('Move, scale and hide the score, health, progress and the rest of the HUD (Ctrl+Shift+S).', 'Move, scale and hide the score, health, progress and the rest of the HUD.') },
+  { s: 'Skin', g: 'Skin', k: 'skin.layoutEditor', l: 'Skin layout editor', t: 'skineditor', hint: kbHint('Move, scale and hide the HUD (Ctrl+Shift+S). Saved separately for each skin and key count.', 'Move, scale and hide the HUD. Saved separately for each skin and key count.') },
   { x: 1, s: 'Online', g: 'Status', k: 'online.status', l: 'Status', t: 'select', d: 'online' }, // (lazer's user status: online / do not disturb / appear offline — from the toolbar's user menu)
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.scale', l: 'Gameplay element size', t: 'range', d: 1, min: 0.5, max: 1.5, step: 0.05, fmt: v => `${Math.round(v * 100)}%` },
   { x: 1, s: 'Skin', g: 'Skin', k: 'skin.dim', l: 'Stage dim', t: 'range', d: 0, min: 0, max: 1, step: 0.05, fmt: v => `${Math.round(v * 100)}%`, hint: 'Darkens the skin\'s stage & column graphics.' },
@@ -214,6 +214,7 @@ const SETTINGS_SCHEMA = [
   { s: 'Maintenance', g: 'Replays', k: 'replays.autosave', l: 'Save replays automatically', t: 'select', d: 'pb', o: [['pb', 'Personal bests'], ['all', 'All passes'], ['off', 'Never']] },
   { s: 'Maintenance', g: 'Data', k: 'data', l: 'Data management', t: 'data' },
   // hidden (not in UI)
+  { k: 'hud.profiles', d: {} }, { k: 'hud.activeProfile', d: '' },
   { k: 'debug.overlay', d: false }, { k: 'ui.dashSort', d: 'lastVisit' }, { k: 'ui.dashStyle', d: 'card' }, { k: 'ui.allSettings', d: false }, { k: 'songselect.sort', d: 'title' }, { k: 'songselect.group', d: 'keys' },
   { k: 'songselect.detailTab', d: 'ranking' }, { k: 'songselect.lbSort', d: 'score' }, { k: 'songselect.lbMods', d: false },
   { k: 'songselect.keys', d: [] }, { k: 'songselect.starsMin', d: 0 }, { k: 'songselect.lastDiff', d: {} }, { k: 'ui.chatHeight', d: TOUCH_DEVICE ? 0.55 : 0.4 }, { k: 'medals.unlocked', d: {} }, { k: 'medals.backfilled', d: false }, { k: 'medals.backfilled2', d: false }, { k: 'songselect.lbScope', d: 'global' }, { k: 'songselect.starsMax', d: 10.1 }, { k: 'songselect.mods', d: [] }, { k: 'songselect.collection', d: '' }, { k: 'songselect.hidden', d: [] }, { k: 'hud.layout', d: {} }, { k: 'mods.presets', d: [] },
@@ -232,6 +233,9 @@ for (const it of SETTINGS_SCHEMA) {
 const Settings = {
   values: {},
   schema: new Map(SETTINGS_SCHEMA.map(s => [s.k, s])),
+  EMPTY_GUI: Object.freeze({}),
+  // HUD appearance and the editor's stage adjustments belong to the same skin/key-count layout.
+  GUI_KEYS: new Set(['hud.layout', 'gameplay.hitPositionOffset', 'gameplay.noteOffset', 'skin.receptorAlpha', ...SETTINGS_SCHEMA.filter(s => s.editor === 'hud').map(s => s.k)]),
   PERF_OFF: new Set(['gameplay.hitLighting', 'skin.effects', 'graphics.effects', 'gameplay.comboEffects', 'ui.parallax', 'graphics.autoScale']),
   _saveT: 0,
   async load() {
@@ -296,20 +300,71 @@ const Settings = {
     // (song backgrounds and song select's pictures at a lower resolution: part of Performance mode, not a setting)
     if (k === 'graphics.bgQuality') return this.values['graphics.performanceMode'] ? 'low' : 'high';
     if (k === 'ui.animSpeed' && this.values['graphics.performanceMode']) return 0; // (Performance mode: no menu animations)
+    const profiles = this.values['hud.profiles'];
+    if (this.GUI_KEYS.has(k) && profiles && typeof profiles === 'object') {
+      const p = profiles[this.values['hud.activeProfile']];
+      if (p && Object.hasOwn(p, k)) return p[k];
+      if (k === 'hud.layout') return this.EMPTY_GUI; // Read every frame by the renderer; no empty-object copies.
+      const s = this.schema.get(k);
+      return s ? (typeof s.d === 'object' && s.d !== null ? copyData(s.d) : s.d) : undefined;
+    }
     if (k in this.values) return this.values[k];
     const s = this.schema.get(k);
     return s ? (typeof s.d === 'object' && s.d !== null ? copyData(s.d) : s.d) : undefined;
   },
-  async set(k, v) {
+  /** Set the active layout before loading a song's skin, using its actual (possibly converted) key count.
+   * Old global adjustments are kept for the first combination played, never copied onto every new skin. */
+  useGui(skinId, keys) {
+    const scope = JSON.stringify([skinId, keys]);
+    if (!this.values['hud.profiles'] || typeof this.values['hud.profiles'] !== 'object') {
+      const old = {};
+      for (const k of this.GUI_KEYS) if (Object.hasOwn(this.values, k)) { old[k] = this.values[k]; delete this.values[k]; }
+      this.set('hud.profiles', { [scope]: old });
+    }
+    if (this.values['hud.activeProfile'] !== scope) this.set('hud.activeProfile', scope);
+  },
+  /** A skin rebuilt on another device can have a different local id. Bring its layouts with it. */
+  remapGuiSkin(from, to) {
+    if (from === to) return;
+    const profiles = this.values['hud.profiles'];
+    if (!profiles || typeof profiles !== 'object') return;
+    const next = { ...profiles }; let changed = false;
+    for (const [scope, profile] of Object.entries(profiles)) {
+      let pair; try { pair = JSON.parse(scope); } catch { continue; }
+      if (!Array.isArray(pair) || pair[0] !== from) continue;
+      const target = JSON.stringify([to, pair[1]]);
+      next[target] = { ...next[target], ...profile }; delete next[scope]; changed = true;
+      if (this.values['hud.activeProfile'] === scope) this.set('hud.activeProfile', target);
+    }
+    if (changed) this.set('hud.profiles', next);
+  },
+  /** Preview writes use the same profile as saved edits, without emitting changes during a drag. */
+  assign(k, v) {
+    const profiles = this.values['hud.profiles'], scope = this.values['hud.activeProfile'];
+    if (this.GUI_KEYS.has(k) && profiles && typeof profiles === 'object' && scope) {
+      this.values['hud.profiles'] = { ...profiles, [scope]: { ...profiles[scope], [k]: v } };
+      return 'hud.profiles';
+    }
     this.values[k] = v;
+    return k;
+  },
+  async set(k, v) {
+    const storedKey = this.assign(k, v);
     Bus.emit('settings:changed', k, v);
+    if (storedKey !== k) Bus.emit('settings:changed', storedKey, this.values[storedKey], k);
     if (k.startsWith('audio.')) AudioManager.applyVolumes();
     if (k.startsWith('ui.') || k.startsWith('graphics.')) this.applyUI();
     clearTimeout(this._saveT);
     this._saveT = setTimeout(() => DB.kvSet('settings', this.values).catch(e => console.error(e)), 250);
   },
   async flush() { clearTimeout(this._saveT); await DB.kvSet('settings', this.values); },
-  reset(k) { delete this.values[k]; Bus.emit('settings:changed', k, this.get(k)); this.set(k, this.get(k)); },
+  reset(k) {
+    if (this.GUI_KEYS.has(k) && this.values['hud.profiles']) {
+      const s = this.schema.get(k);
+      this.set(k, s && (typeof s.d === 'object' && s.d !== null ? copyData(s.d) : s.d)); return;
+    }
+    delete this.values[k]; Bus.emit('settings:changed', k, this.get(k)); this.set(k, this.get(k));
+  },
   export() { return copyData(this.values); },
   /** Values brought in (your kept settings, a settings file, a backup), minus any of the wrong kind for its setting — a
    *  word where a number goes, a number that isn't one — which then has its default: a damaged file can't break the
