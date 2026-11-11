@@ -5586,6 +5586,17 @@ body.se-open .gameplay .hl-off { visibility: visible !important; opacity: .3; }
 .se-set .set-row .val { min-width: 0; text-align: left; font-size: 12px; }
 .se-set .set-row .reset { position: absolute; top: 5px; right: 5px; }
 .se-set .set-row .fhint { font-size: 11px; color: rgba(255,255,255,.5); }
+
+/* Upright results: reserve a separate back row and wrap every action into reach. */
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  .results .res-actions { height: auto; min-height: 100px; padding: 12px 16px 64px; flex-wrap: wrap; gap: 8px; overflow: visible; }
+  .results .res-actions .res-ab.wide { flex: 1 1 140px; max-width: 300px; }
+  .results .res-actions .res-ab.dl { position: static; }
+  .settings-panel { max-width: calc(100 * var(--vw)); }
+  .sp-nav { overflow-y: auto; min-height: 0; }
+  .sp-nb { flex-shrink: 0; }
+  .sp-main { min-height: 0; }
+}
 </style>
 <style id="css-no-anim" media="not all">
 *, *::before, *::after { transition: none !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
@@ -25624,6 +25635,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.11a', title: 'Mobile results', sections: [
+    { icon: 'screen', title: 'Fixed', items: ['Results follow your selected mobile orientation.', 'Result actions and settings navigation stay accessible in portrait.'] },
+  ] },
   { id: '2026.11.10j', title: 'Lazer health and scoring', sections: [
     { icon: 'keyboard', title: 'Gameplay', items: ['Health recovery, fail conditions and Easy’s extra lives follow osu!lazer', 'Score uses lazer’s accuracy weights and rounding', 'PP uses full-precision difficulty; live pp counts the judgements you have earned'] },
   ] },
@@ -32660,11 +32674,11 @@ if (Mobile.touch) Keyboard.init();
  *  turned (a song waits for it, and one under way stops for a tap). */
 const Orientation = {
   el: null,
-  /** Menus, including profiles, stay sideways; songs follow Mobile layout; results work either way up. */
+  /** Menus, including profiles, stay sideways; songs and results follow Mobile layout. */
   wanted() {
     const n = typeof Screens !== 'undefined' ? Screens.currentName : '';
-    if (n === 'gameplay') { const m = typeof Settings !== 'undefined' ? Settings.get('gameplay.mobileLayout') : 'auto'; return m === 'portrait' ? 'portrait' : m === 'landscape' || m === 'expanded' ? 'landscape' : 'any'; }
-    return n === 'results' ? 'any' : 'landscape';
+    if (n === 'gameplay' || n === 'results') { const m = typeof Settings !== 'undefined' ? Settings.get('gameplay.mobileLayout') : 'auto'; return m === 'portrait' ? 'portrait' : m === 'landscape' || m === 'expanded' ? 'landscape' : 'any'; }
+    return 'landscape';
   },
   /** Whether the prompt to turn the phone is up. */
   wrong() { return !!this.el && !this.el.hidden; },
@@ -32685,8 +32699,8 @@ const Orientation = {
     this.el.hidden = !wrong;
     this.el.classList.toggle('to-up', want === 'portrait');
     this.el.querySelector('b').textContent = want === 'portrait' ? 'Turn your device upright' : 'Turn your device sideways';
-    const song = typeof Screens !== 'undefined' && Screens.currentName === 'gameplay';
-    this.el.querySelector('span').textContent = song ? `Songs are played ${want === 'portrait' ? 'upright' : 'sideways'} — Settings → Mobile layout.` : 'The menus are used sideways.';
+    const song = typeof Screens !== 'undefined' && ['gameplay', 'results'].includes(Screens.currentName);
+    this.el.querySelector('span').textContent = song ? `Songs and results are shown ${want === 'portrait' ? 'upright' : 'sideways'} — Settings → Mobile layout.` : 'The menus are used sideways.';
   },
 };
 
@@ -36017,7 +36031,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = 'eaa6b4e28d49';
+const APP_BUILD = '004e582469bf';
 
 const App = {
   lastReport: null,

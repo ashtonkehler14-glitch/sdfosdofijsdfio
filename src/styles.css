@@ -5573,3 +5573,14 @@ body.se-open .gameplay .hl-off { visibility: visible !important; opacity: .3; }
 .se-set .set-row .val { min-width: 0; text-align: left; font-size: 12px; }
 .se-set .set-row .reset { position: absolute; top: 5px; right: 5px; }
 .se-set .set-row .fhint { font-size: 11px; color: rgba(255,255,255,.5); }
+
+/* Upright results: reserve a separate back row and wrap every action into reach. */
+@media (hover: none) and (pointer: coarse) and (orientation: portrait) {
+  .results .res-actions { height: auto; min-height: 100px; padding: 12px 16px 64px; flex-wrap: wrap; gap: 8px; overflow: visible; }
+  .results .res-actions .res-ab.wide { flex: 1 1 140px; max-width: 300px; }
+  .results .res-actions .res-ab.dl { position: static; }
+  .settings-panel { max-width: calc(100 * var(--vw)); }
+  .sp-nav { overflow-y: auto; min-height: 0; }
+  .sp-nb { flex-shrink: 0; }
+  .sp-main { min-height: 0; }
+}

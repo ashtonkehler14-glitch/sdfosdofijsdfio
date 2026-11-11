@@ -285,11 +285,11 @@ if (Mobile.touch) Keyboard.init();
  *  turned (a song waits for it, and one under way stops for a tap). */
 const Orientation = {
   el: null,
-  /** Menus, including profiles, stay sideways; songs follow Mobile layout; results work either way up. */
+  /** Menus, including profiles, stay sideways; songs and results follow Mobile layout. */
   wanted() {
     const n = typeof Screens !== 'undefined' ? Screens.currentName : '';
-    if (n === 'gameplay') { const m = typeof Settings !== 'undefined' ? Settings.get('gameplay.mobileLayout') : 'auto'; return m === 'portrait' ? 'portrait' : m === 'landscape' || m === 'expanded' ? 'landscape' : 'any'; }
-    return n === 'results' ? 'any' : 'landscape';
+    if (n === 'gameplay' || n === 'results') { const m = typeof Settings !== 'undefined' ? Settings.get('gameplay.mobileLayout') : 'auto'; return m === 'portrait' ? 'portrait' : m === 'landscape' || m === 'expanded' ? 'landscape' : 'any'; }
+    return 'landscape';
   },
   /** Whether the prompt to turn the phone is up. */
   wrong() { return !!this.el && !this.el.hidden; },
@@ -310,8 +310,8 @@ const Orientation = {
     this.el.hidden = !wrong;
     this.el.classList.toggle('to-up', want === 'portrait');
     this.el.querySelector('b').textContent = want === 'portrait' ? 'Turn your device upright' : 'Turn your device sideways';
-    const song = typeof Screens !== 'undefined' && Screens.currentName === 'gameplay';
-    this.el.querySelector('span').textContent = song ? `Songs are played ${want === 'portrait' ? 'upright' : 'sideways'} — Settings → Mobile layout.` : 'The menus are used sideways.';
+    const song = typeof Screens !== 'undefined' && ['gameplay', 'results'].includes(Screens.currentName);
+    this.el.querySelector('span').textContent = song ? `Songs and results are shown ${want === 'portrait' ? 'upright' : 'sideways'} — Settings → Mobile layout.` : 'The menus are used sideways.';
   },
 };
 
