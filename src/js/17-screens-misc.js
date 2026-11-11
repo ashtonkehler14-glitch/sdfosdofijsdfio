@@ -460,31 +460,16 @@ const ProfileScreen = {
         if (m.data) m.data = { ...m.data, pp: m.verified ? m.verified.pp : m.data.pp || 0, top: m.data.top && m.data.top.length ? m.data.top : m.top || [] }; /* (pp: the server's standing for them) */
         // a player whose game hasn't sent its profile yet: what the server knows of them (rank, pp, accuracy, play
         // count, ranks) — a profile is never "not shared"
-        else { const v = m.verified || {}; m.data = { name: m.name || this.remote.name, pp: v.pp || 0, avgAcc: v.acc || 0, plays: v.plays || 0, grades: { SS: v.ss || 0, S: v.s || 0, A: v.a || 0 }, top: m.top || [] }; } Object.assign(this.remote, { ppInfo: m.verified || null, data: m.data, missing: !m.data, rank: m.rank, daily: m.daily, online: m.online, id: m.id, status: m.status, avatar: m.avatar || this.remote.avatar, name: (m.data && m.data.name) || m.name || this.remote.name }); this.render(); } }),
+        else { const v = m.verified || {}; m.data = { name: m.name || this.remote.name, pp: v.pp || 0, avgAcc: v.acc || 0, plays: v.plays || 0, grades: { SS: v.ss || 0, S: v.s || 0, A: v.a || 0 }, top: m.top || [] }; } Object.assign(this.remote, { ppInfo: m.verified || null, data: m.data, missing: !m.data, rank: m.rank, online: m.online, id: m.id, status: m.status, avatar: m.avatar || this.remote.avatar, name: (m.data && m.data.name) || m.name || this.remote.name }); this.render(); } }),
       Bus.on('presence:changed', () => { if (this.remote && !this.remote.data && !this.remote.missing) Presence.send({ t: 'profile', pid: this.remote.pid }); }),
-      Bus.on('rankings', d => { if (this.remote || d.mode === 'score') return; this.globalRank = d.you ? d.you.rank : null; this.paintGlobal(); }), Bus.on('daily', () => this.paintDaily())];
+      Bus.on('rankings', d => { if (this.remote || d.mode === 'score') return; this.globalRank = d.you ? d.you.rank : null; this.paintGlobal(); })];
     this.render();
     if (params.scroll) requestAnimationFrame(() => { const sc = this.scroller(); if (sc) sc.scrollTop = params.scroll; });
     if (this.remote) { Presence.start(); Presence.send({ t: 'profile', pid: this.remote.pid }); }
-    else if (typeof Rankings !== 'undefined') { Rankings.report(); Presence.send({ t: 'rankings' }); Daily.ask(); if (Presence.pid()) Presence.send({ t: 'profile', pid: Presence.pid() }); }
+    else if (typeof Rankings !== 'undefined') { Rankings.report(); Presence.send({ t: 'rankings' }); if (Presence.pid()) Presence.send({ t: 'profile', pid: Presence.pid() }); }
     return el;
   },
   leave() { (this._unsub || []).forEach(f => f()); },
-  /** lazer's DailyChallengeStatsDisplay: "Weekly Challenge" and the weeks played in the colour of their tier; the
-   *  tooltip has the streaks. Hidden until you've played one. */
-  paintDaily() {
-    const el = this.dailyEl, v = this.remote ? this.remote.daily : Daily.data && Daily.data.stats;
-    if (!el || !el.isConnected) return;
-    el.hidden = !(v && v.plays);
-    if (el.hidden) return;
-    const tier = n => n >= 360 ? 'lustrous' : n >= 240 ? 'radiant' : n >= 120 ? 'rhodium' : n >= 60 ? 'platinum' : n >= 30 ? 'gold' : n >= 10 ? 'silver' : n >= 5 ? 'bronze' : 'iron';
-    const d = n => `${fmtInt(n)}w`;
-    clearEl(el).append(h('span.pf-daily-t', 'Weekly Challenge'), h(`b.tier-${tier(Math.floor(v.plays / 3))}`, d(v.plays)),
-      h('div.pf-daily-tip',
-        h('div', h('span', 'Total participation'), h(`b.tier-${tier(Math.floor(v.plays / 3))}`, d(v.plays))),
-        h('div', h('span', 'Current weekly streak'), h(`b.tier-${tier(v.current)}`, d(v.current))),
-        h('div', h('span', 'Best weekly streak'), h(`b.tier-${tier(v.best)}`, d(v.best)))));
-  },
   paintGlobal() { const b = this.globalEl && this.globalEl.querySelector('b'); if (b) b.textContent = this.globalRank ? `#${fmtInt(this.globalRank)}` : '—'; },
   /** Everything the profile shows, from this browser's scores — also sent up so other players can open it. */
   localData() {
@@ -583,7 +568,6 @@ const ProfileScreen = {
     if (own) top.querySelector('.pf-banner').append(h('button.btn.sm.pf-customize', { onclick: () => ProfileAppearance.open() }, icon('brush'), 'Customize profile'));
     // (play count and time aren't repeated here: they're in the stat list below)
     const centre = h('div.pf-centre',
-      this.dailyEl = h('div.pf-daily', { hidden: true }),
       h('div.grow'),
       h('div.pf-level', { title: `${fmtInt(xp.into)} / ${fmtInt(xp.need)} XP` },
         h('div.pf-hex', h('span', String(xp.level))),
@@ -644,11 +628,10 @@ const ProfileScreen = {
     const sections = [ranks(), rec(), medals()].filter(Boolean);
     let pinned = null; // (a clicked tab stays lit until you scroll yourself, even if its section can't reach the top)
     const tabs = h('div.pf-tabs', ...secs.map(([id, title, el]) => h('button.ov-tab', { onclick: () => { UISounds.click(); pinned = id; el.scrollIntoView({ behavior: 'smooth', block: 'start' }); const sc = el.closest('.screen-body'); if (sc) settleOn(sc, () => el.scrollIntoView({ block: 'start' })); [...tabs.children].forEach((b, i) => b.classList.toggle('on', secs[i][0] === id)); } }, title.toLowerCase())));
-    // (the level and weekly challenge sit at the cover's bottom right, beside the name: one block, not a strip of its own)
+    // The level sits at the cover’s bottom right, beside the name.
     top.querySelector('.pf-top-in').append(centre);
     const header = h('div.pf-header', top, detail); ProfileAppearance.paint(header, appearance);
     page.append(header, tabs, ...sections);
-    this.paintDaily();
     // lazer lights the tab of the section you're reading
     requestAnimationFrame(() => {
       let sc = tabs.parentElement;
@@ -935,6 +918,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.11c', title: 'Profile cleanup', sections: [
+    { icon: 'user', title: 'Profiles', items: ['Removed weekly challenge participation and streak stats from profiles.'] },
+  ] },
   { id: '2026.11.11b', title: 'Results browsing', sections: [
     { icon: 'screen', title: 'Fixed', items: ['Switching between players’ results keeps the beatmap background and download action.'] },
   ] },
