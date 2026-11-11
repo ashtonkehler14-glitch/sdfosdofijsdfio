@@ -5597,6 +5597,10 @@ body.se-open .gameplay .hl-off { visibility: visible !important; opacity: .3; }
   .sp-nb { flex-shrink: 0; }
   .sp-main { min-height: 0; }
 }
+
+/* Pause adjustments share the loader's sliders and keep both controls in reach. */
+.pm-adjustments { display: flex; flex-wrap: wrap; gap: 12px; width: min(520px, calc(90 * var(--vw))); margin: 12px auto 0; text-align: left; }
+.pm-adjustments .pl-slider { flex: 1 1 180px; min-width: 0; margin: 0; }
 </style>
 <style id="css-no-anim" media="not all">
 *, *::before, *::after { transition: none !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
@@ -22561,7 +22565,10 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       h('div.pm-info',
         s.spectate ? null : h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
-        h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
+        h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))),
+        s.spectate ? null : h('div.pm-adjustments',
+          this.loaderSlider('gameplay.scrollSpeed', 'Scroll speed', 1, 40, 1, v => `${v}`),
+          this.loaderSlider('audio.music', 'Song volume', 0, 1, 0.01, v => `${Math.round(v * 100)}%`)))));
     if (failed && this.failedScore) { el.append(this.failFooter()); el.classList.add('has-foot'); }
     // (Neru: smug about a fail, teasing about a pause — when you're the one playing, and not in a match)
     if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause', { poke: failed ? NeruCameo.EGG.failed : NeruCameo.EGG.paused }); if (n) { el.append(n); el.classList.add('has-neru'); if (!failed) NeruEggs.fishLater(n); } }
@@ -25622,6 +25629,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.11d', title: 'Pause adjustments', sections: [
+    { icon: 'gear', title: 'Gameplay', items: ['Adjust song volume and scroll speed directly from the pause menu.'] },
+  ] },
   { id: '2026.11.11c', title: 'Profile cleanup', sections: [
     { icon: 'user', title: 'Profiles', items: ['Removed weekly challenge participation and streak stats from profiles.'] },
   ] },
@@ -36024,7 +36034,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '35df33966a03';
+const APP_BUILD = 'b89aa0ce9ab8';
 
 const App = {
   lastReport: null,

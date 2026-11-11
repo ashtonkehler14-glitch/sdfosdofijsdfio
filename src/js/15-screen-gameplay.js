@@ -1781,7 +1781,10 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       h('div.pm-info',
         s.spectate ? null : h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
-        h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
+        h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))),
+        s.spectate ? null : h('div.pm-adjustments',
+          this.loaderSlider('gameplay.scrollSpeed', 'Scroll speed', 1, 40, 1, v => `${v}`),
+          this.loaderSlider('audio.music', 'Song volume', 0, 1, 0.01, v => `${Math.round(v * 100)}%`)))));
     if (failed && this.failedScore) { el.append(this.failFooter()); el.classList.add('has-foot'); }
     // (Neru: smug about a fail, teasing about a pause — when you're the one playing, and not in a match)
     if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause', { poke: failed ? NeruCameo.EGG.failed : NeruCameo.EGG.paused }); if (n) { el.append(n); el.classList.add('has-neru'); if (!failed) NeruEggs.fishLater(n); } }
