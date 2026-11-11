@@ -25,7 +25,7 @@ try {
   }
   await page.waitForFunction(() => !Screens.busy);
 
-  for (const viewport of [{width:591,height:1280},{width:360,height:740},{width:1280,height:591}]) {
+  for (const viewport of [{width:591,height:1280},{width:360,height:740},{width:1280,height:591},{width:844,height:390}]) {
     await page.setViewportSize(viewport);
     await page.evaluate(async () => {
       while (Overlays.top()) Overlays.top().close();
@@ -35,6 +35,11 @@ try {
     await page.waitForTimeout(1000);
     const out = await page.evaluate(() => {
       const rect = e => { const r=e.getBoundingClientRect(); return {x:r.x,y:r.y,right:r.right,bottom:r.bottom}; };
+      const card=document.querySelector('.res-grid > .rs'), ring=card.querySelector('.rs-ring').getBoundingClientRect(), score=card.querySelector('.res-score').getBoundingClientRect();
+      if(ring.bottom>score.top+2 || Math.abs((ring.left+ring.right-score.left-score.right)/2)>3) throw Error('Mobile result card uses a sideways layout');
+      if(getComputedStyle(card).zoom!=='1') throw Error('Extra mobile result shrinking remains');
+      const cr=card.getBoundingClientRect(), footer=document.querySelector('.res-actions').getBoundingClientRect();
+      if(cr.bottom>footer.top+2 || cr.top<0) throw Error('Normal result card does not fit above footer');
       const actions=[...document.querySelectorAll('.res-actions button')].map(e=>({name:e.getAttribute('aria-label')||e.textContent,r:rect(e)}));
       for(const a of actions) if(a.r.x < -1 || a.r.right > innerWidth+1 || a.r.y < 0 || a.r.bottom > innerHeight+1) throw Error('Unreachable action '+JSON.stringify(a));
       if(Orientation.wanted()!=='portrait') throw Error('Portrait results ignored');

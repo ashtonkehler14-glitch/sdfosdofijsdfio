@@ -109,8 +109,7 @@ const ResultsScreen = {
     if (force) this._userScrolled = false;
   },
   /** The panels shrink as one to fit whatever height is left (more of them, opening the statistics, a small window /
-   *  phone), the way lazer's results always sit whole on screen — and the wide card a phone held sideways gets grows a
-   *  little into the room it has. A row of scores wider than the screen scrolls sideways instead of shrinking (lazer's
+   *  phone), keeping the normal result card layout on every device. A row of scores wider than the screen scrolls sideways instead of shrinking (lazer's
    *  ScorePanelList), the big panel in the middle and room either side for any other to come there; the statistics
    *  fit the width too. */
   fitToScreen(body, grid) {
@@ -132,8 +131,7 @@ const ResultsScreen = {
         others += c.offsetHeight + (parseFloat(m.marginTop) || 0) + (parseFloat(m.marginBottom) || 0) + (parseFloat(cs.rowGap) || 0);
       }
       const ah = body.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - others;
-      // (the wide card of a short, wide screen — a phone held sideways — may grow into the room it leaves, too)
-      const grow = !grid.classList.contains('stats-open') && matchMedia('(max-height: 520px) and (min-aspect-ratio: 3/2)').matches ? 1.3 : 1;
+      const grow = 1;
       const list = body.classList.contains('mp') && !grid.classList.contains('stats-open');
       if (list) {
         // (the row's height fits; its width scrolls — zoomed rather than scaled, so the row's scroll width is its size)

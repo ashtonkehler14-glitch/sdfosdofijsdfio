@@ -918,6 +918,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.11i', title: 'Mobile results layout', sections: [
+    { icon: 'screen', title: 'Results', items: ['Mobile uses the normal results card, fitted to the screen without the extra shrink or sideways layout.'] },
+  ] },
   { id: '2026.11.11h', title: 'Profile editor scaling', sections: [
     { icon: 'brush', title: 'Profiles', items: ['Profile customization follows the same UI scaling as the rest of the game.'] },
   ] },
