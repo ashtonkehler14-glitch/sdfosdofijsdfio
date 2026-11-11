@@ -5584,7 +5584,3 @@ body.se-open .gameplay .hl-off { visibility: visible !important; opacity: .3; }
   .sp-nb { flex-shrink: 0; }
   .sp-main { min-height: 0; }
 }
-
-/* Pause adjustments share the loader's sliders and keep both controls in reach. */
-.pm-adjustments { display: flex; flex-wrap: wrap; gap: 12px; width: min(520px, calc(90 * var(--vw))); margin: 12px auto 0; text-align: left; }
-.pm-adjustments .pl-slider { flex: 1 1 180px; min-width: 0; margin: 0; }

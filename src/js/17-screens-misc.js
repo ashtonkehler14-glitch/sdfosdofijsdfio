@@ -918,6 +918,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.11f', title: 'Pause volume controls', sections: [
+    { icon: 'music', title: 'Gameplay', items: ['Use the scroll wheel to adjust volume while paused, with a preview tone. Removed the pause-menu sliders.'] },
+  ] },
   { id: '2026.11.11e', title: 'Volume feedback', sections: [
     { icon: 'music', title: 'Audio', items: ['A short preview sound lets you hear the volume while adjusting it with the scroll wheel.'] },
   ] },

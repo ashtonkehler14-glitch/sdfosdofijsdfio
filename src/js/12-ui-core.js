@@ -1297,13 +1297,12 @@ const VolumeOverlay = {
     window.addEventListener('wheel', e => {
       if (e.ctrlKey || e.metaKey) return;
       const scr = Screens.currentName, shown = this.el && this.el.classList.contains('show');
-      const here = scr === 'home' || (scr === 'gameplay' && !Settings.get('input.noWheelVolumeInGame'));
+      const here = scr === 'home' || (scr === 'gameplay' && (GameplayScreen.pauseEl || !Settings.get('input.noWheelVolumeInGame')));
       // lazer's ToolbarMusicButton: the wheel over the toolbar's note always changes the master volume
       const onNote = !!(e.target.closest && e.target.closest('.tb-music'));
       if (onNote) { this.sel = 'master'; Toolbar.volumeTouched(); }
       if (!e.altKey && !(shown && this.hover) && !onNote) {
         if (!here || Overlays.stack.length || SettingsPanel.o || this.overScroller(e.target)) return;
-        if (scr === 'gameplay' && GameplayScreen.pauseEl) return;
       }
       e.preventDefault(); e.stopPropagation();
       const which = e.altKey && e.shiftKey ? 'music' : e.altKey && e.ctrlKey ? 'effects' : this.sel;

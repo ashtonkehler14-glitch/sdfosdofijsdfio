@@ -5597,10 +5597,6 @@ body.se-open .gameplay .hl-off { visibility: visible !important; opacity: .3; }
   .sp-nb { flex-shrink: 0; }
   .sp-main { min-height: 0; }
 }
-
-/* Pause adjustments share the loader's sliders and keep both controls in reach. */
-.pm-adjustments { display: flex; flex-wrap: wrap; gap: 12px; width: min(520px, calc(90 * var(--vw))); margin: 12px auto 0; text-align: left; }
-.pm-adjustments .pl-slider { flex: 1 1 180px; min-width: 0; margin: 0; }
 </style>
 <style id="css-no-anim" media="not all">
 *, *::before, *::after { transition: none !important; animation-duration: 1ms !important; animation-iteration-count: 1 !important; }
@@ -15287,13 +15283,12 @@ const VolumeOverlay = {
     window.addEventListener('wheel', e => {
       if (e.ctrlKey || e.metaKey) return;
       const scr = Screens.currentName, shown = this.el && this.el.classList.contains('show');
-      const here = scr === 'home' || (scr === 'gameplay' && !Settings.get('input.noWheelVolumeInGame'));
+      const here = scr === 'home' || (scr === 'gameplay' && (GameplayScreen.pauseEl || !Settings.get('input.noWheelVolumeInGame')));
       // lazer's ToolbarMusicButton: the wheel over the toolbar's note always changes the master volume
       const onNote = !!(e.target.closest && e.target.closest('.tb-music'));
       if (onNote) { this.sel = 'master'; Toolbar.volumeTouched(); }
       if (!e.altKey && !(shown && this.hover) && !onNote) {
         if (!here || Overlays.stack.length || SettingsPanel.o || this.overScroller(e.target)) return;
-        if (scr === 'gameplay' && GameplayScreen.pauseEl) return;
       }
       e.preventDefault(); e.stopPropagation();
       const which = e.altKey && e.shiftKey ? 'music' : e.altKey && e.ctrlKey ? 'effects' : this.sel;
@@ -22574,10 +22569,7 @@ Skin         ${SkinManager.current.name} (${s.layout.from4K ? 'skin.ini [Mania] 
       h('div.pm-info',
         s.spectate ? null : h('div', 'Retry count: ', h('b', String(this.retryCount || 0))),
         prog != null ? h('div', 'Song progress: ', h('b', `${prog}%`)) : null,
-        h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))),
-        s.spectate ? null : h('div.pm-adjustments',
-          this.loaderSlider('gameplay.scrollSpeed', 'Scroll speed', 1, 40, 1, v => `${v}`),
-          this.loaderSlider('audio.music', 'Song volume', 0, 1, 0.01, v => `${Math.round(v * 100)}%`)))));
+        h('div', 'Accuracy: ', h('b', fmtAcc(s.engine.score.accuracy))))));
     if (failed && this.failedScore) { el.append(this.failFooter()); el.classList.add('has-foot'); }
     // (Neru: smug about a fail, teasing about a pause — when you're the one playing, and not in a match)
     if (s.mode === 'play' && !s.mp && !s.spectate) { const n = NeruCameo.make(failed ? 'failed' : 'paused', 'nc-pause', { poke: failed ? NeruCameo.EGG.failed : NeruCameo.EGG.paused }); if (n) { el.append(n); el.classList.add('has-neru'); if (!failed) NeruEggs.fishLater(n); } }
@@ -25638,6 +25630,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.11f', title: 'Pause volume controls', sections: [
+    { icon: 'music', title: 'Gameplay', items: ['Use the scroll wheel to adjust volume while paused, with a preview tone. Removed the pause-menu sliders.'] },
+  ] },
   { id: '2026.11.11e', title: 'Volume feedback', sections: [
     { icon: 'music', title: 'Audio', items: ['A short preview sound lets you hear the volume while adjusting it with the scroll wheel.'] },
   ] },
@@ -36046,7 +36041,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '57db26d555e1';
+const APP_BUILD = 'b02ddd793be3';
 
 const App = {
   lastReport: null,
