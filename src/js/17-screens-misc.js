@@ -935,6 +935,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.11b', title: 'Results browsing', sections: [
+    { icon: 'screen', title: 'Fixed', items: ['Switching between players’ results keeps the beatmap background and download action.'] },
+  ] },
   { id: '2026.11.11a', title: 'Mobile results', sections: [
     { icon: 'screen', title: 'Fixed', items: ['Results follow your selected mobile orientation.', 'Result actions and settings navigation stay accessible in portrait.'] },
   ] },

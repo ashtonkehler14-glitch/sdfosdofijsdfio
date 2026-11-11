@@ -16,7 +16,9 @@ const ResultsScreen = {
     const el = this._el = h('div.results');
     // (a score on a beatmap you don't have — someone else's, from their profile — shows that beatmap's cover from osu!,
     // never the background of the song that happens to be playing)
-    if (map) BeatmapManager.bgURL(map).then(u => Background.set(u));
+    const bgToken = this._bgToken = {};
+    this._foreignBg = !map && !p.mp;
+    if (map) BeatmapManager.bgURL(map).then(u => { if (this._bgToken === bgToken) Background.set(u); });
     else if (!p.mp) { Background.set(s.onlineSetId > 0 ? OnlineBeatmaps.coverURL(s.onlineSetId, 'cover@2x') : null); this._foreignBg = true; }
     const body = h('div.res-body');
     // osu!lazer: the score panel opens in the middle; clicking it slides it aside for the statistics (and back)
@@ -172,6 +174,7 @@ const ResultsScreen = {
     this._swapping = true;
     let built;
     try { built = this.enter(back ? base : { ...this.p, score, fromList: true, fresh: false, replay: null, watched: score.online ? 'online' : this.p.watched === 'online' ? null : this.p.watched }); } finally { this._swapping = false; }
+    old.classList.remove('stats-open');
     old.replaceChildren(...built.childNodes);
     if (this._neru) { old.append(this._neru); NeruCameo.clearOf(this._neru, old.querySelector('.res-row')); }
     this._el = old;
@@ -195,6 +198,7 @@ const ResultsScreen = {
     });
   },
   leave() {
+    this._bgToken = null;
     // (that cover was only for this score: the screen you go back to shows the playing song's background again)
     if (this._foreignBg) { this._foreignBg = false; const mm = Music.meta && BeatmapManager.maps.get(Music.meta.mapId); if (mm) BeatmapManager.bgURL(mm).then(u => { if (Screens.currentName !== 'results') Background.set(u); }); }
     (this._offs || []).forEach(f => f()); this._offs = []; MpResults.unmount(); cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },

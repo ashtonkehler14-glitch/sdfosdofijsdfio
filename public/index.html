@@ -23921,7 +23921,9 @@ const ResultsScreen = {
     const el = this._el = h('div.results');
     // (a score on a beatmap you don't have — someone else's, from their profile — shows that beatmap's cover from osu!,
     // never the background of the song that happens to be playing)
-    if (map) BeatmapManager.bgURL(map).then(u => Background.set(u));
+    const bgToken = this._bgToken = {};
+    this._foreignBg = !map && !p.mp;
+    if (map) BeatmapManager.bgURL(map).then(u => { if (this._bgToken === bgToken) Background.set(u); });
     else if (!p.mp) { Background.set(s.onlineSetId > 0 ? OnlineBeatmaps.coverURL(s.onlineSetId, 'cover@2x') : null); this._foreignBg = true; }
     const body = h('div.res-body');
     // osu!lazer: the score panel opens in the middle; clicking it slides it aside for the statistics (and back)
@@ -24077,6 +24079,7 @@ const ResultsScreen = {
     this._swapping = true;
     let built;
     try { built = this.enter(back ? base : { ...this.p, score, fromList: true, fresh: false, replay: null, watched: score.online ? 'online' : this.p.watched === 'online' ? null : this.p.watched }); } finally { this._swapping = false; }
+    old.classList.remove('stats-open');
     old.replaceChildren(...built.childNodes);
     if (this._neru) { old.append(this._neru); NeruCameo.clearOf(this._neru, old.querySelector('.res-row')); }
     this._el = old;
@@ -24100,6 +24103,7 @@ const ResultsScreen = {
     });
   },
   leave() {
+    this._bgToken = null;
     // (that cover was only for this score: the screen you go back to shows the playing song's background again)
     if (this._foreignBg) { this._foreignBg = false; const mm = Music.meta && BeatmapManager.maps.get(Music.meta.mapId); if (mm) BeatmapManager.bgURL(mm).then(u => { if (Screens.currentName !== 'results') Background.set(u); }); }
     (this._offs || []).forEach(f => f()); this._offs = []; MpResults.unmount(); cancelAnimationFrame(this._cnt); (this._srcs || []).forEach(x => { try { x.stop(); } catch {} }); this._srcs = []; },
@@ -25635,6 +25639,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.11b', title: 'Results browsing', sections: [
+    { icon: 'screen', title: 'Fixed', items: ['Switching between players’ results keeps the beatmap background and download action.'] },
+  ] },
   { id: '2026.11.11a', title: 'Mobile results', sections: [
     { icon: 'screen', title: 'Fixed', items: ['Results follow your selected mobile orientation.', 'Result actions and settings navigation stay accessible in portrait.'] },
   ] },
@@ -32798,7 +32805,7 @@ const MpResults = {
     // (someone else's best from the server, as a score the results screen can open)
     const asScore = e => ({ id: 'o-' + e.pid, online: true, player: e.name, avatar: e.avatar, score: e.score, scoreStd: e.score, accuracy: e.acc, maxCombo: e.combo,
       grade: e.grade, mods: e.mods || [], counts: e.counts && e.counts.length === 6 ? e.counts : [0, 0, 0, 0, 0, 0], pp: e.pp, srVersion: SR_VERSION, passed: true, date: e.date, replayId: null,
-      mapHash: s.mapHash, title: map.title || s.title, artist: map.artist || s.artist, version: map.version || s.version, creator: map.creator || s.creator, keys: map.keys || s.keys, stars: e.stars > 0 ? e.stars : map.stars || s.stars });
+      mapHash: s.mapHash, onlineSetId: map.setId || s.onlineSetId, mapId: map.id || s.mapId, title: map.title || s.title, artist: map.artist || s.artist, version: map.version || s.version, creator: map.creator || s.creator, keys: map.keys || s.keys, stars: e.stars > 0 ? e.stars : map.stars || s.stars });
     const theirs = board ? board.scores.filter(e => e.pid !== me && 'o-' + e.pid !== s.id).map(asScore) : [];
     const all = [...mineHere, ...theirs, s].sort((a, b) => ScoreManager.value(b) - ScoreManager.value(a) || b.accuracy - a.accuracy);
     const row = (x, i) => ({ id: x.id, local: !x.online, name: x.player || ProfileManager.profile.name, avatar: x.avatar, score: ScoreManager.value(x), accuracy: x.accuracy, maxCombo: x.maxCombo,
@@ -36031,7 +36038,7 @@ const SpectatorChat = {
 const BUNDLED_KORI_VERSION = 2;
 /** This page's build (build.mjs puts it in, and the same one in public/sw.js): how an update is told from the page you
  *  already have. */
-const APP_BUILD = '004e582469bf';
+const APP_BUILD = 'f49edb44e81a';
 
 const App = {
   lastReport: null,
