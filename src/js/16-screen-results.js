@@ -298,7 +298,8 @@ const ResultsScreen = {
       if (k < 1) this._cnt = requestAnimationFrame(tick);
     };
     tick();
-    const pp = s.online && s.pp != null ? s.pp : ScoreManager.ppOf(s); // (someone else's play: the pp their profile lists)
+    const unranked = !s.online && !ScoreManager.isRanked(s);
+    const pp = s.online && s.pp != null ? s.pp : ScoreManager.ppOf(s, { includeUnranked: true }); // (someone else's play: the pp their profile lists)
     const stat = (k, v, title) => h('div.rs-stat', { title: title || '' }, h('div.k', k), h('div.v', v));
     const counts = s.counts || [0, 0, 0, 0, 0, 0];
     // lazer's ExpandedPanelMiddleContent: title and artist, the accuracy circle 40px below, the score, the star rating
@@ -314,7 +315,7 @@ const ResultsScreen = {
       h('div.rs-stats',
         stat('Accuracy', fmtAcc(s.accuracy)),
         stat('Max combo', fmtInt(s.maxCombo) + 'x'),
-        stat('pp', fmtInt(pp), !s.passed || (s.mods || []).includes('AT') ? 'pp is only awarded for passes (not Auto)' : '')),
+        stat(unranked ? 'pp · Unranked' : 'pp', fmtInt(pp), unranked ? 'Calculated pp — this unranked beatmap does not contribute to your total pp' : !s.passed || (s.mods || []).includes('AT') ? 'pp is only awarded for passes (not Auto)' : '')),
       h('div.rs-judges', ...JUDGEMENTS.map((j, i) => h('div.rs-j', h('div.k', { style: { color: j.color } }, j.short), h('div.v', fmtInt(counts[i]))))));
     if (p.fresh && s.passed && s.totalPpAfter != null && s.totalPpBefore != null && Math.round(s.totalPpAfter) > 0) {
       const d = s.totalPpAfter - s.totalPpBefore;
@@ -364,10 +365,11 @@ const ResultsScreen = {
     let maxPp = 0;
     const lm = BeatmapManager.mapByHash(s.mapHash), ppStars = !s.online && (s.rate || 1) === 1 && s.srVersion !== SR_VERSION && lm && lm.srVersion === SR_VERSION ? lm.stars : s.stars;
     try { maxPp = total && ppStars ? OsuMath.pp(ppStars, [total, 0, 0, 0, 0, 0], (s.mods || []).filter(m => m !== 'AT')) : 0; } catch { maxPp = 0; }
-    const got = s.passed ? (s.online && s.pp != null ? s.pp : ScoreManager.ppOf(s) || s.pp || 0) : 0;
+    const unranked = !s.online && !ScoreManager.isRanked(s);
+    const got = s.passed ? (s.online && s.pp != null ? s.pp : ScoreManager.ppOf(s, { includeUnranked: true }) || s.pp || 0) : 0;
     const pct = maxPp > 0 ? clamp(got / maxPp, 0, 1) : 0;
     const perf = item('Performance Breakdown',
-      h('div.st-pp', h('div.st-pp-l', h('span', 'Achieved PP'), h('b', fmtInt(Math.round(got)))), h('div.st-pp-r', h('span', 'Maximum'), h('b', fmtInt(Math.round(maxPp))))),
+      h('div.st-pp', h('div.st-pp-l', h('span', unranked ? 'Achieved PP · Unranked' : 'Achieved PP'), h('b', fmtInt(Math.round(got)))), h('div.st-pp-r', h('span', 'Maximum'), h('b', fmtInt(Math.round(maxPp))))),
       h('div.st-row', h('span', 'Difficulty'), h('i.st-bar', h('i', { style: { width: `${(pct * 100).toFixed(1)}%` } })), h('b', `${Math.round(pct * 100)}%`)));
     const hist = item('Timing Distribution');
     // Secondary graphs stay folded away to keep the screen simple.
@@ -541,8 +543,9 @@ const ShareCard = {
     // score and stats
     text(fmtScore(ScoreManager.value(s)), 76, 300, { w: 800, xPos: 380 });
     const stat = (k, v, i) => { const sx = 380 + i * 190; text(k, 17, 350, { w: 600, color: 'rgba(255,255,255,.6)', xPos: sx }); text(v, 34, 390, { w: 700, xPos: sx }); };
-    const pp = s.online && s.pp != null ? s.pp : ScoreManager.ppOf(s); // (someone else's play: the pp their profile lists)
-    stat('Accuracy', fmtAcc(s.accuracy), 0); stat('Max combo', fmtInt(s.maxCombo) + 'x', 1); stat('pp', fmtInt(pp), 2);
+    const unranked = !s.online && !ScoreManager.isRanked(s);
+    const pp = s.online && s.pp != null ? s.pp : ScoreManager.ppOf(s, { includeUnranked: true }); // (someone else's play: the pp their profile lists)
+    stat('Accuracy', fmtAcc(s.accuracy), 0); stat('Max combo', fmtInt(s.maxCombo) + 'x', 1); stat(unranked ? 'pp · Unranked' : 'pp', fmtInt(pp), 2);
     if (s.unstableRate) stat('UR', s.unstableRate.toFixed(1), 3);
     // judgements
     const counts = s.counts || [0, 0, 0, 0, 0, 0];

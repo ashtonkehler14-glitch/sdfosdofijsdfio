@@ -65,10 +65,10 @@ const ScoreManager = {
   lastPlayed(hash) { const l = this.byHash.get(hash); return l && l.length ? l[l.length - 1].date : 0; },
   recent(n = 20) { return this.scores.slice(-n).reverse(); },
   /** pp of a score (osu!mania formula). Older scores without stored pp are computed on demand. */
-  ppOf(s) {
+  ppOf(s, { includeUnranked = false } = {}) {
     // (no pp for a play with mods lazer doesn't rank — Difficulty Adjust and the like — as its rankings give none)
-    if (!s || !s.passed || !this.isRanked(s) || !ModSystem.isRanked(s.mods || [], s.modConfig)) return 0;
-    if (typeof s.pp === 'number' && s.srVersion === SR_VERSION) return s.pp;
+    if (!s || !s.passed || (!includeUnranked && !this.isRanked(s)) || !ModSystem.isRanked(s.mods || [], s.modConfig)) return 0;
+    if (typeof s.pp === 'number' && s.srVersion === SR_VERSION && !(includeUnranked && !this.isRanked(s) && s.pp === 0)) return s.pp;
     const m = typeof BeatmapManager !== 'undefined' ? BeatmapManager.mapByHash(s.mapHash) : null;
     const stars = (s.rate || 1) === 1 && m && m.srVersion === SR_VERSION ? m.stars : (s.stars || 0);
     return OsuMath.pp(stars, s.counts || [0, 0, 0, 0, 0, 0], s.mods || []);

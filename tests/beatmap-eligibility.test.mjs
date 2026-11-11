@@ -48,6 +48,11 @@ test('local totals require difficulty-level confirmation, not copied set status 
   map.rankStatus = 'ranked'; assert.equal(S.isRanked(score), true); assert.equal(S.ppOf(score), 999);
   map.rankStatus = 'approved'; assert.equal(S.isRanked(score), true);
   map.rankStatus = 'pending'; assert.equal(S.ppOf(score), 0);
+  assert.equal(S.ppOf(score, { includeUnranked: true }), 999, 'results can display calculated pp');
+  assert.equal(S.bestPpPerMap([score]).length, 0, 'displaying unranked pp never counts toward totals');
+  __ctx.OsuMath = { pp: () => 321 };
+  assert.equal(S.ppOf({ ...score, pp: 0 }, { includeUnranked: true }), 321, 'recalculate a stored ranked-only zero');
+  assert.equal(S.ppOf({ ...score, passed: false }, { includeUnranked: true }), 0, 'failed plays retain their rules');
 });
 
 test('exact lookup uses the explorer fallback only when its actual checksum matches', async () => {
