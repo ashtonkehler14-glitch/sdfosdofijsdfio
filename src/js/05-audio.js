@@ -121,7 +121,7 @@ const AudioManager = {
     const g = this.ctx.createGain(); g.gain.value = volume;
     let node = src;
     if (pan && this.ctx.createStereoPanner) { const p = this.ctx.createStereoPanner(); p.pan.value = pan; src.connect(p); node = p; }
-    node.connect(g); g.connect(bus === 'ui' ? this.uiBus : bus === 'music' ? this.musicBus : this.fxBus);
+    node.connect(g); g.connect(bus === 'ui' ? this.uiBus : bus === 'music' ? this.musicBus : bus === 'master' ? this.master : this.fxBus);
     src.start(when || 0);
     return src;
   },
@@ -147,6 +147,7 @@ const AudioManager = {
     else if (/hitfinish/.test(name)) buf = make(0.6, (t, n) => (n() * 0.5 + Math.sin(2 * Math.PI * 520 * t) * 0.2) * env(t, 0.002, 0.18) * 0.35);
     else if (/hitclap/.test(name)) buf = make(0.15, (t, n) => n() * env(t, 0.001, 0.03) * 0.4);
     else if (name === 'combobreak') buf = make(0.35, t => Math.sin(2 * Math.PI * (420 - 500 * t) * t) * env(t, 0.005, 0.1) * 0.35);
+    else if (name === 'volume-preview') buf = make(0.06, t => Math.sin(2 * Math.PI * 880 * t) * env(t, 0.003, 0.018) * 0.3);
     else if (name === 'click-short') buf = make(0.03, t => Math.sin(2 * Math.PI * 3200 * t) * env(t, 0.0005, 0.006) * 0.18);
     else if (name === 'click-short-confirm' || name === 'menuclick' || name === 'menuhit') buf = make(0.12, t => (Math.sin(2 * Math.PI * 880 * t) + Math.sin(2 * Math.PI * 1320 * t) * 0.5) * env(t, 0.002, 0.03) * 0.22);
     else if (name === 'menuback' || name === 'click-close') buf = make(0.12, t => Math.sin(2 * Math.PI * (900 - 2400 * t) * t) * env(t, 0.002, 0.035) * 0.22);

@@ -1237,6 +1237,14 @@ const VolumeOverlay = {
     Settings.set(key, v);
     if (which === 'master' && v > 0) this._muted = null;
     this.show(which);
+    this.preview(which);
+  },
+  preview(which) {
+    const now = performance.now();
+    if (now - (this._previewAt ?? -Infinity) < 70) return;
+    this._previewAt = now;
+    const sound = AudioManager.synth('volume-preview');
+    AudioManager.play(sound, { bus: which === 'music' ? 'music' : which === 'effects' ? 'fx' : 'master' });
   },
   ring(which, label, big) {
     const R = big ? 38 : 26, C = 2 * Math.PI * R, sz = (R + 8) * 2;
