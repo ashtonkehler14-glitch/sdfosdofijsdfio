@@ -2273,3 +2273,52 @@ test('automatic moderation: a player who uses blocked words 3 times in 10 minute
   for (let i = 0; i < 4; i++) { clock.t += 10000; p.message('a', { t: 'say', text: 'heck' }); }
   assert.equal(p.modOf('mu', 'alicepid1'), null);
 });
+
+test('presence: one row per player however many tabs they have open, with one picture across them', () => {
+  const clock = { t: 0 };
+  const p = new PresenceLogic(() => clock.t);
+  const K = 'key-alicepid-0123456789';
+  p.join('a1', { name: 'Alice', pid: 'alicepid', key: K, cid: 't1', avatar: 'preset:miku' });
+  p.join('b', { name: 'Bob', pid: 'bobpid1', key: 'key-bobpid1-0123456789', cid: 't2' });
+  // (more connections on the same account, each with its own picture: still one row, where Alice first came online)
+  p.join('a2', { name: 'Alice', pid: 'alicepid', key: K, cid: 't3', avatar: 'preset:teto' });
+  p.join('a3', { name: 'Alice', pid: 'alicepid', key: K, cid: 't4', avatar: 'preset:neru' });
+  assert.deepEqual(p.list().map(x => [x.id, x.name]), [['a3', 'Alice'], ['b', 'Bob']]);
+  // (the newest picture is the one every tab of hers shows)
+  for (const id of ['a1', 'a2', 'a3']) assert.equal(p.users.get(id).avatar, 'preset:neru');
+  // (guests without a public id stay one row each)
+  p.join('g1', { name: 'Guest' }); p.join('g2', { name: 'Guest' });
+  assert.equal(p.list().filter(x => x.name === 'Guest').length, 2);
+  // (the tab in a song is the row, so it can be spectated)
+  p.message('a1', { t: 'status', status: 'playing', avatar: 'preset:neru', song: { title: 'S', artist: 'A', version: 'V', stars: 1, keys: 4 } });
+  assert.equal(p.list()[0].id, 'a1');
+  assert.equal(p.list()[0].status, 'playing');
+  p.message('a1', { t: 'status', status: 'menu', avatar: 'preset:neru' });
+  assert.equal(p.list()[0].id, 'a3');
+  // (an older tab repeating the picture it had doesn't undo a newer one; a picture changed in a tab goes to all of them)
+  p.message('a2', { t: 'status', status: 'room', avatar: 'preset:teto' });
+  assert.equal(p.list()[0].avatar, 'preset:neru');
+  p.message('a2', { t: 'status', status: 'room', avatar: 'preset:rin' });
+  for (const id of ['a1', 'a2', 'a3']) assert.equal(p.users.get(id).avatar, 'preset:rin');
+  // (a tab that comes on without a picture shows the one she has)
+  p.join('a4', { name: 'Alice', pid: 'alicepid', key: K, cid: 't5' });
+  assert.equal(p.list()[0].avatar, 'preset:rin');
+  // (a tab appearing offline doesn't hide the others; all of them leaving takes the row off)
+  p.message('a4', { t: 'vis', v: 'offline' });
+  assert.equal(p.list()[0].id, 'a3');
+  for (const id of ['a1', 'a2', 'a3', 'a4']) p.leave(id);
+  assert.deepEqual(p.list().map(x => x.name), ['Bob', 'Guest', 'Guest']);
+});
+
+test('presence: a picture taken down stays down on every tab, and comes back once allowed', () => {
+  const p = new PresenceLogic(() => 0);
+  const K = 'key-alicepid-0123456789';
+  p.join('a1', { name: 'Alice', pid: 'alicepid', key: K, cid: 't1', avatar: 'preset:miku' });
+  p.join('a2', { name: 'Alice', pid: 'alicepid', key: K, cid: 't2', avatar: 'preset:miku' });
+  p.adminNoAvatar('alicepid');
+  p.message('a1', { t: 'status', status: 'room', avatar: 'preset:teto' });
+  for (const id of ['a1', 'a2']) assert.equal(p.users.get(id).avatar, '');
+  p.adminNoAvatar('alicepid', false);
+  p.message('a2', { t: 'status', status: 'menu', avatar: 'preset:miku' });
+  for (const id of ['a1', 'a2']) assert.equal(p.users.get(id).avatar, 'preset:miku');
+});

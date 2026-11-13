@@ -629,11 +629,13 @@ const UserPanels = {
     const el = h('div.up-cover');
     return url ? PicWait.css(el, url) : el;
   },
-  canSpectate(u) { return !!(u.online && u.id && u.id !== Presence.me); }, // (anyone online, in a song or in the menus)
-  canInvite(u) { return u.online && u.id && u.id !== Presence.me && Friends.has(u.pid) && Multiplayer.inRoom() && u.status === 'menu'; },
+  /** You: this tab, or another tab or device of yours (the online list has one row per player, which may be the other one). */
+  isMe(u) { return !!((u.id && u.id === Presence.me) || (u.pid && u.pid === Presence.pid())); },
+  canSpectate(u) { return !!(u.online && u.id && !this.isMe(u)); }, // (anyone online, in a song or in the menus)
+  canInvite(u) { return u.online && u.id && !this.isMe(u) && Friends.has(u.pid) && Multiplayer.inRoom() && u.status === 'menu'; },
   /** UserPanel.ContextMenuItems: View profile first, then what you can do with them. */
   menuItems(u) {
-    const me = u.id && u.id === Presence.me, items = [{ label: 'View profile', icon: 'user', onClick: () => this.profile(u) }];
+    const me = this.isMe(u), items = [{ label: 'View profile', icon: 'user', onClick: () => this.profile(u) }];
     if (me) return items;
     if (this.canSpectate(u)) items.push({ label: 'Spectate', icon: 'film', onClick: () => Spectate.watch(u) });
     if (this.canSpectate(u) && Presence.isAdmin) items.push({ label: 'Live View', icon: 'film', onClick: () => AdminGameView.request(u) });
@@ -663,7 +665,7 @@ const UserPanels = {
   nameEl(u) { return fxName(h('span.up-nm', u.name), u.role || roleOfPid(u.pid)); },
   /** UserGridPanel: 120px tall, 10px padding; a 60px avatar (6px corners), the name beside it, the status along the bottom. */
   card(u) {
-    const me = u.id && u.id === Presence.me;
+    const me = this.isMe(u);
     return this.wire(h(`div.up.up-card${u.online ? '' : '.off'}`, this.cover(u),
       h('div.up-grid',
         Presence.avatarEl(u, 60),
@@ -674,7 +676,7 @@ const UserPanels = {
   },
   /** UserListPanel: a 40px row, the cover over its right half, the status on the right. */
   row(u) {
-    const me = u.id && u.id === Presence.me;
+    const me = this.isMe(u);
     return this.wire(h(`div.up.up-list${u.online ? '' : '.off'}`, this.cover(u),
       h('div.up-l', Presence.avatarEl(u, 40), h('div.up-name', this.nameEl(u), me ? h('span.up-you', 'you') : null)),
       h('div.up-r', this.statusIcon(u), this.statusMsg(u, true), me ? null : this.moreBtn(u))), u);
@@ -690,7 +692,7 @@ const UserPanels = {
     this.profileCard(u);
   },
   profileCard(u) {
-    const friend = Friends.has(u.pid), me = u.id && u.id === Presence.me;
+    const friend = Friends.has(u.pid), me = this.isMe(u);
     const acts = [];
     if (this.canSpectate(u)) acts.push({ label: 'Spectate', primary: true, onClick: () => Spectate.watch(u) });
     if (this.canSpectate(u) && Presence.isAdmin) acts.push({ label: 'Live View', onClick: () => AdminGameView.request(u) });

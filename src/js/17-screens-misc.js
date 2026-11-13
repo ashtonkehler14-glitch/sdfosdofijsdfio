@@ -918,6 +918,9 @@ const SkinsScreen = {
  *  (osu!lazer shows its changelog after an update); new players start with everything marked as seen. */
 // What's new: only what a player will notice, in a few words each (no behind-the-scenes changes)
 const CHANGELOG = [
+  { id: '2026.11.13', title: 'One entry per player online', sections: [
+    { icon: 'user', title: 'Online', items: ['With the game open on more than one tab or device, you show up once in the online list, with the same picture everywhere.'] },
+  ] },
   { id: '2026.11.11i', title: 'Mobile results layout', sections: [
     { icon: 'screen', title: 'Results', items: ['Mobile uses the normal results card, fitted to the screen without the extra shrink or sideways layout.'] },
   ] },

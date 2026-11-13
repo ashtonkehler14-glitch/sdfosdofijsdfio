@@ -1541,7 +1541,8 @@ export class PresenceLogic {
   /** Their picture taken down (one that isn't OK): it's gone from wherever it was kept, and none of theirs is shown again
    *  until it's allowed (`on` false). Their game is told, and goes back to the default picture. */
   adminNoAvatar(pid, on = true) {
-    if (!on) { if (this.noAvatar.delete(pid) && this.persistMod) this.persistMod('na', pid, null); return []; }
+    // (allowed again: the next picture any of their tabs sends counts as new, and shows)
+    if (!on) { if (this.noAvatar.delete(pid) && this.persistMod) this.persistMod('na', pid, null); for (const u of this.users.values()) if (u.pid === pid) u.ownAv = null; return []; }
     this.noAvatar.add(pid); if (this.persistMod) this.persistMod('na', pid, { at: this.now() });
     const ids = this.byPid(pid);
     for (const id of ids) this.users.get(id).avatar = '';
@@ -2236,7 +2237,20 @@ export class PresenceLogic {
   static MAX_EV = 240000; // a play's inputs kept for late watchers (t, col, down — ~80,000 key events)
   // (lazer's user status: "Appear offline" keeps a player off the list — and out of reach for spectating and invites)
   // (`role`: an admin's, the owner's — their name and picture in Neru's colours wherever they show)
-  list() { return [...this.users.entries()].filter(([, u]) => u.vis !== 'offline').map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, ...(u.activity ? { activity: u.activity } : {}), avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size, dnd: u.vis === 'dnd' || undefined, role: (u.pid && this.roleOf(u.pid)) || undefined })); }
+  // (one row per player: every tab and device of theirs is one entry — the newest, or the one in a song, so it can be
+  //  spectated — in the place where they first came online. Guests without a public id stay one row per connection.)
+  list() {
+    const rows = [], at = new Map();
+    for (const [id, u] of this.users) {
+      if (u.vis === 'offline') continue;
+      const i = u.pid ? at.get(u.pid) : undefined;
+      if (i === undefined) { if (u.pid) at.set(u.pid, rows.length); rows.push([id, u]); continue; }
+      if (u.status === 'playing' || rows[i][1].status !== 'playing') rows[i] = [id, u];
+    }
+    return rows.map(([id, u]) => ({ id, pid: u.pid, name: u.name, status: u.status, ...(u.activity ? { activity: u.activity } : {}), avatar: u.avatar, song: u.status === 'playing' ? u.song : null, watchers: u.watchers.size, dnd: u.vis === 'dnd' || undefined, role: (u.pid && this.roleOf(u.pid)) || undefined }));
+  }
+  /** One picture per player: the one they set last, from any tab, shows on all of them (in the list, chat and messages). */
+  shareAvatar(pid, av) { if (pid) for (const u of this.users.values()) if (u.pid === pid) u.avatar = av; }
   join(id, msg) {
     // the same browser tab reconnecting replaces its old entry straight away (no ghost of yourself)
     const cid = str(msg && msg.cid, 40), gone = [], out = [];
@@ -2253,11 +2267,13 @@ export class PresenceLogic {
     const nrec = pid ? this.names.get(pid) : null, given = (nrec && (nrec.name || nrec.was)) || '';
     if (given && str(msg && msg.name, 24) !== given) out.push({ to: id, msg: { t: 'renamed', name: given } });
     if (nrec && !nrec.name) { this.names.delete(pid); if (this.persistMod) this.persistMod('nm', pid, null); }
-    this.users.set(id, { name: given || str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), kh: pid ? sha256hex(String(msg.key || '')) : '', avatar: pid && this.noAvatar.has(pid) ? '' : cleanAvatar(msg && msg.avatar), cid,
+    this.users.set(id, { name: given || str(msg && msg.name, 24) || 'Player', status: cleanStatus(msg && msg.status), kh: pid ? sha256hex(String(msg.key || '')) : '', avatar: pid && this.noAvatar.has(pid) ? '' : cleanAvatar(msg && msg.avatar), ownAv: cleanAvatar(msg && msg.avatar), cid,
       pid, song: null, activity: cleanActivity(msg && msg.activity), seen: this.now(), vis: cleanVis(msg && msg.vis),
       play: null, ev: [], t: 0, hist: false, watchers: new Set(), watching: null, rp: '' });
     this.dropped = gone;
     const me = this.users.get(id);
+    // (a new tab with a picture: it's theirs now, everywhere; one without: it shows the one they already have)
+    if (pid) { if (me.avatar) this.shareAvatar(pid, me.avatar); else me.avatar = ([...this.users.values()].find(x => x !== me && x.pid === pid && x.avatar) || {}).avatar || ''; }
     return [...out, { to: id, msg: { t: 'welcome', you: id } }, { to: id, msg: { t: 'chatHist', list: this.chat } }, ...(me.pid ? [{ to: id, msg: this.friendsMsg(me.pid) }] : []),
       ...(this.isStaff(me.pid) ? [{ to: id, msg: { t: 'admin', role: this.roleOf(me.pid) } }, ...(this.openReports() ? [{ to: id, msg: { t: 'staffReport', open: this.openReports() } }] : [])] : []),
       ...(this.annList().length ? [{ to: id, msg: { t: 'anns', list: this.annList() } }] : []), this.broadcast()];
@@ -2395,7 +2411,11 @@ export class PresenceLogic {
     if (msg.t === 'dailyPropose') return [{ to: id, msg: this.dailyMsg(u.pid) }];
     if (msg.t === 'status') {
       const given = this.givenName(u.pid);
-      const st = cleanStatus(msg.status), name = given || (msg.name != null ? str(msg.name, 24) || u.name : u.name), av = u.pid && this.noAvatar.has(u.pid) ? '' : msg.avatar != null ? cleanAvatar(msg.avatar) : u.avatar;
+      const st = cleanStatus(msg.status), name = given || (msg.name != null ? str(msg.name, 24) || u.name : u.name), sent = msg.avatar != null ? cleanAvatar(msg.avatar) : u.ownAv;
+      // (every status carries the picture: only a change from what this tab sent before is a new one — an older tab
+      //  repeating its old picture doesn't undo one set in another)
+      const changed = sent !== u.ownAv; u.ownAv = sent;
+      const av = u.pid && this.noAvatar.has(u.pid) ? '' : changed ? sent : u.avatar;
       const told = given && msg.name != null && str(msg.name, 24) !== given ? [{ to: id, msg: { t: 'renamed', name: given } }] : [];
       const song = st === 'playing' ? cleanSong(msg.song) || (u.status === 'playing' ? u.song : null) : null;
       // (the Ranked Play match they're in: only their spectators are told, to watch it as they see it)
@@ -2405,6 +2425,7 @@ export class PresenceLogic {
       if (activity !== u.activity || st !== u.status) told.push(...[...u.watchers].map(w => ({ to: w, msg: { t: 'specActivity', id, status: st, activity } })));
       if (st === u.status && activity === u.activity && name === u.name && av === u.avatar && JSON.stringify(song) === JSON.stringify(u.song)) return told;
       u.status = st; u.activity = activity; u.name = name; u.avatar = av; u.song = song;
+      if (changed) this.shareAvatar(u.pid, av);
       return [...told, this.broadcast()];
     }
     // ── chat: a line in #lobby, or a private message to a friend (every tab of both of you)

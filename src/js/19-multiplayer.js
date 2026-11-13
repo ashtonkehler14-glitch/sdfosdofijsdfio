@@ -1035,7 +1035,7 @@ const Presence = {
     this._sent = st; this._name = name; this._av = av; this._song = sk; this._rp = rp; this._activity = activity;
     this.send({ t: 'status', status: st, activity, name, avatar: av, song, rp });
   },
-  others() { return this.players.filter(p => p.id !== this.me); },
+  others() { const pid = this.pid(); return this.players.filter(p => p.id !== this.me && !(pid && p.pid === pid)); },
   /** Is a list of online players on screen (the invite dialog) — or an invite waiting for someone's song to end? */
   watching() { return !!document.querySelector('.inv-list') || Screens.currentName === 'dashboard' || this.afterSong.size > 0; },
   refresh() { this.send({ t: 'list' }); },
