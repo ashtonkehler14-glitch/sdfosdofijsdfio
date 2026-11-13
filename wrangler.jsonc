@@ -12,12 +12,14 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "v2-ashtonkmania",
+  "account_id": "f53033c3191250aae804ddd890c8c859",
   "main": "worker/index.js",
   "compatibility_date": "2026-09-01",
   "observability": {
     "logs": {
-      "enabled": false,
-      "invocation_logs": true
+      "enabled": true,
+      "invocation_logs": false,
+      "persist": false
     }
   },
   "assets": {

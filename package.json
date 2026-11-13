@@ -1,0 +1,19 @@
+{
+  "name": "ashtonkmania",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ashtonk!mania - an osu!mania-style rhythm game.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test tests/",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^4.161.0"
+  }
+}
